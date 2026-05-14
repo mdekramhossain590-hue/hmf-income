@@ -1,0 +1,1 @@
+fetch("https://api.cloudinary.com/v1_1/demo/image/upload", {method:"POST", body: new URLSearchParams({upload_preset:"docs_upload_example_us", file:"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVR4nGNiAAAABgADNjd8qAAAAABJRU5ErkJggg=="})}).then(r=>r.json()).then(console.log)

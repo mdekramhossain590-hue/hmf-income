@@ -1,0 +1,394 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isSignedIn() { return request.auth != null; }
+
+    function isAdmin() {
+      return (isSignedIn() && request.auth.token.email == 'mdekramhossain590@gmail.com') ||
+             (isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['fullName', 'email', 'myReferCode', 'usedReferCode', 'balances', 'role', 'createdAt']) &&
+        data.fullName is string && data.fullName.size() <= 100 &&
+        data.email is string && data.email.size() <= 150 &&
+        data.myReferCode is string && data.myReferCode.size() <= 20 &&
+        data.usedReferCode is string && data.usedReferCode.size() <= 20 &&
+        data.balances is map &&
+        data.balances.keys().hasAll(['main', 'bonus', 'referral']) &&
+        (data.balances.keys().size() == 3 || (data.balances.keys().hasAll(['tasks']) && data.balances.keys().size() == 4 && data.balances.tasks is map)) &&
+        data.balances.main is number &&
+        data.balances.bonus is number &&
+        data.balances.referral is number &&
+        data.role is string && (data.role == 'user' || data.role == 'admin') &&
+        data.createdAt is timestamp &&
+        (data.keys().hasAny(['photoURL']) ? (data.photoURL is string && data.photoURL.size() <= 600) : true) &&
+        (data.keys().hasAny(['totalReferrals']) ? data.totalReferrals is number : true) &&
+        (data.keys().hasAny(['totalTasksCompleted']) ? data.totalTasksCompleted is number : true) &&
+        (data.keys().hasAny(['isActive']) ? data.isActive is bool : true);
+    }
+
+    function isValidTaskHistory(data) {
+      return data.keys().hasAll(['title', 'reward', 'completedAt']) &&
+        data.keys().size() == 3 &&
+        data.title is string && data.title.size() <= 150 &&
+        data.reward is number &&
+        data.completedAt is timestamp;
+    }
+
+    function isValidMathHistory(data) {
+      return data.keys().hasAll(['question', 'userAnswer', 'correctAnswer', 'reward', 'completedAt']) &&
+        data.keys().size() == 5 &&
+        data.question is string && data.question.size() <= 100 &&
+        data.userAnswer is string && data.userAnswer.size() <= 50 &&
+        data.correctAnswer is string && data.correctAnswer.size() <= 50 &&
+        data.reward is number &&
+        data.completedAt is timestamp;
+    }
+
+    function isValidTransactionHistory(data) {
+      return data.keys().hasAll(['amount', 'type', 'status', 'createdAt']) &&
+        data.amount is number &&
+        data.type is string && (data.type == 'deposit' || data.type == 'withdraw' || data.type == 'task' || data.type == 'referral' || data.type == 'activation') &&
+        data.status is string && data.status.size() <= 50 &&
+        data.createdAt is timestamp &&
+        (data.keys().hasAny(['fee']) ? data.fee is number : true) &&
+        (data.keys().hasAny(['netAmount']) ? data.netAmount is number : true) &&
+        (data.keys().hasAny(['wallet']) ? data.wallet is string : true) &&
+        (data.keys().hasAny(['method']) ? data.method is string : true) &&
+        (data.keys().hasAny(['account']) ? data.account is string : true) &&
+        (data.keys().hasAny(['trxId']) ? data.trxId is string : true) &&
+        (data.keys().hasAny(['updatedAt']) ? data.updatedAt is timestamp : true);
+    }
+
+    function isValidReferralHistory(data) {
+      return data.keys().hasAll(['referredEmail', 'bonusEarned', 'createdAt']) &&
+        data.referredEmail is string && data.referredEmail.size() <= 150 &&
+        data.bonusEarned is number &&
+        (data.keys().hasAny(['level']) ? data.level is number : true) &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidAdminJob(data) {
+      return data.keys().hasAll(['title', 'description', 'reward', 'link', 'type', 'requiredProofs', 'icon', 'color', 'bg', 'status', 'createdAt']) &&
+        data.keys().size() == 11 &&
+        data.title is string && data.title.size() <= 150 &&
+        data.description is string && data.description.size() <= 1000 &&
+        data.reward is number &&
+        data.link is string && data.link.size() <= 500 &&
+        data.type is string && data.type.size() <= 50 &&
+        data.requiredProofs is list && data.requiredProofs.size() <= 10 &&
+        data.icon is string && data.icon.size() <= 50 &&
+        data.color is string && data.color.size() <= 50 &&
+        data.bg is string && data.bg.size() <= 50 &&
+        data.status is string && (data.status == 'active' || data.status == 'inactive') &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidSubmission(data) {
+      return data.keys().hasAll(['jobId', 'userId', 'userEmail', 'title', 'reward', 'proofs', 'status', 'submittedAt']) &&
+        data.jobId is string && data.jobId.size() <= 128 &&
+        data.userId is string && data.userId.size() <= 128 &&
+        data.userEmail is string && data.userEmail.size() <= 150 &&
+        data.title is string && data.title.size() <= 150 &&
+        (data.keys().hasAny(['jobType']) ? data.jobType is string && data.jobType.size() <= 50 : true) &&
+        data.reward is number &&
+        data.proofs is map &&
+        data.status is string && (data.status == 'pending' || data.status == 'approved' || data.status == 'rejected') &&
+        data.submittedAt is timestamp &&
+        (data.keys().hasAny(['reviewedAt']) ? data.reviewedAt is timestamp : true);
+    }
+
+    function isValidPaymentRequest(data) {
+      return data.keys().hasAll(['userId', 'userEmail', 'amount', 'type', 'status', 'createdAt']) &&
+        data.userId is string && data.userId.size() <= 128 &&
+        data.userEmail is string && data.userEmail.size() <= 150 &&
+        (data.keys().hasAny(['transactionId']) ? data.transactionId is string && data.transactionId.size() <= 128 : true) &&
+        data.amount is number &&
+        data.type is string && (data.type == 'withdraw' || data.type == 'deposit' || data.type == 'activation') &&
+        data.status is string && (data.status == 'pending' || data.status == 'approved' || data.status == 'rejected') &&
+        data.createdAt is timestamp &&
+        (data.keys().hasAny(['wallet']) ? data.wallet is string && data.wallet.size() <= 50 : true) &&
+        (data.keys().hasAny(['method']) ? data.method is string && data.method.size() <= 50 : true) &&
+        (data.keys().hasAny(['account']) ? data.account is string && data.account.size() <= 100 : true) &&
+        (data.keys().hasAny(['fee']) ? data.fee is number : true) &&
+        (data.keys().hasAny(['netAmount']) ? data.netAmount is number : true) &&
+        (data.keys().hasAny(['trxId']) ? data.trxId is string : true) &&
+        (data.keys().hasAny(['reviewedAt']) ? data.reviewedAt is timestamp : true) &&
+        (data.keys().hasAny(['updatedAt']) ? data.updatedAt is timestamp : true);
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll(['title', 'message', 'type', 'read', 'createdAt']) &&
+        data.keys().size() == 5 &&
+        data.title is string && data.title.size() <= 150 &&
+        data.message is string && data.message.size() <= 500 &&
+        data.type is string && (data.type == 'task_approved' || data.type == 'task_rejected' || data.type == 'info' || data.type == 'payment_approved' || data.type == 'payment_rejected') &&
+        data.read is bool &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidSettingsSpin(data) {
+      return data.keys().hasAll(['rewards', 'updatedAt']) &&
+        data.keys().size() == 2 &&
+        data.rewards is list && data.rewards.size() <= 20 &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidSettingsReferral(data) {
+      return data.keys().hasAll(['fixedBonus', 'updatedAt']) &&
+        data.fixedBonus is number &&
+        (data.keys().hasAny(['gen2FixedBonus']) ? data.gen2FixedBonus is number : true) &&
+        (data.keys().hasAny(['gen3FixedBonus']) ? data.gen3FixedBonus is number : true) &&
+        (data.keys().hasAny(['percentageCommission']) ? data.percentageCommission is number : true) &&
+        (data.keys().hasAny(['gen1Percent']) ? data.gen1Percent is number : true) &&
+        (data.keys().hasAny(['gen2Percent']) ? data.gen2Percent is number : true) &&
+        (data.keys().hasAny(['gen3Percent']) ? data.gen3Percent is number : true) &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidSettingsBanner(data) {
+      return data.keys().hasAll(['text', 'link', 'updatedAt']) &&
+        data.keys().size() == 3 &&
+        data.text is string && data.text.size() <= 500 &&
+        data.link is string && data.link.size() <= 500 &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidSettingsGames(data) {
+      return data.keys().hasAll(['spinTaskReq', 'spinReferReq', 'mathTaskReq', 'mathReferReq', 'updatedAt']) &&
+        data.spinTaskReq is number &&
+        data.spinReferReq is number &&
+        data.mathTaskReq is number &&
+        data.mathReferReq is number &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidSettingsWithdraw(data) {
+      return data.keys().hasAll(['updatedAt']) &&
+        data.updatedAt is timestamp &&
+        (data.keys().hasAny(['mainMin']) ? data.mainMin is number : true) &&
+        (data.keys().hasAny(['mainFee']) ? data.mainFee is number : true) &&
+        (data.keys().hasAny(['bonusMin']) ? data.bonusMin is number : true) &&
+        (data.keys().hasAny(['bonusFee']) ? data.bonusFee is number : true) &&
+        (data.keys().hasAny(['referralMin']) ? data.referralMin is number : true) &&
+        (data.keys().hasAny(['referralFee']) ? data.referralFee is number : true) &&
+        (data.keys().hasAny(['tasksMin']) ? data.tasksMin is number : true) &&
+        (data.keys().hasAny(['tasksFee']) ? data.tasksFee is number : true);
+    }
+
+    function isValidSettingsDeposit(data) {
+      return data.keys().hasAll(['bkashNumber', 'nagadNumber', 'updatedAt']) &&
+        data.bkashNumber is string && data.bkashNumber.size() <= 20 &&
+        data.nagadNumber is string && data.nagadNumber.size() <= 20 &&
+        data.updatedAt is timestamp &&
+        (data.keys().hasAny(['minDeposit']) ? data.minDeposit is number : true) &&
+        (data.keys().hasAny(['maxDeposit']) ? data.maxDeposit is number : true);
+    }
+
+    function isValidSettingsActivation(data) {
+      return data.keys().hasAll(['updatedAt']) &&
+        data.updatedAt is timestamp &&
+        (data.keys().hasAny(['mode']) ? data.mode is string && data.mode.size() <= 20 : true) &&
+        (data.keys().hasAny(['fee']) ? data.fee is number : true);
+    }
+
+    function isValidSettingsPopup(data) {
+      return data.keys().hasAll(['telegramLink', 'skipText', 'skipLink', 'updatedAt']) &&
+        data.telegramLink is string && data.telegramLink.size() <= 500 &&
+        data.skipText is string && data.skipText.size() <= 100 &&
+        data.skipLink is string && data.skipLink.size() <= 500 &&
+        data.updatedAt is timestamp &&
+        (data.keys().hasAny(['telegramText']) ? data.telegramText is string && data.telegramText.size() <= 100 : true) &&
+        (data.keys().hasAny(['title']) ? data.title is string && data.title.size() <= 100 : true) &&
+        (data.keys().hasAny(['subtitle']) ? data.subtitle is string && data.subtitle.size() <= 500 : true);
+    }
+
+    function isValidSettingsSupport(data) {
+      return data.keys().hasAll(['updatedAt']) &&
+        data.updatedAt is timestamp &&
+        (data.keys().hasAny(['email']) ? data.email is string && data.email.size() <= 200 : true) &&
+        (data.keys().hasAny(['whatsapp']) ? data.whatsapp is string && data.whatsapp.size() <= 200 : true) &&
+        (data.keys().hasAny(['telegram']) ? data.telegram is string && data.telegram.size() <= 200 : true) &&
+        (data.keys().hasAny(['facebook']) ? data.facebook is string && data.facebook.size() <= 200 : true);
+    }
+
+    function isValidSettingsSite(data) {
+      return data.keys().hasAll(['updatedAt']) &&
+        data.updatedAt is timestamp &&
+        (data.keys().hasAny(['logoUrl']) ? data.logoUrl is string && data.logoUrl.size() <= 500 : true) &&
+        (data.keys().hasAny(['faviconUrl']) ? data.faviconUrl is string && data.faviconUrl.size() <= 500 : true);
+    }
+
+    function isValidLeaderboardEntry(data) {
+      return data.keys().hasAll(['fullName', 'bonus', 'updatedAt']) &&
+        data.fullName is string && data.fullName.size() <= 100 &&
+        data.bonus is number &&
+        (data.get('referrals', 0) is number) &&
+        (data.get('totalIncome', 0) is number) &&
+        data.updatedAt is timestamp;
+    }
+
+    match /settings/spin {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() && isValidSettingsSpin(incoming()) && incoming().updatedAt == request.time;
+    }
+
+    match /settings/referral {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() && isValidSettingsReferral(incoming()) && incoming().updatedAt == request.time;
+    }
+
+    match /settings/banner {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() && isValidSettingsBanner(incoming()) && incoming().updatedAt == request.time;
+    }
+
+    match /settings/games {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() && isValidSettingsGames(incoming()) && incoming().updatedAt == request.time;
+    }
+
+    match /settings/withdraw {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() && isValidSettingsWithdraw(incoming()) && incoming().updatedAt == request.time;
+    }
+
+    match /settings/deposit {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() && isValidSettingsDeposit(incoming()) && incoming().updatedAt == request.time;
+    }
+
+    match /settings/activation {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() && isValidSettingsActivation(incoming()) && incoming().updatedAt == request.time;
+    }
+
+    match /settings/popup {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() && isValidSettingsPopup(incoming()) && incoming().updatedAt == request.time;
+    }
+
+    match /settings/support {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() && isValidSettingsSupport(incoming()) && incoming().updatedAt == request.time;
+    }
+
+    match /settings/site {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() && isValidSettingsSite(incoming()) && incoming().updatedAt == request.time;
+    }
+
+    match /leaderboard/{userId} {
+      allow list, get: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(userId) &&
+                       isValidLeaderboardEntry(incoming()) && incoming().updatedAt == request.time;
+      allow update: if isSignedIn() && isValidId(userId) &&
+                       isValidLeaderboardEntry(incoming()) && incoming().updatedAt == request.time &&
+                       (request.auth.uid == userId || incoming().diff(existing()).affectedKeys().hasOnly(['referrals', 'totalIncome', 'bonus', 'updatedAt', 'fullName']));
+    }
+
+    match /jobs/{jobId} {
+      allow list, get: if isSignedIn();
+      allow create: if isAdmin() && isValidId(jobId) && isValidAdminJob(incoming()) && incoming().createdAt == request.time;
+      allow update: if isAdmin() && isValidId(jobId) && isValidAdminJob(incoming());
+      allow delete: if isAdmin();
+    }
+
+    match /submissions/{submissionId} {
+      allow get, list: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn() && isValidId(submissionId) && 
+                       isValidSubmission(incoming()) && 
+                       incoming().userId == request.auth.uid &&
+                       incoming().status == 'pending' &&
+                       incoming().submittedAt == request.time;
+      allow update: if isSignedIn() && isAdmin() && isValidId(submissionId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().jobId == existing().jobId &&
+                       (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'reviewedAt']));
+    }
+
+    match /payment_requests/{requestId} {
+      allow get, list: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn() && isValidId(requestId) &&
+                       isValidPaymentRequest(incoming()) &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().status == 'pending' &&
+                       incoming().createdAt == request.time;
+      allow update: if isAdmin() && isValidId(requestId) &&
+                       isValidPaymentRequest(incoming()) &&
+                       (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']));
+      allow delete: if isAdmin();
+    }
+
+    match /users/{userId} {
+      allow list, get: if isSignedIn();
+      
+      allow create: if isSignedIn() && request.auth.uid == userId && isValidId(userId) &&
+                       isValidUser(incoming()) &&
+                       incoming().createdAt == request.time &&
+                       incoming().role == 'user';
+                       
+      allow update: if isSignedIn() && isValidId(userId) &&
+                       (
+                         (isValidUser(incoming()) && request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['balances', 'photoURL', 'fullName', 'totalTasksCompleted', 'totalReferrals'])) ||
+                         (isValidUser(incoming()) && request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['balances', 'isActive'])) ||
+                         (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['balances', 'totalTasksCompleted', 'totalReferrals', 'isActive', 'role'])) ||
+                         (incoming().diff(existing()).affectedKeys().hasOnly(['balances', 'totalReferrals']) && 
+                          incoming().balances.main == existing().balances.main &&
+                          incoming().balances.bonus == existing().balances.bonus &&
+                          (existing().balances.keys().hasAny(['tasks']) ? (incoming().balances.tasks == existing().balances.tasks) : true))
+                       );
+                       
+      match /tasks/{taskId} {
+        allow list, get: if isSignedIn() && request.auth.uid == userId;
+        allow create: if isSignedIn() && (request.auth.uid == userId || isAdmin()) && isValidId(taskId) &&
+                         isValidTaskHistory(incoming()) &&
+                         incoming().completedAt == request.time;
+      }
+      
+      match /mathHistory/{mathId} {
+        allow list, get: if isSignedIn() && request.auth.uid == userId;
+        allow create: if isSignedIn() && request.auth.uid == userId && isValidId(mathId) &&
+                         isValidMathHistory(incoming()) &&
+                         incoming().completedAt == request.time;
+      }
+      
+      match /transactions/{transactionId} {
+        allow list, get: if isSignedIn() && request.auth.uid == userId;
+        allow create: if isSignedIn() && isValidId(transactionId) &&
+                         isValidTransactionHistory(incoming()) &&
+                         incoming().createdAt == request.time &&
+                         (request.auth.uid == userId || incoming().type == 'referral' || incoming().type == 'task' || isAdmin());
+        allow update: if isAdmin() && isValidId(transactionId) &&
+                         isValidTransactionHistory(incoming()) &&
+                         (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']));
+      }
+      
+      match /referrals/{referralId} {
+        allow list, get: if isSignedIn() && request.auth.uid == userId;
+        allow create: if isSignedIn() && isValidId(referralId) &&
+                         isValidReferralHistory(incoming()) &&
+                         incoming().createdAt == request.time;
+      }
+      match /notifications/{notificationId} {
+        allow list, get: if isSignedIn() && request.auth.uid == userId;
+        allow create: if isSignedIn() && (isAdmin() || request.auth.uid == userId) && isValidId(notificationId) &&
+                         isValidNotification(incoming()) &&
+                         incoming().createdAt == request.time;
+        allow update: if isSignedIn() && request.auth.uid == userId && isValidId(notificationId) &&
+                         isValidNotification(incoming()) &&
+                         (incoming().diff(existing()).affectedKeys().hasOnly(['read']));
+      }
+    }
+  }
+}
