@@ -102,8 +102,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             link.href = data.faviconUrl;
           }
         }
-      } catch (e) {
-        console.error("Error fetching site settings:", e);
+      } catch (e: any) {
+        if (e.message?.includes('Quota exceeded')) {
+          console.error("Firestore Quota exceeded. Site may not function properly until reset.");
+        } else {
+          console.error("Error fetching site settings:", e);
+        }
       }
     };
     

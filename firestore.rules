@@ -284,7 +284,7 @@ service cloud.firestore {
     }
 
     match /settings/site {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow write: if isAdmin() && isValidSettingsSite(incoming()) && incoming().updatedAt == request.time;
     }
 
