@@ -6,7 +6,7 @@ import { useLanguage } from '../components/LanguageProvider';
 import { auth, db } from '../lib/firebase';
 import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { ActivationPopup } from '../components/ActivationPopup';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { playTapSound, playSuccessSound } from '../lib/sound';
 import toast from 'react-hot-toast';
 
@@ -86,10 +86,17 @@ export function Dashboard() {
             <MoreVertical className="w-6 h-6" />
           </button>
           
-          {menuOpen && (
-            <>
-              <div className="fixed inset-0 z-20" onClick={() => setMenuOpen(false)}></div>
-              <div className="absolute top-10 left-0 bg-slate-900 rounded-2xl shadow-2xl border border-slate-700 py-3 w-64 z-30 overflow-hidden shadow-black/40">
+          <AnimatePresence>
+            {menuOpen && (
+              <>
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-20" onClick={() => setMenuOpen(false)}></motion.div>
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.95, y: -10 }} 
+                  animate={{ opacity: 1, scale: 1, y: 0 }} 
+                  exit={{ opacity: 0, scale: 0.95, y: -10 }} 
+                  transition={{ duration: 0.2 }}
+                  className="absolute top-10 left-0 bg-slate-900 rounded-2xl shadow-2xl border border-slate-700 py-3 w-64 z-30 overflow-hidden shadow-black/40"
+                >
                 <div className="px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white mx-3 rounded-xl mb-3 shadow-sm border border-blue-500/30 font-bold text-sm tracking-wide flex items-center gap-2">
                   <img src={siteSettings?.logoUrl || "/favicon.svg"} alt="Logo" className="w-8 h-8 rounded-lg bg-white object-cover shadow-sm" />
                   <div>
@@ -184,9 +191,10 @@ export function Dashboard() {
                     <div className="bg-slate-800 p-1.5 rounded-full"><LogOut className="w-4 h-4 text-red-400" /></div> {t('log_out')}
                   </button>
                 </div>
-              </div>
+              </motion.div>
             </>
           )}
+          </AnimatePresence>
 
           {loading ? (
             <div className="w-12 h-12 rounded-full bg-gray-200 dark:bg-slate-700 animate-pulse shadow-lg border-2 border-transparent"></div>
@@ -202,11 +210,11 @@ export function Dashboard() {
             </div>
           )}
           <div>
-            <p className="text-xs text-gray-500 dark:text-gray-400">{t('welcome_back')}</p>
+            <p className="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest leading-none">{t('welcome_back')}</p>
             {loading ? (
-               <div className="h-6 w-32 bg-gray-200 dark:bg-slate-700 rounded animate-pulse mt-0.5"></div>
+               <div className="h-7 w-32 bg-gray-200 dark:bg-slate-700 rounded animate-pulse mt-1"></div>
             ) : (
-               <h3 className="font-bold text-lg leading-tight text-gray-800 dark:text-white">{profile?.fullName || t('loading')}</h3>
+               <h3 className="font-display font-medium text-xl leading-none text-gray-800 dark:text-white mt-1 tracking-tight">{profile?.fullName || t('loading')}</h3>
             )}
           </div>
         </div>
@@ -248,9 +256,9 @@ export function Dashboard() {
               <div>
                 <p className="text-[10px] uppercase tracking-[0.2em] font-black opacity-60 mb-1">Digital Wallet</p>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-xl font-black italic tracking-tighter">HMF <span className="text-blue-400">INCOME</span></h2>
-                  <div className="w-px h-4 bg-white/20"></div>
-                  <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest px-2 py-0.5 bg-emerald-500/10 rounded-full border border-emerald-500/20">Platinum</span>
+                  <h2 className="text-2xl font-display font-black italic tracking-tighter drop-shadow-sm">HMF <span className="text-blue-400">INCOME</span></h2>
+                  <div className="w-px h-5 bg-white/20"></div>
+                  <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest px-2.5 py-1 bg-emerald-500/10 rounded-full border border-emerald-500/20 font-mono">Platinum</span>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -281,7 +289,7 @@ export function Dashboard() {
                   {loading ? (
                     <div className="h-10 w-40 bg-white/10 rounded-lg animate-pulse mt-1"></div>
                   ) : (
-                    <h1 className="text-3xl font-black tracking-tight text-white mt-1">
+                    <h1 className="text-4xl font-display font-black tracking-tight text-white mt-1">
                       {showBalance ? (
                         `৳ ${((profile?.balances?.main || 0) + (profile?.balances?.bonus || 0) + (profile?.balances?.referral || 0) + Object.values(profile?.balances?.tasks || {}).reduce((a, b) => (a as number) + (b as number), 0)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                       ) : (
@@ -304,12 +312,12 @@ export function Dashboard() {
             {/* Card Bottom: User & ID */}
             <div className="flex justify-between items-end border-t border-white/10 pt-4">
               <div>
-                <p className="text-[9px] text-white/40 font-bold mb-0.5 uppercase tracking-widest">Card Holder</p>
-                <p className="text-[13px] font-bold tracking-wide uppercase truncate max-w-[150px]">{profile?.fullName}</p>
+                <p className="text-[9px] text-white/40 font-bold mb-0.5 uppercase tracking-widest font-sans">Card Holder</p>
+                <p className="text-[14px] font-bold tracking-wide uppercase truncate max-w-[150px] font-display">{profile?.fullName}</p>
               </div>
               <div className="text-right">
-                <p className="text-[9px] text-white/40 font-bold mb-0.5 uppercase tracking-widest">Member ID</p>
-                <p className="text-[13px] font-mono font-black tracking-[0.2em]">{profile?.myReferCode || '####'}</p>
+                <p className="text-[9px] text-white/40 font-bold mb-0.5 uppercase tracking-widest font-sans">Member ID</p>
+                <p className="text-[14px] font-mono font-bold tracking-[0.1em]">{profile?.myReferCode || '####'}</p>
               </div>
             </div>
           </div>
@@ -319,7 +327,7 @@ export function Dashboard() {
       {/* Referral Code Section */}
       <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 shadow-sm ring-1 ring-slate-100 dark:ring-slate-700/50 mb-6 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/[0.03] dark:bg-indigo-500/[0.05] blur-2xl rounded-full"></div>
-        <h3 className="font-bold text-slate-800 dark:text-white mb-3 text-sm flex items-center gap-2 relative z-10">
+        <h3 className="font-display font-medium text-slate-800 dark:text-white mb-3 text-base flex items-center gap-2 relative z-10 tracking-tight">
           <Link className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
           Share to Earn More
         </h3>
@@ -352,7 +360,7 @@ export function Dashboard() {
       {/* Earnings Breakdown Section */}
       <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 shadow-sm ring-1 ring-slate-100 dark:ring-slate-700/50 mb-6 relative overflow-hidden">
         <details className="group">
-          <summary className="flex justify-between items-center font-bold text-slate-800 dark:text-white text-sm cursor-pointer list-none outline-none">
+          <summary className="flex justify-between items-center font-display font-semibold tracking-tight text-slate-800 dark:text-white text-base cursor-pointer list-none outline-none">
             <span className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
               Earnings Breakdown
@@ -367,9 +375,9 @@ export function Dashboard() {
               {loading ? (
                 <div className="h-6 w-20 bg-slate-200 dark:bg-slate-700 rounded animate-pulse"></div>
               ) : showBalance ? (
-                <span className="font-bold text-slate-800 dark:text-white text-lg tracking-tight">৳ {(profile?.balances?.main || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span className="font-display font-semibold text-slate-800 dark:text-white text-xl tracking-tight">৳ {(profile?.balances?.main || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               ) : (
-                <span className="font-bold text-slate-800 dark:text-white text-lg tracking-tight">৳ ***</span>
+                <span className="font-display font-semibold text-slate-800 dark:text-white text-xl tracking-tight">৳ ***</span>
               )}
             </div>
             <div className="flex gap-3">
@@ -378,9 +386,9 @@ export function Dashboard() {
                 {loading ? (
                   <div className="h-6 w-16 bg-slate-200 dark:bg-slate-700 rounded animate-pulse mt-1"></div>
                 ) : showBalance ? (
-                  <span className="font-semibold text-slate-800 dark:text-white text-lg tracking-tight mt-1">৳ {(profile?.balances?.bonus || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  <span className="font-display font-semibold text-slate-800 dark:text-white text-xl tracking-tight mt-1">৳ {(profile?.balances?.bonus || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 ) : (
-                  <span className="font-semibold text-slate-800 dark:text-white text-lg tracking-tight mt-1">৳ ***</span>
+                  <span className="font-display font-semibold text-slate-800 dark:text-white text-xl tracking-tight mt-1">৳ ***</span>
                 )}
               </div>
               <div className="flex-1 bg-white dark:bg-slate-900/50 p-3 rounded-xl flex flex-col ring-1 ring-slate-100 dark:ring-slate-700/50">
@@ -388,9 +396,9 @@ export function Dashboard() {
                 {loading ? (
                   <div className="h-6 w-16 bg-slate-200 dark:bg-slate-700 rounded animate-pulse mt-1"></div>
                 ) : showBalance ? (
-                  <span className="font-semibold text-slate-800 dark:text-white text-lg tracking-tight mt-1">৳ {(profile?.balances?.referral || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  <span className="font-display font-semibold text-slate-800 dark:text-white text-xl tracking-tight mt-1">৳ {(profile?.balances?.referral || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 ) : (
-                  <span className="font-semibold text-slate-800 dark:text-white text-lg tracking-tight mt-1">৳ ***</span>
+                  <span className="font-display font-semibold text-slate-800 dark:text-white text-xl tracking-tight mt-1">৳ ***</span>
                 )}
               </div>
             </div>
@@ -406,9 +414,9 @@ export function Dashboard() {
                       {loading ? (
                         <div className="h-4 w-12 bg-slate-200 dark:bg-slate-700 rounded animate-pulse"></div>
                       ) : showBalance ? (
-                        <span className="text-[13px] font-semibold text-slate-800 dark:text-slate-200">৳ {balance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        <span className="text-[14px] font-display font-semibold text-slate-800 dark:text-slate-200">৳ {balance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                       ) : (
-                        <span className="text-[13px] font-semibold text-slate-800 dark:text-slate-200">৳ ***</span>
+                        <span className="text-[14px] font-display font-semibold text-slate-800 dark:text-slate-200">৳ ***</span>
                       )}
                     </div>
                   );

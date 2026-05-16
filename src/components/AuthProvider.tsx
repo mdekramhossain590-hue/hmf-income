@@ -28,6 +28,7 @@ export interface UserProfile {
 export interface SiteSettings {
   logoUrl?: string;
   faviconUrl?: string;
+  telegramUrl?: string;
 }
 
 interface AuthContextType {

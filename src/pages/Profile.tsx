@@ -229,7 +229,7 @@ export function Profile() {
           ) : (
             <div className="flex flex-col items-center justify-center mb-1 group cursor-pointer" onClick={handleEditName}>
               <div className="flex items-center gap-2">
-                <h2 className="text-2xl font-black tracking-tight text-slate-800 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors drop-shadow-sm">{profile?.fullName || t('loading')}</h2>
+                <h2 className="text-2xl font-display font-medium tracking-tight text-slate-800 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors drop-shadow-sm">{profile?.fullName || t('loading')}</h2>
                 <div className="w-6 h-6 rounded-full bg-slate-100/50 dark:bg-slate-800/50 flex items-center justify-center text-slate-400 opacity-0 group-hover:opacity-100 transition-all backdrop-blur-sm">
                   <Edit2 className="w-3 h-3" />
                 </div>
@@ -255,8 +255,8 @@ export function Profile() {
                <Link className="w-6 h-6" />
              </div>
              <div className="text-left flex-1">
-               <h3 className="font-bold text-slate-800 dark:text-white text-base">Referral Hub</h3>
-               <p className="text-[10px] uppercase font-black text-slate-400 tracking-wider">Your personal codes</p>
+               <h3 className="font-display font-medium tracking-tight text-slate-800 dark:text-white text-base">{t('refer')}</h3>
+               <p className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">{t('refer')}</p>
              </div>
           </div>
           
@@ -264,7 +264,7 @@ export function Profile() {
              <div className="flex justify-between items-center bg-white dark:bg-slate-900/80 p-4 rounded-2xl shadow-[0_2px_10px_rgb(0,0,0,0.02)] border border-slate-100 dark:border-slate-800 group/box hover:border-indigo-100 dark:hover:border-indigo-500/30 transition-colors">
                <div className="flex flex-col text-left">
                  <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold tracking-widest uppercase mb-1">My Code</span>
-                 <span className="font-mono font-black text-indigo-600 dark:text-indigo-400 text-lg tracking-tight select-all">{profile?.myReferCode || '...'}</span>
+                 <span className="font-display font-semibold text-indigo-600 dark:text-indigo-400 text-lg tracking-tight select-all">{profile?.myReferCode || '...'}</span>
                </div>
                {profile?.myReferCode && (
                  <button onClick={() => copyToClipboard(profile.myReferCode, 'my')} className="p-3 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 transition-all active:scale-90 opacity-80 hover:opacity-100 group-hover/box:shadow-sm">
@@ -277,7 +277,7 @@ export function Profile() {
                <div className="flex justify-between items-center bg-white dark:bg-slate-900/80 p-4 rounded-2xl shadow-[0_2px_10px_rgb(0,0,0,0.02)] border border-slate-100 dark:border-slate-800">
                  <div className="flex flex-col text-left">
                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold tracking-widest uppercase mb-1">Used Code</span>
-                   <span className="font-mono font-bold text-slate-500 dark:text-slate-400 text-lg tracking-tight opacity-70">{profile.usedReferCode}</span>
+                   <span className="font-display font-semibold text-slate-500 dark:text-slate-400 text-lg tracking-tight opacity-70">{profile.usedReferCode}</span>
                  </div>
                  <button onClick={() => copyToClipboard(profile.usedReferCode, 'used')} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 transition-all active:scale-90 opacity-70 hover:opacity-100">
                    {copiedUsedCode ? <Check className="w-5 h-5 text-emerald-500" /> : <Copy className="w-5 h-5" />}

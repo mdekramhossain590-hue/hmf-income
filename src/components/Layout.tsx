@@ -7,6 +7,7 @@ import { NotificationListener } from './NotificationListener';
 import { Onboarding } from './Onboarding';
 import { WelcomePopup } from './WelcomePopup';
 import toast from 'react-hot-toast';
+import { AnimatePresence, motion } from 'motion/react';
 
 export function Layout() {
   const { user, siteSettings } = useAuth();
@@ -36,11 +37,35 @@ export function Layout() {
     });
   };
 
+  const pageVariants = {
+    initial: { opacity: 0, y: 15, scale: 0.98 },
+    in: { opacity: 1, y: 0, scale: 1 },
+    out: { opacity: 0, y: -15, scale: 0.98 }
+  };
+
+  const pageTransition = {
+    type: 'tween',
+    ease: 'easeInOut',
+    duration: 0.3
+  };
+
   return (
     <div className="max-w-[480px] mx-auto bg-slate-50 dark:bg-slate-950 min-h-screen relative shadow-2xl overflow-x-hidden pb-[90px] transition-colors">
       <NotificationListener />
       
-      <Outlet />
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={location.pathname}
+          initial="initial"
+          animate="in"
+          exit="out"
+          variants={pageVariants}
+          transition={pageTransition}
+          className="w-full h-full min-h-screen relative"
+        >
+          <Outlet />
+        </motion.div>
+      </AnimatePresence>
       
       {user && (
         <>
@@ -50,7 +75,7 @@ export function Layout() {
             href={siteSettings?.telegramUrl || "https://t.me/"}
             target="_blank"
             rel="noopener noreferrer"
-            className="fixed bottom-[90px] right-5 z-50 w-14 h-14 bg-gradient-to-tr from-[#0088cc] to-[#39abef] text-white rounded-full flex items-center justify-center shadow-lg shadow-[#0088cc]/40 hover:scale-110 active:scale-95 transition-transform"
+            className="fixed bottom-[90px] right-5 z-50 w-14 h-14 bg-gradient-to-tr from-[#0088cc] to-[#39abef] text-white rounded-full flex items-center justify-center shadow-lg shadow-[#0088cc]/40 hover:scale-110 hover:-translate-y-1 active:scale-95 transition-all duration-300 ring-2 ring-white/10 dark:ring-slate-800"
           >
             <Send className="w-6 h-6 ml-[-2px] mt-[2px]" />
           </a>

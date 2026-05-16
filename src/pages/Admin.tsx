@@ -31,7 +31,7 @@ export function AdminPanel() {
     title: 'Welcome!',
     subtitle: 'Join our official channel for updates'
   });
-  const [siteSettings, setSiteSettings] = useState({ logoUrl: '', faviconUrl: '' });
+  const [siteSettings, setSiteSettings] = useState({ logoUrl: '', faviconUrl: '', telegramUrl: '' });
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   
   const [newJob, setNewJob] = useState({
@@ -170,7 +170,8 @@ export function AdminPanel() {
         const data = docSnap.data();
         setSiteSettings({
           logoUrl: data.logoUrl || '',
-          faviconUrl: data.faviconUrl || ''
+          faviconUrl: data.faviconUrl || '',
+          telegramUrl: data.telegramUrl || ''
         });
       }
     }, (err) => console.log(err));
@@ -1045,6 +1046,10 @@ export function AdminPanel() {
                     <input type="file" accept="image/*" onChange={(e) => handleUploadImage(e, 'favicon')} className="absolute inset-0 opacity-0 cursor-pointer" />
                   </div>
                 </div>
+              </div>
+              <div className="group">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-emerald-500">Floating Telegram URL</label>
+                <input type="text" value={siteSettings.telegramUrl} onChange={(e) => setSiteSettings(prev => ({ ...prev, telegramUrl: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-[11px] font-bold ring-1 ring-slate-100 dark:ring-slate-800" placeholder="https://t.me/yourchannel" />
               </div>
             </div>
             

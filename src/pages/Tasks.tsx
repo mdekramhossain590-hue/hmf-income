@@ -5,6 +5,7 @@ import { useAuth } from '../components/AuthProvider';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { useLanguage } from '../components/LanguageProvider';
+import { motion, AnimatePresence } from 'motion/react';
 
 const getIcon = (iconName: string) => {
   switch (iconName) {
@@ -75,7 +76,7 @@ export function Tasks() {
 
   return (
     <div className="pt-6 px-4 pb-20">
-      <h2 className="text-2xl font-black mb-6 tracking-tight text-slate-800 dark:text-white text-center">{t('my_tasks')}</h2>
+      <h2 className="text-2xl font-display font-black mb-6 tracking-tight text-slate-800 dark:text-white text-center">{t('my_tasks')}</h2>
       
       {/* Tabs */}
       <div className="flex bg-slate-100 dark:bg-slate-900/50 p-1 rounded-xl mb-4 ring-1 ring-slate-200 dark:ring-slate-800">
@@ -93,8 +94,15 @@ export function Tasks() {
         </button>
       </div>
 
+      <AnimatePresence mode="wait">
       {activeTab === 'jobs' && (
-        <>
+        <motion.div 
+          key="jobs-tab"
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: 20 }}
+          transition={{ duration: 0.2 }}
+        >
           <div className="flex gap-2 overflow-x-auto pb-4 mb-2 no-scrollbar px-1">
             {categories.map(cat => (
               <button 
@@ -117,10 +125,10 @@ export function Tasks() {
                     <div className={`w-12 h-12 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700/50 flex items-center justify-center mb-3 text-indigo-500`}>
                       <Icon className="w-6 h-6" />
                     </div>
-                    <h4 className="font-bold text-[11px] leading-tight mb-1 text-slate-800 dark:text-slate-200 flex items-center justify-center gap-1 w-full truncate">
+                    <h4 className="font-display font-bold text-[12px] leading-tight mb-1 text-slate-800 dark:text-slate-200 flex items-center justify-center gap-1 w-full truncate">
                       <span className="truncate">{job.title}</span>
                     </h4>
-                    <span className="text-indigo-600 dark:text-indigo-400 text-sm font-black mb-3 tracking-tight">৳ {job.reward}</span>
+                    <span className="text-indigo-600 dark:text-indigo-400 text-[15px] font-display font-bold mb-3 tracking-tight drop-shadow-sm">৳ {job.reward}</span>
                     <button 
                       onClick={() => startTask(job.id)}
                       className="w-full bg-slate-900 dark:bg-indigo-600 hover:bg-slate-800 dark:hover:bg-indigo-500 text-white py-2 rounded-xl text-xs font-bold transition-all active:scale-95"
@@ -132,11 +140,18 @@ export function Tasks() {
               })
             )}
           </div>
-        </>
+        </motion.div>
       )}
 
       {activeTab === 'history' && (
-        <div className="space-y-3">
+        <motion.div 
+          key="history-tab"
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -20 }}
+          transition={{ duration: 0.2 }}
+          className="space-y-3"
+        >
           {taskHistory.length === 0 ? (
             <div className="text-center py-10 text-gray-400">
               <History className="w-12 h-12 mx-auto mb-3 opacity-20" />
@@ -150,18 +165,19 @@ export function Tasks() {
                     <List className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="text-sm font-bold text-gray-800 dark:text-white">{historyItem.title}</h4>
+                    <h4 className="text-[15px] font-display font-bold text-gray-800 dark:text-white">{historyItem.title}</h4>
                     <p className="text-xs text-gray-500">{historyItem.completedAt?.toDate().toLocaleString() || 'Just now'}</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-black text-green-600 dark:text-green-400">+৳{historyItem.reward}</p>
+                  <p className="text-sm font-display font-black text-green-600 dark:text-green-400">+৳{historyItem.reward}</p>
                 </div>
               </div>
             ))
           )}
-        </div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { collection, query, orderBy, onSnapshot, doc, writeBatch, increment, ser
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import toast from 'react-hot-toast';
+import { motion, AnimatePresence } from 'motion/react';
 
 export function Wallet() {
   const { profile, refreshProfile } = useAuth();
@@ -269,30 +270,30 @@ export function Wallet() {
 
   return (
     <div className="pt-6 px-4 pb-24">
-      <h2 className="text-2xl font-black mb-6 tracking-tight text-slate-800 dark:text-white text-center">{t('wallet')}</h2>
+      <h2 className="text-2xl font-display font-black mb-6 tracking-tight text-slate-800 dark:text-white text-center">{t('wallet')}</h2>
       
       <div className="flex overflow-x-auto gap-4 pb-4 mb-2 no-scrollbar px-1">
         <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-2xl p-5 text-white shadow-lg min-w-[160px] text-center flex-shrink-0 relative overflow-hidden border border-indigo-400/30">
            <div className="absolute top-0 right-0 w-24 h-24 bg-white opacity-10 blur-xl rounded-full pointer-events-none"></div>
            <p className="text-xs font-semibold opacity-80 mb-1 uppercase tracking-wider">Main Wallet</p>
-           <h3 className="text-3xl font-black tracking-tight">৳ {profile?.balances?.main?.toFixed(2) || '0.00'}</h3>
+           <h3 className="text-3xl font-display font-black tracking-tight">৳ {profile?.balances?.main?.toFixed(2) || '0.00'}</h3>
         </div>
         <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-5 text-white shadow-lg min-w-[160px] text-center flex-shrink-0 relative overflow-hidden border border-emerald-400/30">
            <div className="absolute top-0 left-0 w-24 h-24 bg-white opacity-10 blur-xl rounded-full pointer-events-none"></div>
            <p className="text-xs font-semibold opacity-80 mb-1 uppercase tracking-wider">Bonus</p>
-           <h3 className="text-3xl font-black tracking-tight">৳ {profile?.balances?.bonus?.toFixed(2) || '0.00'}</h3>
+           <h3 className="text-3xl font-display font-black tracking-tight">৳ {profile?.balances?.bonus?.toFixed(2) || '0.00'}</h3>
         </div>
         <div className="bg-gradient-to-br from-purple-500 to-violet-600 rounded-2xl p-5 text-white shadow-lg min-w-[160px] text-center flex-shrink-0 relative overflow-hidden border border-purple-400/30">
            <div className="absolute bottom-0 right-0 w-24 h-24 bg-white opacity-10 blur-xl rounded-full pointer-events-none"></div>
            <p className="text-xs font-semibold opacity-80 mb-1 uppercase tracking-wider">Referral</p>
-           <h3 className="text-3xl font-black tracking-tight">৳ {profile?.balances?.referral?.toFixed(2) || '0.00'}</h3>
+           <h3 className="text-3xl font-display font-black tracking-tight">৳ {profile?.balances?.referral?.toFixed(2) || '0.00'}</h3>
         </div>
         {['Facebook', 'Gmail', 'Instagram', 'Sell Accounts', 'Microjob', 'Typing', 'Watch Ads', 'Other'].map((taskName) => {
           const balance = profile?.balances?.tasks?.[taskName] || 0;
           return (
             <div key={taskName} className="bg-slate-800 dark:bg-slate-800 rounded-2xl p-5 text-white shadow-lg min-w-[160px] text-center flex-shrink-0 relative overflow-hidden border border-slate-700">
                <p className="text-xs font-semibold opacity-80 mb-1 leading-tight uppercase tracking-wider text-slate-400">{taskName}</p>
-               <h3 className="text-2xl font-black tracking-tight text-white">৳ {balance.toFixed(2)}</h3>
+               <h3 className="text-2xl font-display font-black tracking-tight text-white">৳ {balance.toFixed(2)}</h3>
             </div>
           );
         })}
@@ -325,7 +326,7 @@ export function Wallet() {
         <div className="bg-white/70 backdrop-blur-md p-5 rounded-2xl shadow-sm border border-gray-100 dark:bg-slate-800/80 dark:border-slate-700">
           <div className="bg-blue-50 border border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 p-3 rounded-xl mb-4 text-center">
             <p className="text-xs text-gray-600 dark:text-gray-300">{t('our_number')}</p>
-            <h3 className="text-lg font-bold text-[#0D47A1] dark:text-blue-400 tracking-wider my-1">
+            <h3 className="text-lg font-display font-bold text-[#0D47A1] dark:text-blue-400 tracking-wider my-1">
               {depositMethod === 'bKash' ? depositSettings.bkashNumber : depositMethod === 'Nagad' ? depositSettings.nagadNumber : 'Select a method first'}
             </h3>
             <p className="text-[10px] text-red-500 dark:text-red-400">{t('send_money_only')}</p>
@@ -420,7 +421,7 @@ export function Wallet() {
       {activeTab === 'history' && (
         <div className="space-y-4">
           <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700">
-            <h3 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-4">Balance Timeline</h3>
+            <h3 className="text-sm font-display font-bold text-gray-700 dark:text-gray-300 mb-4">Balance Timeline</h3>
             {runningBalData.length > 0 ? (
               <div className="h-48 w-full">
                 <ResponsiveContainer width="100%" height="100%">
