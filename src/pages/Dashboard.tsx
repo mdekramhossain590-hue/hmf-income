@@ -4,10 +4,11 @@ import { useAuth } from '../components/AuthProvider';
 import { useState, useEffect } from 'react';
 import { useLanguage } from '../components/LanguageProvider';
 import { auth, db } from '../lib/firebase';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { ActivationPopup } from '../components/ActivationPopup';
 import { motion } from 'motion/react';
 import { playTapSound, playSuccessSound } from '../lib/sound';
+import toast from 'react-hot-toast';
 
 export function Dashboard() {
   const { profile, loading, logOut, refreshProfile, siteSettings } = useAuth();
@@ -48,20 +49,20 @@ export function Dashboard() {
   }, [profile?.isActive, profile?.role]);
 
   useEffect(() => {
-    const fetchBanner = async () => {
-      try {
-        const bannerDoc = await getDoc(doc(db, "settings", "banner"));
-        if (bannerDoc.exists()) {
-          setBanner(bannerDoc.data() as { text: string, link: string });
-        }
-      } catch (e) {
-        console.error("Error fetching banner", e);
+    // Subscribe to banner
+    const unsubBanner = onSnapshot(doc(db, "settings", "banner"), (docSnap) => {
+      if (docSnap.exists()) {
+        setBanner(docSnap.data() as { text: string, link: string });
       }
-    };
-    fetchBanner();
+    }, (error) => {
+      console.warn("Banner config not available yet:", error.message);
+    });
     
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      unsubBanner();
+    };
   }, []);
 
   const timeData = {
@@ -209,7 +210,8 @@ export function Dashboard() {
             )}
           </div>
         </div>
-        <button className="w-10 h-10 rounded-full bg-white/70 dark:bg-slate-800/70 backdrop-blur-md border border-white/30 dark:border-slate-700 flex items-center justify-center text-[#0D47A1] dark:text-blue-400 relative shadow-sm">
+
+        <button onClick={() => toast('No new notifications', { icon: '📭', style: { borderRadius: '10px', background: '#1e293b', color: '#fff' }})} className="w-10 h-10 rounded-full bg-white/70 dark:bg-slate-800/70 backdrop-blur-md border border-white/30 dark:border-slate-700 flex items-center justify-center text-[#0D47A1] dark:text-blue-400 relative shadow-sm hover:scale-105 active:scale-95 transition-transform">
           <Bell className="w-5 h-5" />
           <span className="absolute top-2 right-2 w-2 h-2 bg-[#ff4d8d] rounded-full"></span>
         </button>
@@ -229,41 +231,89 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* Total Balance Card */}
-      <div className="bg-gradient-to-br from-indigo-900 via-slate-800 to-slate-900 dark:from-slate-800 dark:via-slate-900 dark:to-black rounded-3xl p-6 text-white shadow-2xl mb-6 relative overflow-hidden border border-indigo-500/20">
-        <div className="absolute -right-10 -top-10 w-40 h-40 bg-indigo-500 opacity-10 blur-3xl rounded-full pointer-events-none"></div>
-        <div className="absolute -left-10 -bottom-10 w-40 h-40 bg-blue-500 opacity-10 blur-3xl rounded-full pointer-events-none"></div>
-        <div className="flex justify-between items-start relative z-10">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <p className="text-sm opacity-90">{t('total_balance')}</p>
-              <button 
-                onClick={() => setShowBalance(!showBalance)} 
-                className="opacity-70 hover:opacity-100 transition-opacity"
-              >
-                {showBalance ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
+      {/* Total Balance Credit Card */}
+      <div className="relative mb-8 pt-2">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full aspect-[1.58/1] bg-gradient-to-br from-[#1e293b] via-[#0f172a] to-[#1e1b4b] rounded-[24px] p-6 text-white shadow-2xl relative overflow-hidden border border-white/5 group"
+        >
+          {/* Animated Background Orbs */}
+          <div className="absolute top-0 right-0 w-48 h-48 bg-blue-600/20 blur-[60px] rounded-full -translate-y-12 translate-x-12"></div>
+          <div className="absolute bottom-0 left-0 w-48 h-48 bg-purple-600/20 blur-[60px] rounded-full translate-y-12 -translate-x-12"></div>
+          
+          <div className="relative z-10 h-full flex flex-col justify-between">
+            {/* Card Top */}
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.2em] font-black opacity-60 mb-1">Digital Wallet</p>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xl font-black italic tracking-tighter">HMF <span className="text-blue-400">INCOME</span></h2>
+                  <div className="w-px h-4 bg-white/20"></div>
+                  <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest px-2 py-0.5 bg-emerald-500/10 rounded-full border border-emerald-500/20">Platinum</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-10 h-10 rounded-xl bg-white/5 backdrop-blur-md border border-white/10 flex items-center justify-center">
+                  <Calculator className="w-5 h-5 text-white/40" />
+                </div>
+              </div>
             </div>
-            {loading ? (
-              <div className="h-10 w-32 bg-slate-700 rounded animate-pulse mb-4 mt-1"></div>
-            ) : (
-              <h1 className="text-4xl font-black mb-4 tracking-tight text-white drop-shadow-md">
-                {showBalance ? (
-                  `৳ ${((profile?.balances?.main || 0) + (profile?.balances?.bonus || 0) + (profile?.balances?.referral || 0) + Object.values(profile?.balances?.tasks || {}).reduce((a, b) => (a as number) + (b as number), 0)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                ) : (
-                  "৳ ******"
-                )}
-              </h1>
-            )}
+
+            {/* Card Middle: Chip & Balance */}
+            <div className="mt-4">
+              <div className="flex items-end justify-between">
+                <div>
+                  <div className="w-10 h-8 bg-gradient-to-br from-yellow-200 via-yellow-400 to-amber-500 rounded-md mb-3 flex flex-col gap-1 p-1.5 shadow-inner">
+                    <div className="w-full h-px bg-black/10"></div>
+                    <div className="w-full h-px bg-black/10"></div>
+                    <div className="w-full h-px bg-black/10"></div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest">{t('total_balance')}</p>
+                    <button 
+                      onClick={() => setShowBalance(!showBalance)} 
+                      className="p-1.5 bg-white/5 hover:bg-white/10 rounded-lg transition-colors border border-white/5"
+                    >
+                      {showBalance ? <EyeOff className="w-3 h-3 text-white/60" /> : <Eye className="w-3 h-3 text-white/60" />}
+                    </button>
+                  </div>
+                  {loading ? (
+                    <div className="h-10 w-40 bg-white/10 rounded-lg animate-pulse mt-1"></div>
+                  ) : (
+                    <h1 className="text-3xl font-black tracking-tight text-white mt-1">
+                      {showBalance ? (
+                        `৳ ${((profile?.balances?.main || 0) + (profile?.balances?.bonus || 0) + (profile?.balances?.referral || 0) + Object.values(profile?.balances?.tasks || {}).reduce((a, b) => (a as number) + (b as number), 0)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                      ) : (
+                        "৳ ••••••"
+                      )}
+                    </h1>
+                  )}
+                </div>
+                
+                <button 
+                  onClick={() => navigate('/wallet?tab=withdraw')} 
+                  className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-blue-600/30 active:scale-95 transition-all flex items-center gap-2"
+                >
+                  <Wallet className="w-3.5 h-3.5" />
+                  {t('withdraw')}
+                </button>
+              </div>
+            </div>
+
+            {/* Card Bottom: User & ID */}
+            <div className="flex justify-between items-end border-t border-white/10 pt-4">
+              <div>
+                <p className="text-[9px] text-white/40 font-bold mb-0.5 uppercase tracking-widest">Card Holder</p>
+                <p className="text-[13px] font-bold tracking-wide uppercase truncate max-w-[150px]">{profile?.fullName}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[9px] text-white/40 font-bold mb-0.5 uppercase tracking-widest">Member ID</p>
+                <p className="text-[13px] font-mono font-black tracking-[0.2em]">{profile?.myReferCode || '####'}</p>
+              </div>
+            </div>
           </div>
-          <button 
-            onClick={() => navigate('/wallet?tab=withdraw')} 
-            className="bg-white/10 hover:bg-white/20 backdrop-blur-md text-white border border-white/20 px-5 py-2 rounded-xl text-sm font-semibold shadow-lg active:scale-95 transition mt-2 flex items-center justify-center gap-1.5"
-          >
-            <Wallet className="w-4 h-4" />
-            {t('withdraw')}
-          </button>
-        </div>
+        </motion.div>
       </div>
       
       {/* Referral Code Section */}
@@ -482,20 +532,6 @@ export function Dashboard() {
             <p className="text-[10px] text-gray-500 font-medium truncate">Get Help</p>
           </div>
         </motion.div>
-      </div>
-
-      {/* Banner */}
-      <div className="bg-gradient-to-br from-[#7c3aed] to-[#ff4d8d] rounded-2xl p-4 flex items-center justify-between text-white shadow-lg mb-6">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
-            <Send className="w-6 h-6" />
-          </div>
-          <div>
-            <h4 className="font-bold text-sm">{t('join_telegram_support')}</h4>
-            <p className="text-[10px] opacity-80">{t('daily_updates_payment_proof')}</p>
-          </div>
-        </div>
-        <button className="bg-white text-[#7c3aed] text-xs font-bold px-3 py-1.5 rounded-lg">{t('join')}</button>
       </div>
       
       {showActivationPopup && (

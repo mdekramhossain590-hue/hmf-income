@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react';
 import { Copy, Link as LinkIcon, MessageCircle, Send, Users, History } from 'lucide-react';
 import { useAuth } from '../components/AuthProvider';
-import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { useLanguage } from '../components/LanguageProvider';
+import { collection, query, orderBy, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import toast from 'react-hot-toast';
 
 export function Refer() {
   const { profile } = useAuth();
+  const { t } = useLanguage();
   const [referrals, setReferrals] = useState<any[]>([]);
+  const [referralBonus, setReferralBonus] = useState(10);
 
   useEffect(() => {
     if (!auth.currentUser) return;
@@ -23,6 +26,18 @@ export function Refer() {
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, `users/${auth.currentUser?.uid}/referrals`);
     });
+
+    const fetchBonus = async () => {
+      try {
+        const refDoc = await getDoc(doc(db, "settings", "referral"));
+        if (refDoc.exists()) {
+          setReferralBonus(refDoc.data().fixedBonus || 10);
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+    fetchBonus();
 
     return () => unsubscribe();
   }, []);
@@ -65,12 +80,12 @@ export function Refer() {
 
   return (
     <div className="pt-6 px-4 text-center pb-24">
-      <h2 className="text-2xl font-black mb-6 tracking-tight text-slate-800 dark:text-white">Invite & Earn</h2>
+      <h2 className="text-2xl font-black mb-6 tracking-tight text-slate-800 dark:text-white">{t('invite_earn')}</h2>
       
       <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-2xl p-5 text-white shadow-lg mb-6 flex justify-between items-center relative overflow-hidden border border-indigo-500/30">
         <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 blur-2xl rounded-full pointer-events-none"></div>
         <div className="text-left relative z-10">
-          <p className="text-xs font-semibold opacity-80 mb-1 uppercase tracking-widest">Referral Earnings</p>
+          <p className="text-xs font-semibold opacity-80 mb-1 uppercase tracking-widest">{t('referral_earnings')}</p>
           <h3 className="text-3xl font-black tracking-tight">৳ {profile?.balances?.referral?.toFixed(2) || '0.00'}</h3>
         </div>
         <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center relative z-10 shadow-inner">
@@ -80,12 +95,12 @@ export function Refer() {
 
       <img src="https://cdn-icons-png.flaticon.com/512/3039/3039396.png" alt="Refer" className="w-32 mx-auto mb-6 drop-shadow-lg" />
       
-      <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-        Share your referral code and earn <span className="font-bold text-[#22c55e] dark:text-green-400">৳10</span> for every active user!
+      <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 px-2">
+        {t('invite_earn_desc').replace('bonus', `৳${referralBonus}`)}
       </p>
       
       <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl ring-1 ring-indigo-100 dark:ring-indigo-500/20 shadow-sm mb-4 relative text-left">
-        <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 mb-2 uppercase tracking-wide">Your Referral Code</p>
+        <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 mb-2 uppercase tracking-wide">{t('your_referral_code')}</p>
         <div className="bg-indigo-50/50 dark:bg-slate-900/50 rounded-xl p-3 pr-12 border border-indigo-100/50 dark:border-slate-700">
           <h3 className="text-lg font-black tracking-widest text-indigo-600 dark:text-indigo-400 select-all">
             {profile?.myReferCode || <span className="animate-pulse">Loading...</span>}
@@ -100,7 +115,7 @@ export function Refer() {
       </div>
 
       <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl ring-1 ring-amber-100 dark:ring-amber-500/20 shadow-sm mb-6 relative text-left overflow-hidden">
-        <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 mb-2 uppercase tracking-wide">Your Referral Link</p>
+        <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 mb-2 uppercase tracking-wide">{t('your_referral_link')}</p>
         <div className="bg-amber-50/50 dark:bg-slate-900/50 rounded-xl p-3 pr-12 border border-amber-100/50 dark:border-slate-700">
           <p className="text-[13px] font-semibold text-amber-600 dark:text-amber-400 break-all select-all">
             {referLink || <span className="animate-pulse">Loading...</span>}
@@ -141,24 +156,24 @@ export function Refer() {
       </div>
 
       <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm ring-1 ring-slate-100 dark:ring-slate-700/50 text-left mb-6">
-        <h4 className="font-bold text-slate-800 dark:text-white mb-3 tracking-tight">How it works</h4>
+        <h4 className="font-bold text-slate-800 dark:text-white mb-3 tracking-tight">{t('how_it_works')}</h4>
         <ol className="text-[13px] text-slate-600 dark:text-slate-400 space-y-3 list-decimal list-inside font-medium leading-relaxed">
-          <li>Share your unique referral code with your friends.</li>
-          <li>Your friend must sign up using your referral code.</li>
-          <li>Once your friend completes their first deposit or job, the <span className="font-bold text-emerald-500 dark:text-emerald-400">৳10</span> bonus will be credited to your balance automatically.</li>
+          <li>{t('step1')}</li>
+          <li>{t('step2')}</li>
+          <li>{t('step3').replace('bonus', `৳${referralBonus}`)}</li>
         </ol>
       </div>
 
       {/* Referral History */}
       <div className="text-left">
         <h4 className="font-bold text-slate-800 dark:text-white mb-3 flex items-center gap-2 tracking-tight">
-          <div className="p-1.5 bg-slate-100 dark:bg-slate-700 rounded-lg text-indigo-500"><History className="w-4 h-4" /></div> Referral History
+          <div className="p-1.5 bg-slate-100 dark:bg-slate-700 rounded-lg text-indigo-500"><History className="w-4 h-4" /></div> {t('referral_history')}
         </h4>
         
         <div className="space-y-3">
           {referrals.length === 0 ? (
             <div className="text-center py-6 text-slate-400 bg-white dark:bg-slate-800 rounded-2xl ring-1 ring-slate-100 dark:ring-slate-700/50 font-medium text-sm">
-              <p className="text-sm">No successful referrals yet.</p>
+              <p className="text-sm">{t('no_referrals_yet')}</p>
             </div>
           ) : (
             referrals.map((ref) => (
@@ -173,7 +188,7 @@ export function Refer() {
                     </h4>
                     <div className="flex items-center gap-2 mt-0.5">
                       <p className="text-[10px] text-gray-500 font-medium">
-                        Reg. Date: {ref.createdAt?.toDate ? ref.createdAt.toDate().toLocaleDateString() : 'Just now'}
+                        {t('reg_date')}: {ref.createdAt?.toDate ? ref.createdAt.toDate().toLocaleDateString() : 'Just now'}
                       </p>
                       <span className="text-[10px] px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-md font-bold uppercase">
                         Gen {ref.level || 1}
@@ -183,7 +198,7 @@ export function Refer() {
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-black text-green-600 dark:text-green-400">+৳{ref.bonusEarned}</p>
-                  <p className="text-[9px] text-slate-400 uppercase font-bold">Earned</p>
+                  <p className="text-[9px] text-slate-400 uppercase font-bold">{t('earned')}</p>
                 </div>
               </div>
             ))

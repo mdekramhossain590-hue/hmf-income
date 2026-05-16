@@ -1,5 +1,5 @@
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { Home, Briefcase, Wallet, User as UserIcon, Send } from 'lucide-react';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Home, Briefcase, Wallet, User as UserIcon, Send, Bell } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAuth } from './AuthProvider';
 import { useLanguage } from './LanguageProvider';
@@ -9,8 +9,9 @@ import { WelcomePopup } from './WelcomePopup';
 import toast from 'react-hot-toast';
 
 export function Layout() {
-  const { user } = useAuth();
+  const { user, siteSettings } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const { t } = useLanguage();
 
   if (!user && location.pathname !== '/login') {
@@ -24,9 +25,21 @@ export function Layout() {
     { to: '/profile', icon: UserIcon, label: t('profile') },
   ];
 
+  const handleNotificationClick = () => {
+    toast('No new notifications', {
+      icon: '📭',
+      style: {
+        borderRadius: '10px',
+        background: '#1e293b',
+        color: '#fff',
+      },
+    });
+  };
+
   return (
     <div className="max-w-[480px] mx-auto bg-slate-50 dark:bg-slate-950 min-h-screen relative shadow-2xl overflow-x-hidden pb-[90px] transition-colors">
       <NotificationListener />
+      
       <Outlet />
       
       {user && (
@@ -34,31 +47,32 @@ export function Layout() {
           <WelcomePopup />
           <Onboarding />
           <a
-            href="#"
-            onClick={(e) => { e.preventDefault(); toast.success('Redirecting to Telegram Group...'); }}
-            className="fixed bottom-[100px] right-6 z-50 w-14 h-14 bg-[#2AABEE] text-white rounded-full flex items-center justify-center shadow-lg shadow-[#2AABEE]/40 hover:scale-110 active:scale-95 transition-transform"
+            href={siteSettings?.telegramUrl || "https://t.me/"}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="fixed bottom-[90px] right-5 z-50 w-14 h-14 bg-gradient-to-tr from-[#0088cc] to-[#39abef] text-white rounded-full flex items-center justify-center shadow-lg shadow-[#0088cc]/40 hover:scale-110 active:scale-95 transition-transform"
           >
             <Send className="w-6 h-6 ml-[-2px] mt-[2px]" />
           </a>
-          <div className="fixed bottom-4 left-0 right-0 mx-auto w-[calc(100%-2rem)] max-w-[448px] bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl px-6 py-3.5 flex justify-between items-center z-50 shadow-[0_8px_32px_rgba(0,0,0,0.08)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.3)] border border-white/50 dark:border-slate-800/50 transition-colors">
+          <div className="fixed bottom-0 left-0 right-0 mx-auto w-full max-w-[480px] bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl rounded-t-3xl px-6 py-4 flex justify-between items-center z-50 shadow-[0_-8px_32px_rgba(0,0,0,0.04)] dark:shadow-[0_-8px_32px_rgba(0,0,0,0.2)] border-t border-white/50 dark:border-slate-800/50 transition-colors">
             {navItems.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
                 className={({ isActive }) =>
                   cn(
-                    "flex flex-col items-center cursor-pointer transition-all duration-300 relative",
-                    isActive ? "text-indigo-600 dark:text-indigo-400 scale-110" : "text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:scale-105"
+                    "flex flex-col items-center justify-center cursor-pointer transition-all duration-300 relative px-2",
+                    isActive ? "text-indigo-600 dark:text-indigo-400 -translate-y-1" : "text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
                   )
                 }
               >
                 {({ isActive }) => (
                   <>
                     {isActive && (
-                      <div className="absolute -top-3 w-1 h-1 bg-indigo-600 dark:bg-indigo-400 rounded-full"></div>
+                      <div className="absolute -top-4 w-1.5 h-1.5 bg-indigo-600 dark:bg-indigo-400 rounded-full shadow-[0_0_8px_rgba(79,70,229,0.8)]"></div>
                     )}
-                    <item.icon className="w-5 h-5 mb-1" />
-                    <span className="text-[10px] font-semibold tracking-wide">{item.label}</span>
+                    <item.icon className={cn("w-6 h-6 mb-1.5 transition-transform duration-300", isActive && "scale-110")} />
+                    <span className="text-[10px] font-bold tracking-wide">{item.label}</span>
                   </>
                 )}
               </NavLink>

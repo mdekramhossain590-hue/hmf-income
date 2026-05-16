@@ -2,6 +2,8 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
+import { useLanguage } from './LanguageProvider';
+import { ShieldAlert, LogOut } from 'lucide-react';
 
 export interface UserProfile {
   fullName: string;
@@ -19,6 +21,8 @@ export interface UserProfile {
   isActive?: boolean;
   totalReferrals?: number;
   totalTasksCompleted?: number;
+  isBlocked?: boolean;
+  deviceId?: string;
 }
 
 export interface SiteSettings {
@@ -52,6 +56,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     logoUrl: '',
     faviconUrl: ''
   });
+
+  const { t } = useLanguage();
 
   const refreshProfile = async (uid?: string) => {
     const targetUid = uid || auth.currentUser?.uid;
@@ -126,7 +132,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider value={{ user, profile, loading, siteSettings, refreshProfile, logOut }}>
-      {children}
+      {profile?.isBlocked ? (
+        <div className="fixed inset-0 z-[9999] bg-white dark:bg-slate-950 flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-500">
+          <div className="w-20 h-20 bg-rose-100 dark:bg-rose-900/30 rounded-full flex items-center justify-center text-rose-600 dark:text-rose-400 mb-6 shadow-xl shadow-rose-500/20">
+            <ShieldAlert className="w-10 h-10" />
+          </div>
+          <h1 className="text-2xl font-black text-slate-900 dark:text-white mb-2">{t('account_blocked_title')}</h1>
+          <p className="text-slate-500 dark:text-slate-400 mb-8 max-w-xs">{t('account_blocked_desc')}</p>
+          <button 
+            onClick={logOut}
+            className="flex items-center gap-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-6 py-3 rounded-xl font-bold hover:scale-105 active:scale-95 transition-all shadow-lg"
+          >
+            <LogOut className="w-5 h-5" />
+            {t('log_out')}
+          </button>
+        </div>
+      ) : children}
     </AuthContext.Provider>
   );
 }

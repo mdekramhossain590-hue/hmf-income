@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthProvider';
-import { collection, query, onSnapshot, doc, writeBatch, serverTimestamp, setDoc, orderBy, deleteDoc, increment } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, writeBatch, serverTimestamp, setDoc, orderBy, deleteDoc, increment, updateDoc } from 'firebase/firestore';
 import { processReferralCommission } from '../lib/referral';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
-import { Trash2, CheckCircle, XCircle } from 'lucide-react';
+import { Trash2, CheckCircle, XCircle, Users, ShieldAlert, ShieldCheck, Wallet, ListChecks, Settings, User, Eye, Calculator, MessageSquare, Globe, Coins, Megaphone, Gamepad2, CreditCard, Lock, BellRing, RefreshCw, Smartphone, Mail, Camera, MessageCircle, Send } from 'lucide-react';
+import { motion } from 'motion/react';
 import toast from 'react-hot-toast';
 
 export function AdminPanel() {
   const { profile } = useAuth();
-  const [activeTab, setActiveTab] = useState<'jobs' | 'submissions' | 'settings' | 'requests'>('submissions');
+  const [activeTab, setActiveTab] = useState<'jobs' | 'submissions' | 'settings' | 'requests' | 'users'>('submissions');
   
   const [jobs, setJobs] = useState<any[]>([]);
+  const [userList, setUserList] = useState<any[]>([]);
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [paymentRequests, setPaymentRequests] = useState<any[]>([]);
   const [spinRewards, setSpinRewards] = useState<number[]>([1, 2, 5, 10, 0, 50, 100, 0]);
@@ -173,7 +175,10 @@ export function AdminPanel() {
       }
     }, (err) => console.log(err));
 
-    return () => { unsubJ(); unsubS(); unsubP(); unsubSpin(); unsubReferral(); unsubBanner(); unsubGameSettings(); unsubWithdrawSettings(); unsubDepositSettings(); unsubActivationSettings(); unsubPopupSettings(); unsubSupportSettings(); unsubSiteSettings(); };
+    const uQ = query(collection(db, "users"), orderBy("createdAt", "desc"));
+    const unsubU = onSnapshot(uQ, (snap) => setUserList(snap.docs.map(d => ({id: d.id, ...d.data()}))), (err) => handleFirestoreError(err, OperationType.GET, 'users'));
+
+    return () => { unsubJ(); unsubS(); unsubP(); unsubSpin(); unsubReferral(); unsubBanner(); unsubGameSettings(); unsubWithdrawSettings(); unsubDepositSettings(); unsubActivationSettings(); unsubPopupSettings(); unsubSupportSettings(); unsubSiteSettings(); unsubU(); };
   }, [isAdmin]);
 
   if (!isAdmin) return <div className="p-10 text-center">Access Denied</div>;
@@ -534,106 +539,222 @@ export function AdminPanel() {
     }
   };
 
+  const handleToggleBlock = async (userId: string, currentStatus: boolean) => {
+    try {
+      await updateDoc(doc(db, "users", userId), {
+        isBlocked: !currentStatus,
+        updatedAt: serverTimestamp()
+      });
+      toast.success(currentStatus ? 'User Unblocked' : 'User Blocked');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `users/${userId}`);
+    }
+  };
+
   return (
     <div className="pt-6 px-4 pb-20">
       <h2 className="text-2xl font-bold mb-4 text-[#0D47A1] dark:text-blue-400">Admin Panel</h2>
-      <div className="flex bg-gray-200 dark:bg-slate-800 p-1 rounded-xl mb-6 flex-wrap gap-1">
-        <button onClick={() => setActiveTab('submissions')} className={`flex-1 min-w-[70px] py-1 px-1 rounded-lg text-[11px] font-bold transition ${activeTab === 'submissions' ? 'bg-white shadow dark:bg-slate-700 text-[#0D47A1] dark:text-blue-400' : 'text-gray-500'}`}>Submissions</button>
-        <button onClick={() => setActiveTab('jobs')} className={`flex-1 min-w-[70px] py-1 px-1 rounded-lg text-[11px] font-bold transition ${activeTab === 'jobs' ? 'bg-white shadow dark:bg-slate-700 text-[#0D47A1] dark:text-blue-400' : 'text-gray-500'}`}>Jobs</button>
-        <button onClick={() => setActiveTab('requests')} className={`flex-1 min-w-[70px] py-1 px-1 rounded-lg text-[11px] font-bold transition ${activeTab === 'requests' ? 'bg-white shadow dark:bg-slate-700 text-[#0D47A1] dark:text-blue-400' : 'text-gray-500'}`}>Payments</button>
-        <button onClick={() => setActiveTab('settings')} className={`flex-1 min-w-[70px] py-1 px-1 rounded-lg text-[11px] font-bold transition ${activeTab === 'settings' ? 'bg-white shadow dark:bg-slate-700 text-[#0D47A1] dark:text-blue-400' : 'text-gray-500'}`}>Settings</button>
+      <div className="flex bg-slate-100 dark:bg-slate-900/50 p-1.5 rounded-[20px] mb-8 flex-wrap gap-1.5 ring-1 ring-slate-200 dark:ring-slate-800">
+        {[
+          { id: 'submissions', label: 'Review', icon: CheckCircle, color: 'text-orange-500' },
+          { id: 'requests', label: 'Payments', icon: Wallet, color: 'text-emerald-500' },
+          { id: 'jobs', label: 'Jobs', icon: ListChecks, color: 'text-blue-500' },
+          { id: 'users', label: 'Users', icon: Users, color: 'text-indigo-500' },
+          { id: 'settings', label: 'Configs', icon: Settings, color: 'text-rose-500' }
+        ].map(tab => (
+          <button 
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as any)} 
+            className={`flex-1 min-w-[80px] py-2.5 px-2 rounded-[14px] text-[11px] font-black uppercase tracking-wider transition-all flex flex-col items-center gap-1 active:scale-95 ${
+              activeTab === tab.id 
+                ? 'bg-white dark:bg-slate-800 shadow-md shadow-slate-200 dark:shadow-black/20 text-slate-900 dark:text-white ring-1 ring-slate-200 dark:ring-slate-700' 
+                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+            }`}
+          >
+            <tab.icon className={`w-4 h-4 ${activeTab === tab.id ? tab.color : 'text-slate-400'}`} />
+            {tab.label}
+          </button>
+        ))}
       </div>
 
-      {activeTab === 'jobs' && (
-        <div>
-          <form onSubmit={handleCreateJob} className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 space-y-3 mb-6">
-            <h3 className="font-bold text-lg dark:text-white">Create New Job</h3>
-            <input type="text" placeholder="Title" required value={newJob.title} onChange={e => setNewJob({...newJob, title: e.target.value})} className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded" />
-            <textarea placeholder="Description" required value={newJob.description} onChange={e => setNewJob({...newJob, description: e.target.value})} className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded" />
-            
-            <select value={newJob.type} onChange={e => setNewJob({...newJob, type: e.target.value})} className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded text-sm">
-              <option value="Facebook">Facebook</option>
-              <option value="Gmail">Gmail</option>
-              <option value="Instagram">Instagram</option>
-              <option value="Sell Accounts">Sell Accounts</option>
-              <option value="Microjob">Microjob</option>
-              <option value="Typing">Typing</option>
-              <option value="Watch Ads">Watch Ads</option>
-              <option value="Other">Other</option>
-            </select>
+      {activeTab === 'submissions' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between mb-2 px-1">
+            <h3 className="font-black dark:text-white uppercase tracking-tight text-sm">Pending Reviews ({submissions.filter(s => s.status === 'pending').length})</h3>
+          </div>
 
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <label className="text-[12px] text-gray-500 font-bold block mb-1">Icon</label>
-                <select value={newJob.icon} onChange={e => setNewJob({...newJob, icon: e.target.value})} className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded text-sm">
-                  <option value="Facebook">Facebook (ThumbsUp)</option>
-                  <option value="Instagram">Instagram (Camera)</option>
-                  <option value="Youtube">Youtube (MonitorPlay)</option>
-                  <option value="Mail">Mail</option>
-                  <option value="Monitor">Monitor</option>
-                  <option value="Smartphone">Smartphone</option>
-                  <option value="Video">Video</option>
-                  <option value="Copy">Copy</option>
-                  <option value="Send">Send</option>
-                  <option value="Key">Key</option>
-                  <option value="MessageCircle">MessageCircle</option>
-                  <option value="Heart">Heart</option>
-                  <option value="Star">Star</option>
-                  <option value="User">User</option>
-                  <option value="Music">Music</option>
-                  <option value="Globe">Globe</option>
-                  <option value="Twitter">Twitter / X (Hash)</option>
-                  <option value="Linkedin">LinkedIn (Briefcase)</option>
+          {submissions.filter(s => s.status === 'pending').length === 0 && (
+            <div className="text-center py-16 bg-white dark:bg-slate-800/40 rounded-3xl border-2 border-dashed border-slate-100 dark:border-slate-800">
+              <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300 dark:text-slate-600">
+                <CheckCircle className="w-8 h-8" />
+              </div>
+              <p className="text-sm font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Inbox Zero! No pending reviews</p>
+            </div>
+          )}
+          
+          {submissions.filter(s => s.status === 'pending').map(sub => (
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              key={sub.id} 
+              className="bg-white dark:bg-slate-800 p-5 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 relative overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 w-24 h-24 bg-orange-500/[0.03] blur-2xl rounded-full"></div>
+              
+              <div className="flex justify-between items-start mb-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-orange-500 bg-orange-100 dark:bg-orange-900/30 px-2 py-0.5 rounded-full border border-orange-200 dark:border-orange-800/30">Action Needed</span>
+                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{new Date(sub.submittedAt?.toDate()).toLocaleDateString()}</span>
+                  </div>
+                  <h4 className="font-black text-lg text-slate-900 dark:text-white leading-tight uppercase italic tracking-tighter">{sub.title}</h4>
+                  <div className="flex items-center gap-2 mt-1">
+                    <div className="w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500">
+                      <User className="w-3 h-3" />
+                    </div>
+                    <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 truncate max-w-[150px]">{sub.userEmail}</p>
+                    <div className="w-1 h-1 rounded-full bg-slate-300"></div>
+                    <p className="text-xs font-black text-blue-600 dark:text-blue-400">৳{sub.reward}</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-700/50 mb-5">
+                <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 border-b border-slate-200 dark:border-slate-700 pb-2">Proof Submission</p>
+                <div className="space-y-2">
+                  {sub.proofs.text && <div className="flex flex-col"><span className="text-[10px] font-bold text-slate-400 uppercase">Comment:</span><p className="text-sm font-medium dark:text-slate-200">{sub.proofs.text}</p></div>}
+                  {sub.proofs.username && <div className="flex flex-col"><span className="text-[10px] font-bold text-slate-400 uppercase">Username:</span><p className="text-sm font-mono font-bold text-indigo-500">{sub.proofs.username}</p></div>}
+                  {sub.proofs.password && <div className="flex flex-col"><span className="text-[10px] font-bold text-slate-400 uppercase">Password:</span><p className="text-sm font-mono font-bold text-rose-500">{sub.proofs.password}</p></div>}
+                  {sub.proofs.videoUrl && <div className="flex flex-col"><span className="text-[10px] font-bold text-slate-400 uppercase">Video URL:</span><a href={sub.proofs.videoUrl} target="_blank" rel="noreferrer" className="text-sm font-bold text-blue-500 underline truncate">{sub.proofs.videoUrl}</a></div>}
+                  {sub.proofs.screenshot && (
+                    <div className="pt-2">
+                      <a href={sub.proofs.screenshot} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-xs font-black text-white bg-slate-900 dark:bg-slate-700 px-4 py-2 rounded-xl hover:scale-[1.02] active:scale-95 transition-all w-fit shadow-md">
+                        <Eye className="w-3.5 h-3.5" /> View Proof Image
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <button 
+                  onClick={() => reviewSubmission(sub.id, sub.userId, sub.reward, sub.title, sub.jobType || 'Other', 'approved')} 
+                  className="bg-emerald-500 hover:bg-emerald-600 text-white py-3 rounded-2xl font-black uppercase tracking-widest text-[11px] flex justify-center items-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-95 transition-all"
+                >
+                  <CheckCircle className="w-4 h-4"/> Approve
+                </button>
+                <button 
+                  onClick={() => reviewSubmission(sub.id, sub.userId, sub.reward, sub.title, sub.jobType || 'Other', 'rejected')} 
+                  className="bg-rose-500 hover:bg-rose-600 text-white py-3 rounded-2xl font-black uppercase tracking-widest text-[11px] flex justify-center items-center gap-2 shadow-lg shadow-rose-500/20 active:scale-95 transition-all"
+                >
+                  <XCircle className="w-4 h-4" /> Reject
+                </button>
+              </div>
+            </motion.div>
+          ))}
+          
+          <div className="pt-6">
+            <h3 className="font-black dark:text-white uppercase tracking-tight text-xs mb-4 opacity-50 px-1">Recently Reviewed</h3>
+            <div className="grid gap-2">
+              {submissions.filter(s => s.status !== 'pending').slice(0, 5).map(sub => (
+                <div key={sub.id} className="bg-white dark:bg-slate-800 p-3 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex justify-between items-center transition-all hover:bg-slate-50 dark:hover:bg-slate-800/60">
+                  <div className="flex-1 overflow-hidden pr-4">
+                    <p className="font-bold text-xs text-slate-800 dark:text-slate-200 truncate uppercase tracking-tight italic">{sub.title}</p>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium truncate">{sub.userEmail}</p>
+                  </div>
+                  <div className={`text-[9px] px-3 py-1 rounded-full font-black uppercase tracking-widest ${sub.status === 'approved' ? 'bg-emerald-100 text-emerald-600 border border-emerald-200' : 'bg-rose-100 text-rose-600 border border-rose-200'}`}>
+                    {sub.status}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'jobs' && (
+        <div className="space-y-6">
+          <form onSubmit={handleCreateJob} className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 space-y-4">
+            <h3 className="font-black text-lg dark:text-white uppercase tracking-tight italic">Create New Task</h3>
+            <div className="grid gap-3">
+              <input type="text" placeholder="Task Title" required value={newJob.title} onChange={e => setNewJob({...newJob, title: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold placeholder:text-slate-400" />
+              <textarea placeholder="Job Description / Instructions" required value={newJob.description} onChange={e => setNewJob({...newJob, description: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold h-24 placeholder:text-slate-400" />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-1 block">Category</label>
+                <select value={newJob.type} onChange={e => setNewJob({...newJob, type: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold">
+                  {['Facebook', 'Gmail', 'Instagram', 'Sell Accounts', 'Microjob', 'Typing', 'Watch Ads', 'Other'].map(cat => <option key={cat} value={cat}>{cat}</option>)}
                 </select>
               </div>
-              <div className="flex-1">
-                <label className="text-[12px] text-gray-500 font-bold block mb-1">Icon Color Class</label>
-                <input type="text" placeholder="e.g. text-blue-500" required value={newJob.color} onChange={e => setNewJob({...newJob, color: e.target.value})} className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded text-sm" />
-              </div>
-              <div className="flex-1">
-                <label className="text-[12px] text-gray-500 font-bold block mb-1">Bg Color Class</label>
-                <input type="text" placeholder="e.g. bg-blue-100" required value={newJob.bg} onChange={e => setNewJob({...newJob, bg: e.target.value})} className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded text-sm" />
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-1 block">Reward (৳)</label>
+                <input type="number" placeholder="0.00" required value={newJob.reward} onChange={e => setNewJob({...newJob, reward: Number(e.target.value)})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-black text-blue-600" />
               </div>
             </div>
-            
-            <input type="text" placeholder="Action Link (e.g., youtube link)" required value={newJob.link} onChange={e => setNewJob({...newJob, link: e.target.value})} className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded" />
-            <input type="number" placeholder="Reward Amount" required value={newJob.reward} onChange={e => setNewJob({...newJob, reward: Number(e.target.value)})} className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded" />
-            
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <label className="text-[12px] text-gray-500 font-bold block mb-1">Allowed Completions Per User</label>
-                <input type="number" required min="0" placeholder="0 for unlimited" value={newJob.allowedCompletions} onChange={e => setNewJob({...newJob, allowedCompletions: Number(e.target.value)})} className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded text-sm" />
-                <span className="text-[10px] text-gray-400">0 = unlimited</span>
-              </div>
-              <div className="flex-1">
-                <label className="text-[12px] text-gray-500 font-bold block mb-1">Deadline (Optional)</label>
-                <input type="date" value={newJob.deadline} onChange={e => setNewJob({...newJob, deadline: e.target.value})} className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded text-sm" />
+
+            <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-3xl space-y-3">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 pl-1">Appearance & Requirements</p>
+              <div className="grid grid-cols-2 gap-2">
+                <select value={newJob.icon} onChange={e => setNewJob({...newJob, icon: e.target.value})} className="bg-white dark:bg-slate-800 border-none px-3 py-2 rounded-xl text-xs font-bold shadow-sm">
+                  <option value="Facebook">Facebook Profile</option>
+                  <option value="Instagram">Instagram Page</option>
+                  <option value="Youtube">Youtube Display</option>
+                  <option value="Mail">Email / Gmail</option>
+                  <option value="Monitor">Computer / Desktop</option>
+                  <option value="Smartphone">Mobile Device</option>
+                  <option value="Video">Video Player</option>
+                  <option value="Copy">Copy Task</option>
+                  <option value="Send">Direct Message</option>
+                  <option value="Key">Lock / Secure</option>
+                  <option value="MessageCircle">Chatting</option>
+                  <option value="Heart">Likes / Reaction</option>
+                  <option value="Star">Review / Star</option>
+                  <option value="User">User Account</option>
+                  <option value="Globe">Global Link</option>
+                </select>
+                <input type="text" placeholder="Icon Color (e.g. text-blue-500)" value={newJob.color} onChange={e => setNewJob({...newJob, color: e.target.value})} className="bg-white dark:bg-slate-800 border-none px-3 py-2 rounded-xl text-xs font-bold shadow-sm" />
               </div>
             </div>
+
+            <div className="grid gap-3">
+              <input type="text" placeholder="Task Redirect Link (Full URL)" required value={newJob.link} onChange={e => setNewJob({...newJob, link: e.target.value})} className="w-full bg-slate-100 dark:bg-slate-900/50 border-none px-4 py-3 rounded-2xl text-xs font-bold italic text-blue-500" />
+            </div>
             
-            <div className="pt-2">
-              <label className="text-sm font-bold dark:text-gray-300">Required Proofs:</label>
-              <div className="flex gap-2 flex-wrap mt-2">
+            <div className="space-y-3">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Required Proofs To Check</p>
+              <div className="flex gap-2 flex-wrap">
                 {['text', 'screenshot', 'username', 'password', 'videoUrl'].map(p => (
-                  <button type="button" key={p} onClick={() => toggleProof(p)} className={`px-3 py-1 rounded-full text-xs font-bold border ${newJob.requiredProofs.includes(p) ? 'bg-[#0D47A1] text-white' : 'bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-gray-300'}`}>
+                  <button 
+                    type="button" 
+                    key={p} 
+                    onClick={() => toggleProof(p)} 
+                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all active:scale-90 ${
+                      newJob.requiredProofs.includes(p) 
+                      ? 'bg-slate-900 text-white border-slate-900 shadow-lg shadow-slate-900/20' 
+                      : 'bg-white text-slate-500 border-slate-100 dark:bg-slate-800 dark:border-slate-700'
+                    }`}
+                  >
                     {p}
                   </button>
                 ))}
               </div>
             </div>
             
-            <button type="submit" className="w-full bg-green-500 text-white font-bold py-2 rounded-xl">Create Job</button>
+            <button type="submit" className="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black uppercase tracking-[0.2em] py-4 rounded-2xl shadow-xl hover:scale-[1.02] active:scale-95 transition-all text-xs">Publish Job Now</button>
           </form>
 
-          <div className="space-y-3">
+          <div className="grid gap-3">
+            <h3 className="font-black dark:text-white uppercase tracking-tight text-xs mb-1 px-1 opacity-50">Active Tasks ({jobs.length})</h3>
             {jobs.map(job => (
-              <div key={job.id} className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm flex justify-between items-center border border-gray-100 dark:border-slate-700">
-                <div>
-                  <h4 className="font-bold dark:text-white">{job.title}</h4>
-                  <p className="text-xs text-gray-500">Reward: ৳{job.reward} | Needs: {job.requiredProofs.join(', ')}</p>
+              <div key={job.id} className="bg-white dark:bg-slate-800 p-4 rounded-3xl shadow-sm flex justify-between items-center border border-slate-100 dark:border-slate-700 transition-all hover:border-blue-200">
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-bold dark:text-white truncate uppercase tracking-tight text-sm">{job.title}</h4>
+                  <p className="text-[10px] font-black text-blue-500/80 uppercase tracking-widest">৳{job.reward} &bull; {job.type}</p>
                 </div>
-                <button onClick={() => handleDeleteJob(job.id)} className="p-2 text-red-500 bg-red-50 rounded-full dark:bg-red-900/30">
-                  <Trash2 className="w-5 h-5" />
+                <button onClick={() => handleDeleteJob(job.id)} className="p-3 text-rose-500 bg-rose-50 dark:bg-rose-900/30 rounded-2xl hover:scale-105 active:scale-90 transition-all ml-4">
+                  <Trash2 className="w-4 h-4" />
                 </button>
               </div>
             ))}
@@ -641,289 +762,345 @@ export function AdminPanel() {
         </div>
       )}
 
-      {activeTab === 'submissions' && (
-        <div className="space-y-3">
-          {submissions.filter(s => s.status === 'pending').length === 0 && <div className="text-center p-10 dark:text-gray-400">No pending submissions</div>}
-          
-          {submissions.filter(s => s.status === 'pending').map(sub => (
-            <div key={sub.id} className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-orange-200 dark:border-orange-500/30">
-              <div className="flex justify-between items-start mb-2">
-                <div>
-                  <h4 className="font-bold dark:text-white">{sub.title}</h4>
-                  <p className="text-xs text-gray-500">{sub.userEmail} &bull; ৳{sub.reward}</p>
-                </div>
-                <span className="text-[10px] bg-orange-100 text-orange-600 px-2 py-1 rounded font-bold uppercase">Pending</span>
+      {activeTab === 'requests' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between mb-2 px-1">
+            <h3 className="font-black dark:text-white uppercase tracking-tight text-sm">Payment Queue ({paymentRequests.filter(req => req.status === 'pending').length})</h3>
+          </div>
+
+          {paymentRequests.filter(req => req.status === 'pending').length === 0 && (
+            <div className="text-center py-16 bg-white dark:bg-slate-800/40 rounded-3xl border-2 border-dashed border-slate-100 dark:border-slate-800">
+              <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-400">
+                <CheckCircle className="w-8 h-8" />
               </div>
+              <p className="text-sm font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">All caught up! No requests</p>
+            </div>
+          )}
+          
+          {paymentRequests.filter(req => req.status === 'pending').map(req => (
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              key={req.id} 
+              className={`bg-white dark:bg-slate-800 p-5 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 relative overflow-hidden ring-1 ${
+                req.type === 'withdraw' ? 'ring-rose-500/10' : 'ring-emerald-500/10'
+              }`}
+            >
+              <div className="absolute top-0 right-0 w-24 h-24 bg-slate-500/[0.03] blur-3xl rounded-full"></div>
               
-              <div className="bg-gray-50 dark:bg-slate-700 p-3 rounded-lg text-sm mb-3">
-                {sub.proofs.text && <p className="mb-1 dark:text-gray-300"><strong>Text:</strong> {sub.proofs.text}</p>}
-                {sub.proofs.username && <p className="mb-1 dark:text-gray-300"><strong>Username:</strong> {sub.proofs.username}</p>}
-                {sub.proofs.password && <p className="mb-1 dark:text-gray-300"><strong>Password:</strong> {sub.proofs.password}</p>}
-                {sub.proofs.videoUrl && <p className="mb-1 dark:text-gray-300"><strong>Video:</strong> <a href={sub.proofs.videoUrl} target="_blank" rel="noreferrer" className="text-blue-500 underline font-semibold break-all">{sub.proofs.videoUrl}</a></p>}
-                {sub.proofs.screenshot && (
-                  <a href={sub.proofs.screenshot} target="_blank" rel="noreferrer" className="text-blue-500 underline font-semibold">View Screenshot</a>
+              <div className="flex justify-between items-start mb-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border ${
+                      req.type === 'withdraw' 
+                      ? 'bg-rose-100 text-rose-600 border-rose-200 dark:bg-rose-900/30 dark:border-rose-800/30' 
+                      : 'bg-emerald-100 text-emerald-600 border-emerald-200 dark:bg-emerald-900/30 dark:border-emerald-800/30'
+                    }`}>
+                      {req.type}
+                    </span>
+                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{new Date(req.createdAt?.toDate()).toLocaleTimeString()}</span>
+                  </div>
+                  <h4 className="font-black text-2xl text-slate-900 dark:text-white leading-none mt-2">৳{req.amount}</h4>
+                  <div className="flex items-center gap-2 mt-2">
+                    <div className="w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500">
+                      <User className="w-3 h-3" />
+                    </div>
+                    <p className="text-[11px] font-bold text-slate-600 dark:text-slate-300 italic truncate max-w-[180px]">{req.userEmail}</p>
+                  </div>
+                </div>
+                {req.type === 'deposit' && (
+                  <div className="bg-indigo-50 dark:bg-indigo-900/40 p-2 rounded-xl text-center ring-1 ring-indigo-200 dark:ring-indigo-800">
+                    <p className="text-[8px] font-black uppercase text-indigo-500 tracking-tighter">Gateway</p>
+                    <p className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300">{req.method}</p>
+                  </div>
                 )}
               </div>
               
-              <div className="flex gap-2">
-                <button onClick={() => reviewSubmission(sub.id, sub.userId, sub.reward, sub.title, sub.jobType || 'Other', 'approved')} className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-bold flex justify-center items-center gap-1">
-                  <CheckCircle className="w-4 h-4"/> Approve
+              <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-700/50 mb-5 text-sm">
+                {req.type === 'withdraw' && (
+                  <div className="space-y-1">
+                    <div className="flex justify-between border-b border-slate-200 dark:border-slate-700 pb-1.5 mb-1.5">
+                      <span className="text-[10px] font-black text-slate-400 uppercase">Wallet</span>
+                      <span className="font-bold uppercase tracking-widest text-[10px] text-blue-500">{req.wallet} Wallet</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-[10px] font-black text-slate-400 uppercase">Method</span>
+                      <span className="font-bold">{req.method}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-[10px] font-black text-slate-400 uppercase">Account</span>
+                      <span className="font-mono font-bold text-slate-700 dark:text-slate-200 tracking-wider">{req.account}</span>
+                    </div>
+                  </div>
+                )}
+                {req.type === 'deposit' && (
+                  <div className="space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-[10px] font-black text-slate-400 uppercase">Transaction ID</span>
+                      <span className="font-mono font-bold text-indigo-600 selection:bg-indigo-100 tracking-wider">{req.trxId}</span>
+                    </div>
+                    <div className="flex justify-between border-t border-slate-200 dark:border-slate-700 mt-1.5 pt-1.5">
+                      <span className="text-[10px] font-black text-slate-400 uppercase">Recipient</span>
+                      <span className="font-bold text-xs">{req.method} Personal</span>
+                    </div>
+                  </div>
+                )}
+                {req.type === 'activation' && (
+                  <div className="space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-[10px] font-black text-slate-400 uppercase">TrxID</span>
+                      <span className="font-mono font-bold text-emerald-600 tracking-wider">{req.trxId}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <button 
+                  onClick={() => handlePaymentRequest(req.id, req.userId, req.amount, req.type, 'approved', req.transactionId, req.wallet)} 
+                  className="bg-emerald-500 hover:bg-emerald-600 text-white py-3 rounded-2xl font-black uppercase tracking-widest text-[11px] shadow-lg shadow-emerald-500/20 active:scale-95 transition-all"
+                >
+                  Pay Now
                 </button>
-                <button onClick={() => reviewSubmission(sub.id, sub.userId, sub.reward, sub.title, sub.jobType || 'Other', 'rejected')} className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg font-bold flex justify-center items-center gap-1">
-                  <XCircle className="w-4 h-4" /> Reject
+                <button 
+                  onClick={() => handlePaymentRequest(req.id, req.userId, req.amount, req.type, 'rejected', req.transactionId, req.wallet)} 
+                  className="bg-rose-500 hover:bg-rose-600 text-white py-3 rounded-2xl font-black uppercase tracking-widest text-[11px] shadow-lg shadow-rose-500/20 active:scale-95 transition-all"
+                >
+                  Decline
                 </button>
               </div>
-            </div>
+            </motion.div>
           ))}
           
-          <h3 className="font-bold mt-6 mb-3 dark:text-white">Reviewed History</h3>
-          {submissions.filter(s => s.status !== 'pending').slice(0, 10).map(sub => (
-            <div key={sub.id} className="bg-white dark:bg-slate-800 p-3 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 flex justify-between items-center opacity-70">
-              <div>
-                <p className="font-semibold text-sm dark:text-gray-300">{sub.title}</p>
-                <p className="text-[10px] text-gray-500">{sub.userEmail}</p>
-              </div>
-              <span className={`text-[10px] px-2 py-1 rounded font-bold uppercase ${sub.status === 'approved' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
-                {sub.status}
-              </span>
+          <div className="pt-6">
+            <h3 className="font-black dark:text-white uppercase tracking-tight text-xs mb-4 opacity-50 px-1">Payment History</h3>
+            <div className="grid gap-2">
+              {paymentRequests.filter(req => req.status !== 'pending').slice(0, 5).map(req => (
+                <div key={req.id} className="bg-white dark:bg-slate-800 p-3 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex justify-between items-center opacity-70">
+                  <div className="flex-1 overflow-hidden pr-4">
+                    <p className="font-black text-[13px] text-slate-800 dark:text-slate-200 italic uppercase">৳{req.amount} &bull; {req.type}</p>
+                    <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold truncate tracking-widest uppercase">{req.userEmail}</p>
+                  </div>
+                  <div className={`text-[9px] px-3 py-1 rounded-full font-black uppercase tracking-widest border ${req.status === 'approved' ? 'bg-emerald-100 text-emerald-600 border-emerald-200' : 'bg-rose-100 text-rose-600 border-rose-200'}`}>
+                    {req.status}
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
+          </div>
         </div>
       )}
 
-      {activeTab === 'requests' && (
-        <div className="space-y-3">
-          {paymentRequests.filter(req => req.status === 'pending').length === 0 && <div className="text-center p-10 dark:text-gray-400">No pending payment requests</div>}
+      {activeTab === 'users' && (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center mb-4 px-1">
+            <h3 className="font-black dark:text-white flex items-center gap-2 uppercase tracking-tight text-sm">
+              <Users className="w-4 h-4 text-indigo-500" /> Database Entities ({userList.length})
+            </h3>
+          </div>
           
-          {paymentRequests.filter(req => req.status === 'pending').map(req => (
-            <div key={req.id} className={`bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border ${req.type === 'withdraw' ? 'border-red-200 dark:border-red-500/30' : 'border-green-200 dark:border-green-500/30'}`}>
-              <div className="flex justify-between items-start mb-2">
-                <div>
-                  <h4 className="font-bold capitalize dark:text-white">{req.type}</h4>
-                  <p className="text-xs text-gray-500">{req.userEmail} &bull; ৳{req.amount}</p>
-                </div>
-                <span className="text-[10px] bg-orange-100 text-orange-600 px-2 py-1 rounded font-bold uppercase">Pending</span>
-              </div>
-              <div className="bg-gray-50 dark:bg-slate-700 p-3 rounded-lg text-sm mb-3">
-                <p className="mb-1 dark:text-gray-300"><strong>Method:</strong> {req.method}</p>
-                {req.type === 'deposit' && <p className="mb-1 dark:text-gray-300"><strong>TrxID:</strong> {req.trxId}</p>}
-                {req.type === 'withdraw' && <p className="mb-1 dark:text-gray-300"><strong>Account:</strong> {req.account}</p>}
-                {req.type === 'withdraw' && <p className="mb-1 dark:text-gray-300"><strong>From Wallet:</strong> {req.wallet}</p>}
-              </div>
-              <div className="flex gap-2">
-                <button onClick={() => handlePaymentRequest(req.id, req.userId, req.amount, req.type, 'approved', req.transactionId, req.wallet)} className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-bold flex justify-center items-center gap-1">
-                  <CheckCircle className="w-4 h-4"/> Approve
-                </button>
-                <button onClick={() => handlePaymentRequest(req.id, req.userId, req.amount, req.type, 'rejected', req.transactionId, req.wallet)} className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg font-bold flex justify-center items-center gap-1">
-                  <XCircle className="w-4 h-4" /> Reject
-                </button>
-              </div>
-            </div>
-          ))}
+          <div className="grid gap-4">
+            {userList.map(user => (
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                key={user.id} 
+                className="bg-white dark:bg-slate-800 p-5 rounded-[28px] shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col md:flex-row md:items-center justify-between gap-4 relative overflow-hidden"
+              >
+                <div className="absolute top-0 left-0 w-2 h-full bg-slate-100 dark:bg-slate-700"></div>
+                
+                <div className="flex-1 pl-2">
+                  <div className="flex items-center gap-2 mb-2">
+                    <h4 className="font-black text-slate-900 dark:text-white uppercase tracking-tight text-base italic">{user.fullName || 'Anonymous'}</h4>
+                    <div className="flex gap-1">
+                      <span className={`text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-widest border ${user.isBlocked ? 'bg-rose-100 text-rose-600 border-rose-200' : 'bg-emerald-100 text-emerald-600 border-emerald-200'}`}>
+                        {user.isBlocked ? 'Blocked' : 'Active'}
+                      </span>
+                      {user.role === 'admin' && (
+                        <span className="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-widest bg-indigo-100 text-indigo-600 border border-indigo-200">System Admin</span>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5">
+                    <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+                      <div className="w-4 h-4 rounded bg-slate-100 dark:bg-slate-700 flex items-center justify-center"><User className="w-2.5 h-2.5" /></div>
+                      <p className="text-[11px] font-bold truncate">{user.email}</p>
+                    </div>
+                    <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+                      <div className="w-4 h-4 rounded bg-slate-100 dark:bg-slate-700 flex items-center justify-center"><Calculator className="w-2.5 h-2.5" /></div>
+                      <p className="text-[11px] font-mono font-bold tracking-tighter opacity-80">{user.deviceId || 'ID NOT LINKED'}</p>
+                    </div>
+                  </div>
 
-          <h3 className="font-bold mt-6 mb-3 dark:text-white">Recent Payments</h3>
-          {paymentRequests.filter(req => req.status !== 'pending').slice(0, 10).map(req => (
-            <div key={req.id} className="bg-white dark:bg-slate-800 p-3 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 flex justify-between items-center opacity-70">
-              <div>
-                <p className="font-semibold text-sm capitalize dark:text-gray-300">{req.type} &bull; ৳{req.amount}</p>
-                <p className="text-[10px] text-gray-500">{req.userEmail}</p>
-              </div>
-              <span className={`text-[10px] px-2 py-1 rounded font-bold uppercase ${req.status === 'approved' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
-                {req.status}
-              </span>
-            </div>
-          ))}
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <div className="bg-slate-50 dark:bg-slate-900/50 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-700">
+                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">Main Balance</p>
+                      <p className="text-xs font-black text-slate-900 dark:text-white leading-tight">৳{(user.balances?.main || 0).toFixed(2)}</p>
+                    </div>
+                    <div className="bg-slate-50 dark:bg-slate-900/50 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-700">
+                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">Bonus</p>
+                      <p className="text-xs font-black text-slate-900 dark:text-white leading-tight">৳{(user.balances?.bonus || 0).toFixed(2)}</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-2 self-end md:self-center">
+                  <button 
+                    onClick={() => handleToggleBlock(user.id, user.isBlocked)}
+                    disabled={user.role === 'admin'}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-[0.1em] text-[10px] transition-all active:scale-95 disabled:opacity-30 ${
+                      user.isBlocked 
+                        ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' 
+                        : 'bg-rose-500 text-white shadow-lg shadow-rose-500/20'
+                    }`}
+                  >
+                    {user.isBlocked ? (
+                      <>
+                        <ShieldCheck className="w-4 h-4" /> Grant Access
+                      </>
+                    ) : (
+                      <>
+                        <ShieldAlert className="w-4 h-4" /> Restrict User
+                      </>
+                    )}
+                  </button>
+                </div>
+              </motion.div>
+            ))}
+          </div>
         </div>
       )}
 
       {activeTab === 'settings' && (
-        <div className="space-y-4">
-          <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700">
-            <h3 className="font-bold text-lg mb-4 dark:text-white">Popup Settings</h3>
-            <p className="text-xs text-gray-500 mb-4">Configure the popup window shown when users open the app.</p>
-            
-            <div className="space-y-4 mb-4">
-              <div>
-                <label className="text-[12px] text-gray-500 font-bold block mb-1">Popup Title</label>
-                <input
-                  type="text"
-                  value={popupSettings.title}
-                  onChange={(e) => setPopupSettings(prev => ({ ...prev, title: e.target.value }))}
-                  className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded"
-                />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Popup Settings */}
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-500">
+                <BellRing className="w-5 h-5" />
               </div>
               <div>
-                <label className="text-[12px] text-gray-500 font-bold block mb-1">Popup Subtitle</label>
-                <input
-                  type="text"
-                  value={popupSettings.subtitle}
-                  onChange={(e) => setPopupSettings(prev => ({ ...prev, subtitle: e.target.value }))}
-                  className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded"
-                />
-              </div>
-              <div>
-                <label className="text-[12px] text-gray-500 font-bold block mb-1">Telegram Button Text</label>
-                <input
-                  type="text"
-                  value={popupSettings.telegramText}
-                  onChange={(e) => setPopupSettings(prev => ({ ...prev, telegramText: e.target.value }))}
-                  className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded"
-                />
-              </div>
-              <div>
-                <label className="text-[12px] text-gray-500 font-bold block mb-1">Telegram Link</label>
-                <input
-                  type="text"
-                  value={popupSettings.telegramLink}
-                  onChange={(e) => setPopupSettings(prev => ({ ...prev, telegramLink: e.target.value }))}
-                  className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded"
-                />
-              </div>
-              <div>
-                <label className="text-[12px] text-gray-500 font-bold block mb-1">Skip Button Text</label>
-                <input
-                  type="text"
-                  value={popupSettings.skipText}
-                  onChange={(e) => setPopupSettings(prev => ({ ...prev, skipText: e.target.value }))}
-                  className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded"
-                />
-              </div>
-              <div>
-                <label className="text-[12px] text-gray-500 font-bold block mb-1">Skip Button Link</label>
-                <input
-                  type="text"
-                  value={popupSettings.skipLink}
-                  onChange={(e) => setPopupSettings(prev => ({ ...prev, skipLink: e.target.value }))}
-                  className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded"
-                />
+                <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Popup System</h3>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Global Announcements</p>
               </div>
             </div>
-            <button
-              onClick={handleSavePopupSettings}
-              disabled={isSavingSettings}
-              className="w-full bg-[#0D47A1] text-white font-bold py-3 rounded-xl disabled:opacity-50"
-            >
-              {isSavingSettings ? 'Saving...' : 'Save Popup Settings'}
-            </button>
-          </div>
-
-          <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700">
-            <h3 className="font-bold text-lg mb-4 dark:text-white">Site Settings</h3>
-            <p className="text-xs text-gray-500 mb-4">Configure logo and favicon.</p>
             
-            <div className="space-y-4 mb-4">
+            <div className="space-y-4 flex-1">
+              <div className="group">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-indigo-500 transition-colors">Announcement Title</label>
+                <input type="text" value={popupSettings.title} onChange={(e) => setPopupSettings(prev => ({ ...prev, title: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold placeholder:text-slate-400 ring-1 ring-slate-100 dark:ring-slate-800 focus:ring-2 focus:ring-indigo-500 transition-all" />
+              </div>
+              <div className="group">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-indigo-500 transition-colors">Subtitle / Body</label>
+                <input type="text" value={popupSettings.subtitle} onChange={(e) => setPopupSettings(prev => ({ ...prev, subtitle: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold placeholder:text-slate-400 ring-1 ring-slate-100 dark:ring-slate-800 focus:ring-2 focus:ring-indigo-500 transition-all" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="group">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Telegram Link</label>
+                  <input type="text" value={popupSettings.telegramLink} onChange={(e) => setPopupSettings(prev => ({ ...prev, telegramLink: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-xs font-bold ring-1 ring-slate-100 dark:ring-slate-800" />
+                </div>
+                <div className="group">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Skip Link</label>
+                  <input type="text" value={popupSettings.skipLink} onChange={(e) => setPopupSettings(prev => ({ ...prev, skipLink: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-xs font-bold ring-1 ring-slate-100 dark:ring-slate-800" />
+                </div>
+              </div>
+            </div>
+            
+            <button onClick={handleSavePopupSettings} disabled={isSavingSettings} className="mt-6 w-full bg-indigo-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-indigo-600/20 active:scale-95 transition-all text-xs flex items-center justify-center gap-2">
+              {isSavingSettings ? <><RefreshCw className="w-4 h-4 animate-spin" /> Updating...</> : 'Save Popup'}
+            </button>
+          </motion.div>
+
+          {/* Site Identity */}
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-500">
+                <Globe className="w-5 h-5" />
+              </div>
               <div>
-                <label className="text-[12px] text-gray-500 font-bold block mb-1">Logo URL (or Upload)</label>
+                <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Brand Identity</h3>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Visual Branding</p>
+              </div>
+            </div>
+            
+            <div className="space-y-5 flex-1">
+              <div className="group">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-emerald-500">Logo (Master Asset)</label>
                 <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={siteSettings.logoUrl}
-                    onChange={(e) => setSiteSettings(prev => ({ ...prev, logoUrl: e.target.value }))}
-                    className="flex-1 bg-gray-50 dark:bg-slate-700 border p-2 rounded"
-                    placeholder="https://example.com/logo.png"
-                  />
-                  <div className="relative overflow-hidden inline-block">
-                    <button type="button" className="bg-gray-100 dark:bg-slate-600 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-slate-500 px-4 py-2 rounded font-bold text-sm h-full">
-                      Upload
-                    </button>
+                  <input type="text" value={siteSettings.logoUrl} onChange={(e) => setSiteSettings(prev => ({ ...prev, logoUrl: e.target.value }))} className="flex-1 bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-[11px] font-bold ring-1 ring-slate-100 dark:ring-slate-800" />
+                  <div className="relative overflow-hidden group">
+                    <button type="button" className="bg-slate-100 dark:bg-slate-700 px-4 py-3 rounded-2xl font-black text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-300">Upload</button>
                     <input type="file" accept="image/*" onChange={(e) => handleUploadImage(e, 'logo')} className="absolute inset-0 opacity-0 cursor-pointer" />
                   </div>
                 </div>
-                {siteSettings.logoUrl && <img src={siteSettings.logoUrl} alt="Logo" className="mt-2 h-10 object-contain" />}
+                {siteSettings.logoUrl && <div className="mt-3 p-3 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 inline-block"><img src={siteSettings.logoUrl} alt="Logo Preview" className="h-8 object-contain" /></div>}
               </div>
-              <div>
-                <label className="text-[12px] text-gray-500 font-bold block mb-1">Favicon URL (or Upload)</label>
+              <div className="group">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-emerald-500">Favicon (Browser Tab)</label>
                 <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={siteSettings.faviconUrl}
-                    onChange={(e) => setSiteSettings(prev => ({ ...prev, faviconUrl: e.target.value }))}
-                    className="flex-1 bg-gray-50 dark:bg-slate-700 border p-2 rounded"
-                    placeholder="https://example.com/favicon.ico"
-                  />
-                  <div className="relative overflow-hidden inline-block">
-                    <button type="button" className="bg-gray-100 dark:bg-slate-600 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-slate-500 px-4 py-2 rounded font-bold text-sm h-full">
-                      Upload
-                    </button>
+                  <input type="text" value={siteSettings.faviconUrl} onChange={(e) => setSiteSettings(prev => ({ ...prev, faviconUrl: e.target.value }))} className="flex-1 bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-[11px] font-bold ring-1 ring-slate-100 dark:ring-slate-800" />
+                  <div className="relative overflow-hidden group">
+                    <button type="button" className="bg-slate-100 dark:bg-slate-700 px-4 py-3 rounded-2xl font-black text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-300">Upload</button>
                     <input type="file" accept="image/*" onChange={(e) => handleUploadImage(e, 'favicon')} className="absolute inset-0 opacity-0 cursor-pointer" />
                   </div>
                 </div>
-                {siteSettings.faviconUrl && <img src={siteSettings.faviconUrl} alt="Favicon" className="mt-2 w-8 h-8 object-contain" />}
               </div>
             </div>
-            <button
-              onClick={handleSaveSiteSettings}
-              disabled={isSavingSettings}
-              className="w-full bg-[#0D47A1] text-white font-bold py-3 rounded-xl disabled:opacity-50"
-            >
-              {isSavingSettings ? 'Saving...' : 'Save Site Settings'}
-            </button>
-          </div>
-
-          {/* Support Settings */}
-          <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700">
-            <h3 className="font-bold text-lg mb-4 dark:text-white">Support Settings</h3>
-            <p className="text-xs text-gray-500 mb-4">Configure contact info and links for the Help & Support page.</p>
             
-            <div className="space-y-4 mb-4">
-              <div>
-                <label className="text-[12px] text-gray-500 font-bold block mb-1">Email Address</label>
-                <input
-                  type="email"
-                  value={supportSettings.email}
-                  onChange={(e) => setSupportSettings(prev => ({ ...prev, email: e.target.value }))}
-                  className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded"
-                  placeholder="support@example.com"
-                />
+            <button onClick={handleSaveSiteSettings} disabled={isSavingSettings} className="mt-6 w-full bg-emerald-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-emerald-600/20 active:scale-95 transition-all text-xs">Update Identity</button>
+          </motion.div>
+
+          {/* Support Channels */}
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-500">
+                <MessageSquare className="w-5 h-5" />
               </div>
               <div>
-                <label className="text-[12px] text-gray-500 font-bold block mb-1">WhatsApp Number/Link</label>
-                <input
-                  type="text"
-                  value={supportSettings.whatsapp}
-                  onChange={(e) => setSupportSettings(prev => ({ ...prev, whatsapp: e.target.value }))}
-                  className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded"
-                  placeholder="https://wa.me/XXXXXXXXXX or Number"
-                />
-              </div>
-              <div>
-                <label className="text-[12px] text-gray-500 font-bold block mb-1">Telegram Link</label>
-                <input
-                  type="text"
-                  value={supportSettings.telegram}
-                  onChange={(e) => setSupportSettings(prev => ({ ...prev, telegram: e.target.value }))}
-                  className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded"
-                  placeholder="https://t.me/yourchannel"
-                />
-              </div>
-              <div>
-                <label className="text-[12px] text-gray-500 font-bold block mb-1">Facebook Page/Group Link</label>
-                <input
-                  type="text"
-                  value={supportSettings.facebook}
-                  onChange={(e) => setSupportSettings(prev => ({ ...prev, facebook: e.target.value }))}
-                  className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded"
-                  placeholder="https://facebook.com/..."
-                />
+                <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Support Grid</h3>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Contact Config</p>
               </div>
             </div>
-            <button
-              onClick={handleSaveSupportSettings}
-              disabled={isSavingSettings}
-              className="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl disabled:opacity-50"
-            >
-              {isSavingSettings ? 'Saving...' : 'Save Support Settings'}
-            </button>
-          </div>
-
-          <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700">
-            <h3 className="font-bold text-lg mb-4 dark:text-white">Spin Wheel Settings</h3>
-            <p className="text-xs text-gray-500 mb-4">Set the 8 reward values for the spin wheel. Use 0 for "Try Again" or "Better Luck Next Time".</p>
             
-            <div className="grid grid-cols-4 gap-2 mb-4">
+            <div className="grid gap-4">
+              <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-900 p-3 rounded-[20px] ring-1 ring-slate-100 dark:ring-slate-800">
+                <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 flex items-center justify-center text-slate-400"><Mail className="w-4 h-4" /></div>
+                <input type="email" value={supportSettings.email} onChange={(e) => setSupportSettings(prev => ({ ...prev, email: e.target.value }))} className="bg-transparent border-none p-0 flex-1 text-sm font-bold focus:ring-0" placeholder="Support Email" />
+              </div>
+              <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-900 p-3 rounded-[20px] ring-1 ring-slate-100 dark:ring-slate-800">
+                <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 flex items-center justify-center text-emerald-500"><Smartphone className="w-4 h-4" /></div>
+                <input type="text" value={supportSettings.whatsapp} onChange={(e) => setSupportSettings(prev => ({ ...prev, whatsapp: e.target.value }))} className="bg-transparent border-none p-0 flex-1 text-sm font-bold focus:ring-0" placeholder="WhatsApp Link" />
+              </div>
+              <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-900 p-3 rounded-[20px] ring-1 ring-slate-100 dark:ring-slate-800">
+                <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 flex items-center justify-center text-indigo-500"><Send className="w-4 h-4" /></div>
+                <input type="text" value={supportSettings.telegram} onChange={(e) => setSupportSettings(prev => ({ ...prev, telegram: e.target.value }))} className="bg-transparent border-none p-0 flex-1 text-sm font-bold focus:ring-0" placeholder="Telegram Link" />
+              </div>
+              <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-900 p-3 rounded-[20px] ring-1 ring-slate-100 dark:ring-slate-800">
+                <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 flex items-center justify-center text-blue-600"><MessageCircle className="w-4 h-4" /></div>
+                <input type="text" value={supportSettings.facebook} onChange={(e) => setSupportSettings(prev => ({ ...prev, facebook: e.target.value }))} className="bg-transparent border-none p-0 flex-1 text-sm font-bold focus:ring-0" placeholder="Facebook Profile" />
+              </div>
+            </div>
+            
+            <button onClick={handleSaveSupportSettings} disabled={isSavingSettings} className="mt-6 w-full bg-blue-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-blue-600/20 active:scale-95 transition-all text-xs">Save Channels</button>
+          </motion.div>
+
+          {/* Spin Wheel Settings */}
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center text-amber-500">
+                <RefreshCw className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Fortune Wheel</h3>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Reward Probability</p>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-4 gap-2 flex-1">
               {spinRewards.map((reward, index) => (
-                <div key={index}>
-                  <label className="text-[10px] text-gray-500 font-bold block mb-1">Slice {index + 1}</label>
+                <div key={index} className="group">
+                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-tighter pl-1 mb-1 block">Slice {index + 1}</label>
                   <input
                     type="number"
                     value={reward}
@@ -932,262 +1109,232 @@ export function AdminPanel() {
                       newRewards[index] = Number(e.target.value);
                       setSpinRewards(newRewards);
                     }}
-                    className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded text-center font-bold"
+                    className="w-full bg-slate-50 dark:bg-slate-900 border-none px-1 py-2 rounded-xl text-center font-black text-xs ring-1 ring-slate-100 dark:ring-slate-800"
                   />
                 </div>
               ))}
             </div>
-
-            <button
-              onClick={handleSaveSpinSettings}
-              disabled={isSavingSettings}
-              className="w-full bg-[#0D47A1] text-white font-bold py-3 rounded-xl disabled:opacity-50"
-            >
-              {isSavingSettings ? 'Saving...' : 'Save Spin Settings'}
-            </button>
-          </div>
-
-          <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700">
-            <h3 className="font-bold text-lg mb-4 dark:text-white">Referral Settings</h3>
             
-            <div className="space-y-4 mb-4">
-              <div>
-                <label className="text-[12px] text-gray-500 font-bold block mb-1">Gen 1 Fixed Bonus (৳)</label>
-                <p className="text-[10px] text-gray-400 mb-2">Awarded once upon successful referral sign up / first task</p>
-                <input
-                  type="number"
-                  value={referralSettings.fixedBonus}
-                  onChange={(e) => setReferralSettings(prev => ({ ...prev, fixedBonus: Number(e.target.value) }))}
-                  className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded font-bold"
-                />
-              </div>
+            <button onClick={handleSaveSpinSettings} disabled={isSavingSettings} className="mt-6 w-full bg-amber-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-amber-600/20 active:scale-95 transition-all text-xs">Sync Rewards</button>
+          </motion.div>
 
-              <div>
-                <label className="text-[12px] text-gray-500 font-bold block mb-1">Gen 2 Fixed Bonus (৳)</label>
-                <p className="text-[10px] text-gray-400 mb-2">Awarded to gen 2 referrer</p>
-                <input
-                  type="number"
-                  value={referralSettings.gen2FixedBonus}
-                  onChange={(e) => setReferralSettings(prev => ({ ...prev, gen2FixedBonus: Number(e.target.value) }))}
-                  className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded font-bold"
-                />
+          {/* Referral Engine */}
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-2xl bg-orange-50 dark:bg-orange-900/30 flex items-center justify-center text-orange-500">
+                <Coins className="w-5 h-5" />
               </div>
-
               <div>
-                <label className="text-[12px] text-gray-500 font-bold block mb-1">Gen 3 Fixed Bonus (৳)</label>
-                <p className="text-[10px] text-gray-400 mb-2">Awarded to gen 3 referrer</p>
-                <input
-                  type="number"
-                  value={referralSettings.gen3FixedBonus}
-                  onChange={(e) => setReferralSettings(prev => ({ ...prev, gen3FixedBonus: Number(e.target.value) }))}
-                  className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded font-bold"
-                />
-              </div>
-
-              <div>
-                <label className="text-[12px] text-gray-500 font-bold block mb-1">Gen 1 Commission (%)</label>
-                <p className="text-[10px] text-gray-400 mb-2">Direct referrals (people referred directly by the user)</p>
-                <input
-                  type="number"
-                  value={referralSettings.gen1Percent}
-                  onChange={(e) => setReferralSettings(prev => ({ ...prev, gen1Percent: Number(e.target.value) }))}
-                  className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded font-bold"
-                />
-              </div>
-
-              <div>
-                <label className="text-[12px] text-gray-500 font-bold block mb-1">Gen 2 Commission (%)</label>
-                <p className="text-[10px] text-gray-400 mb-2">Level 2 referrals</p>
-                <input
-                  type="number"
-                  value={referralSettings.gen2Percent}
-                  onChange={(e) => setReferralSettings(prev => ({ ...prev, gen2Percent: Number(e.target.value) }))}
-                  className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded font-bold"
-                />
-              </div>
-
-              <div>
-                <label className="text-[12px] text-gray-500 font-bold block mb-1">Gen 3 Commission (%)</label>
-                <p className="text-[10px] text-gray-400 mb-2">Level 3 referrals</p>
-                <input
-                  type="number"
-                  value={referralSettings.gen3Percent}
-                  onChange={(e) => setReferralSettings(prev => ({ ...prev, gen3Percent: Number(e.target.value) }))}
-                  className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded font-bold"
-                />
+                <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Referral Engine</h3>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Yield Configuration</p>
               </div>
             </div>
-
-            <button
-              onClick={handleSaveReferralSettings}
-              disabled={isSavingSettings}
-              className="w-full bg-green-600 text-white font-bold py-3 rounded-xl disabled:opacity-50"
-            >
-              {isSavingSettings ? 'Saving...' : 'Save Referral Settings'}
-            </button>
-          </div>
-
-          <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700">
-            <h3 className="font-bold text-lg mb-4 dark:text-white">Scrolling Banner Settings</h3>
             
-            <div className="space-y-4 mb-4">
-              <div>
-                <label className="text-[12px] text-gray-500 font-bold block mb-1">Banner Text</label>
-                <input
-                  type="text"
-                  value={bannerSettings.text}
-                  onChange={(e) => setBannerSettings(prev => ({ ...prev, text: e.target.value }))}
-                  placeholder="Welcome to our app..."
-                  className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded font-medium"
-                />
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-2">
+                {[1, 2, 3].map(gen => (
+                  <div key={gen} className="group">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Gen {gen} (৳)</label>
+                    <input 
+                      type="number" 
+                      value={gen === 1 ? referralSettings.fixedBonus : (gen === 2 ? referralSettings.gen2FixedBonus : referralSettings.gen3FixedBonus)} 
+                      onChange={(e) => setReferralSettings(prev => ({ ...prev, [gen === 1 ? 'fixedBonus' : (gen === 2 ? 'gen2FixedBonus' : 'gen3FixedBonus')]: Number(e.target.value) }))} 
+                      className="w-full bg-slate-50 dark:bg-slate-900 border-none px-2 py-2.5 rounded-xl text-center text-sm font-black ring-1 ring-slate-100 dark:ring-slate-800" 
+                    />
+                  </div>
+                ))}
               </div>
-
-              <div>
-                <label className="text-[12px] text-gray-500 font-bold block mb-1">Banner Link (URL)</label>
-                <input
-                  type="text"
-                  value={bannerSettings.link}
-                  onChange={(e) => setBannerSettings(prev => ({ ...prev, link: e.target.value }))}
-                  placeholder="https://t.me/yourchannel"
-                  className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded font-medium"
-                />
-              </div>
-            </div>
-
-            <button
-              onClick={handleSaveBannerSettings}
-              disabled={isSavingSettings}
-              className="w-full bg-purple-600 text-white font-bold py-3 rounded-xl disabled:opacity-50"
-            >
-              {isSavingSettings ? 'Saving...' : 'Save Banner Settings'}
-            </button>
-          </div>
-
-          <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700">
-            <h3 className="font-bold text-lg mb-4 dark:text-white">Game Unlock Settings</h3>
-            <div className="space-y-4 mb-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[12px] text-gray-500 font-bold block mb-1">Spin Base Task Req</label>
-                  <input type="number" value={gameSettings.spinTaskReq} onChange={(e) => setGameSettings(prev => ({ ...prev, spinTaskReq: Number(e.target.value) }))} className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded" />
-                </div>
-                <div>
-                  <label className="text-[12px] text-gray-500 font-bold block mb-1">Spin Base Refer Req</label>
-                  <input type="number" value={gameSettings.spinReferReq} onChange={(e) => setGameSettings(prev => ({ ...prev, spinReferReq: Number(e.target.value) }))} className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[12px] text-gray-500 font-bold block mb-1">Math Base Task Req</label>
-                  <input type="number" value={gameSettings.mathTaskReq} onChange={(e) => setGameSettings(prev => ({ ...prev, mathTaskReq: Number(e.target.value) }))} className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded" />
-                </div>
-                <div>
-                  <label className="text-[12px] text-gray-500 font-bold block mb-1">Math Base Refer Req</label>
-                  <input type="number" value={gameSettings.mathReferReq} onChange={(e) => setGameSettings(prev => ({ ...prev, mathReferReq: Number(e.target.value) }))} className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded" />
-                </div>
+              <div className="grid grid-cols-3 gap-2 mt-2">
+                {[1, 2, 3].map(gen => (
+                  <div key={gen} className="group">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Yield {gen} (%)</label>
+                    <input 
+                      type="number" 
+                      value={gen === 1 ? referralSettings.gen1Percent : (gen === 2 ? referralSettings.gen2Percent : referralSettings.gen3Percent)} 
+                      onChange={(e) => setReferralSettings(prev => ({ ...prev, [gen === 1 ? 'gen1Percent' : (gen === 2 ? 'gen2Percent' : 'gen3Percent')]: Number(e.target.value) }))} 
+                      className="w-full bg-slate-100 dark:bg-slate-700/50 border-none px-2 py-2.5 rounded-xl text-center text-sm font-black text-orange-500" 
+                    />
+                  </div>
+                ))}
               </div>
             </div>
-            <button onClick={handleSaveGameSettings} disabled={isSavingSettings} className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl disabled:opacity-50">
-              {isSavingSettings ? 'Saving...' : 'Save Game Unlock Settings'}
-            </button>
-          </div>
+            
+            <button onClick={handleSaveReferralSettings} disabled={isSavingSettings} className="mt-6 w-full bg-orange-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-orange-600/20 active:scale-95 transition-all text-xs">Reload Engine</button>
+          </motion.div>
 
-          <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700">
-            <h3 className="font-bold text-lg mb-4 dark:text-white">Account Activation</h3>
-            <div className="space-y-4 mb-4">
+          {/* Announcement Scroller */}
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-2xl bg-purple-50 dark:bg-purple-900/30 flex items-center justify-center text-purple-500">
+                <Megaphone className="w-5 h-5" />
+              </div>
               <div>
-                <label className="text-[12px] text-gray-500 font-bold block mb-1">Activation Mode</label>
-                <select value={activationSettings.mode} onChange={(e) => setActivationSettings(prev => ({ ...prev, mode: e.target.value as 'free'|'paid' }))} className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded text-sm">
-                  <option value="free">Free Activation</option>
-                  <option value="paid">Paid Activation</option>
+                <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Global Banner</h3>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Ticker Configuration</p>
+              </div>
+            </div>
+            
+            <div className="space-y-4">
+              <textarea value={bannerSettings.text} onChange={(e) => setBannerSettings(prev => ({ ...prev, text: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold h-24 ring-1 ring-slate-100 dark:ring-slate-800" placeholder="Marquee News Text..." />
+              <input type="text" value={bannerSettings.link} onChange={(e) => setBannerSettings(prev => ({ ...prev, link: e.target.value }))} className="w-full bg-slate-100 dark:bg-slate-900/50 border-none px-4 py-3 rounded-2xl text-xs font-bold text-purple-500 italic" placeholder="Promo Link URL" />
+            </div>
+            
+            <button onClick={handleSaveBannerSettings} disabled={isSavingSettings} className="mt-6 w-full bg-purple-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-purple-600/20 active:scale-95 transition-all text-xs">Update Marquee</button>
+          </motion.div>
+
+          {/* Game Gates */}
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-500">
+                <Gamepad2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Game Unlock Logic</h3>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Gatekeeping Rules</p>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl ring-1 ring-slate-100 dark:ring-slate-800">
+                <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-3">Spin Requirements</p>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center bg-white dark:bg-slate-800 px-3 py-2 rounded-xl shadow-sm">
+                    <span className="text-[9px] font-bold text-slate-400">Tasks</span>
+                    <input type="number" value={gameSettings.spinTaskReq} onChange={(e) => setGameSettings(prev => ({ ...prev, spinTaskReq: Number(e.target.value) }))} className="w-10 bg-transparent border-none p-0 text-right text-xs font-black" />
+                  </div>
+                  <div className="flex justify-between items-center bg-white dark:bg-slate-800 px-3 py-2 rounded-xl shadow-sm">
+                    <span className="text-[9px] font-bold text-slate-400">Refers</span>
+                    <input type="number" value={gameSettings.spinReferReq} onChange={(e) => setGameSettings(prev => ({ ...prev, spinReferReq: Number(e.target.value) }))} className="w-10 bg-transparent border-none p-0 text-right text-xs font-black" />
+                  </div>
+                </div>
+              </div>
+              <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl ring-1 ring-slate-100 dark:ring-slate-800">
+                <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-3">Math Requirements</p>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center bg-white dark:bg-slate-800 px-3 py-2 rounded-xl shadow-sm">
+                    <span className="text-[9px] font-bold text-slate-400">Tasks</span>
+                    <input type="number" value={gameSettings.mathTaskReq} onChange={(e) => setGameSettings(prev => ({ ...prev, mathTaskReq: Number(e.target.value) }))} className="w-10 bg-transparent border-none p-0 text-right text-xs font-black" />
+                  </div>
+                  <div className="flex justify-between items-center bg-white dark:bg-slate-800 px-3 py-2 rounded-xl shadow-sm">
+                    <span className="text-[9px] font-bold text-slate-400">Refers</span>
+                    <input type="number" value={gameSettings.mathReferReq} onChange={(e) => setGameSettings(prev => ({ ...prev, mathReferReq: Number(e.target.value) }))} className="w-10 bg-transparent border-none p-0 text-right text-xs font-black" />
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <button onClick={handleSaveGameSettings} disabled={isSavingSettings} className="mt-6 w-full bg-blue-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-blue-600/20 active:scale-95 transition-all text-xs italic">Sync Logic</button>
+          </motion.div>
+
+          {/* Account Integrity */}
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-2xl bg-cyan-50 dark:bg-cyan-900/30 flex items-center justify-center text-cyan-500">
+                <Lock className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Account Integrity</h3>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Security Gates</p>
+              </div>
+            </div>
+            
+            <div className="bg-slate-50 dark:bg-slate-900/50 p-5 rounded-3xl border border-slate-100 dark:border-slate-800">
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-xs font-black uppercase tracking-wider dark:text-white">Activation Mode</span>
+                <select value={activationSettings.mode} onChange={(e) => setActivationSettings(prev => ({ ...prev, mode: e.target.value as 'free'|'paid' }))} className="bg-white dark:bg-slate-800 border-none rounded-xl text-[10px] font-black uppercase ring-1 ring-slate-100 dark:ring-slate-700 py-1.5 px-3">
+                  <option value="free">Permissive (Free)</option>
+                  <option value="paid">Restrictive (Paid)</option>
                 </select>
               </div>
               {activationSettings.mode === 'paid' && (
-                <div>
-                  <label className="text-[12px] text-gray-500 font-bold block mb-1">Activation Fee (৳)</label>
-                  <input type="number" value={activationSettings.fee} onChange={(e) => setActivationSettings(prev => ({ ...prev, fee: Number(e.target.value) }))} className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded" />
+                <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                  <span className="text-xs font-black uppercase text-slate-400">Mandatory Fee</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-black text-cyan-500">৳</span>
+                    <input type="number" value={activationSettings.fee} onChange={(e) => setActivationSettings(prev => ({ ...prev, fee: Number(e.target.value) }))} className="w-16 bg-white dark:bg-slate-800 border-none rounded-xl text-center text-sm font-black p-2 ring-1 ring-slate-100 dark:ring-slate-700" />
+                  </div>
                 </div>
               )}
             </div>
-            <button onClick={handleSaveActivationSettings} disabled={isSavingSettings} className="w-full bg-cyan-600 text-white font-bold py-3 rounded-xl disabled:opacity-50">
-              {isSavingSettings ? 'Saving...' : 'Save Activation Settings'}
-            </button>
-          </div>
+            
+            <button onClick={handleSaveActivationSettings} disabled={isSavingSettings} className="mt-6 w-full bg-cyan-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-cyan-600/20 active:scale-95 transition-all text-xs">Lock Configuration</button>
+          </motion.div>
 
-          <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700">
-            <h3 className="font-bold text-lg mb-4 dark:text-white">Withdrawal Settings</h3>
-            <div className="space-y-4 mb-4 grid grid-cols-2 gap-2">
-              <div className="col-span-2"><h4 className="font-bold text-sm text-gray-700 dark:text-gray-300">Main Wallet</h4></div>
-              <div>
-                <label className="text-[12px] text-gray-500 font-bold block mb-1">Minimum (৳)</label>
-                <input type="number" value={withdrawSettings.mainMin} onChange={(e) => setWithdrawSettings(prev => ({ ...prev, mainMin: Number(e.target.value) }))} className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded text-sm" />
+          {/* Withdrawal Protocol */}
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-2xl bg-orange-50 dark:bg-orange-900/30 flex items-center justify-center text-orange-500">
+                <CreditCard className="w-5 h-5" />
               </div>
               <div>
-                <label className="text-[12px] text-gray-500 font-bold block mb-1">Fee (%)</label>
-                <input type="number" value={withdrawSettings.mainFee} onChange={(e) => setWithdrawSettings(prev => ({ ...prev, mainFee: Number(e.target.value) }))} className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded text-sm" />
-              </div>
-
-              <div className="col-span-2 mt-2"><h4 className="font-bold text-sm text-gray-700 dark:text-gray-300">Bonus Wallet</h4></div>
-              <div>
-                <label className="text-[12px] text-gray-500 font-bold block mb-1">Minimum (৳)</label>
-                <input type="number" value={withdrawSettings.bonusMin} onChange={(e) => setWithdrawSettings(prev => ({ ...prev, bonusMin: Number(e.target.value) }))} className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded text-sm" />
-              </div>
-              <div>
-                <label className="text-[12px] text-gray-500 font-bold block mb-1">Fee (%)</label>
-                <input type="number" value={withdrawSettings.bonusFee} onChange={(e) => setWithdrawSettings(prev => ({ ...prev, bonusFee: Number(e.target.value) }))} className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded text-sm" />
-              </div>
-
-              <div className="col-span-2 mt-2"><h4 className="font-bold text-sm text-gray-700 dark:text-gray-300">Referral Wallet</h4></div>
-              <div>
-                <label className="text-[12px] text-gray-500 font-bold block mb-1">Minimum (৳)</label>
-                <input type="number" value={withdrawSettings.referralMin} onChange={(e) => setWithdrawSettings(prev => ({ ...prev, referralMin: Number(e.target.value) }))} className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded text-sm" />
-              </div>
-              <div>
-                <label className="text-[12px] text-gray-500 font-bold block mb-1">Fee (%)</label>
-                <input type="number" value={withdrawSettings.referralFee} onChange={(e) => setWithdrawSettings(prev => ({ ...prev, referralFee: Number(e.target.value) }))} className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded text-sm" />
-              </div>
-
-              <div className="col-span-2 mt-2"><h4 className="font-bold text-sm text-gray-700 dark:text-gray-300">Tasks Wallets</h4></div>
-              <div>
-                <label className="text-[12px] text-gray-500 font-bold block mb-1">Minimum (৳)</label>
-                <input type="number" value={withdrawSettings.tasksMin} onChange={(e) => setWithdrawSettings(prev => ({ ...prev, tasksMin: Number(e.target.value) }))} className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded text-sm" />
-              </div>
-              <div>
-                <label className="text-[12px] text-gray-500 font-bold block mb-1">Fee (%)</label>
-                <input type="number" value={withdrawSettings.tasksFee} onChange={(e) => setWithdrawSettings(prev => ({ ...prev, tasksFee: Number(e.target.value) }))} className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded text-sm" />
+                <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Payout Protocol</h3>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Financial Limits</p>
               </div>
             </div>
-            <button onClick={handleSaveWithdrawSettings} disabled={isSavingSettings} className="w-full bg-orange-600 text-white font-bold py-3 rounded-xl disabled:opacity-50">
-              {isSavingSettings ? 'Saving...' : 'Save Withdrawal Settings'}
-            </button>
-          </div>
-
-          <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700">
-            <h3 className="font-bold text-lg mb-4 dark:text-white">Deposit Settings</h3>
-            <div className="space-y-4 mb-4">
-              <div>
-                <label className="text-[12px] text-gray-500 font-bold block mb-1">bKash Number</label>
-                <input type="text" value={depositSettings.bkashNumber} onChange={(e) => setDepositSettings(prev => ({ ...prev, bkashNumber: e.target.value }))} className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded" />
-              </div>
-              <div>
-                <label className="text-[12px] text-gray-500 font-bold block mb-1">Nagad Number</label>
-                <input type="text" value={depositSettings.nagadNumber} onChange={(e) => setDepositSettings(prev => ({ ...prev, nagadNumber: e.target.value }))} className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded" />
-              </div>
-              <div className="flex gap-4">
-                <div className="flex-1">
-                  <label className="text-[12px] text-gray-500 font-bold block mb-1">Min Deposit</label>
-                  <input type="number" value={depositSettings.minDeposit} onChange={(e) => setDepositSettings(prev => ({ ...prev, minDeposit: Number(e.target.value) }))} className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded" />
+            
+            <div className="space-y-3">
+              {[
+                { key: 'Main', min: withdrawSettings.mainMin, fee: withdrawSettings.mainFee, minSetter: 'mainMin', feeSetter: 'mainFee', color: 'text-blue-500' },
+                { key: 'Bonus', min: withdrawSettings.bonusMin, fee: withdrawSettings.bonusFee, minSetter: 'bonusMin', feeSetter: 'bonusFee', color: 'text-indigo-500' },
+                { key: 'Referral', min: withdrawSettings.referralMin, fee: withdrawSettings.referralFee, minSetter: 'referralMin', feeSetter: 'referralFee', color: 'text-orange-500' },
+                { key: 'Tasks', min: withdrawSettings.tasksMin, fee: withdrawSettings.tasksFee, minSetter: 'tasksMin', feeSetter: 'tasksFee', color: 'text-emerald-500' }
+              ].map(wallet => (
+                <div key={wallet.key} className="bg-slate-50 dark:bg-slate-900/50 p-3 rounded-2xl flex items-center justify-between ring-1 ring-slate-100 dark:ring-slate-800">
+                  <span className={`text-[10px] font-black uppercase tracking-widest ${wallet.color} w-16`}>{wallet.key}</span>
+                  <div className="flex-1 flex gap-2 justify-end">
+                    <div className="flex flex-col items-end">
+                      <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Min ৳</span>
+                      <input type="number" value={wallet.min} onChange={(e) => setWithdrawSettings(prev => ({ ...prev, [wallet.minSetter]: Number(e.target.value) }))} className="w-14 bg-white dark:bg-slate-800 text-[11px] font-black p-1.5 rounded-lg text-center" />
+                    </div>
+                    <div className="flex flex-col items-end">
+                      <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Fee %</span>
+                      <input type="number" value={wallet.fee} onChange={(e) => setWithdrawSettings(prev => ({ ...prev, [wallet.feeSetter]: Number(e.target.value) }))} className="w-12 bg-white dark:bg-slate-800 text-[11px] font-black p-1.5 rounded-lg text-center text-rose-500" />
+                    </div>
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <label className="text-[12px] text-gray-500 font-bold block mb-1">Max Deposit</label>
-                  <input type="number" value={depositSettings.maxDeposit} onChange={(e) => setDepositSettings(prev => ({ ...prev, maxDeposit: Number(e.target.value) }))} className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded" />
+              ))}
+            </div>
+            
+            <button onClick={handleSaveWithdrawSettings} disabled={isSavingSettings} className="mt-6 w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-xl active:scale-95 transition-all text-xs">Execute Protocol</button>
+          </motion.div>
+
+          {/* Deposit Gateways */}
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8 }} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-500">
+                <Wallet className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Funding Gateways</h3>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Inbound Channels</p>
+              </div>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-3xl space-y-3">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-2xl bg-[#e2136e] flex items-center justify-center text-white text-[10px] font-black">BKASH</div>
+                  <input type="text" value={depositSettings.bkashNumber} onChange={(e) => setDepositSettings(prev => ({ ...prev, bkashNumber: e.target.value }))} className="flex-1 bg-white dark:bg-slate-800 border-none rounded-xl px-3 py-2.5 text-sm font-black tracking-widest text-[#e2136e] ring-1 ring-slate-100 dark:ring-slate-700" placeholder="01XXX-XXXXXX" />
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-2xl bg-[#ea232a] flex items-center justify-center text-white text-[10px] font-black">NAGAD</div>
+                  <input type="text" value={depositSettings.nagadNumber} onChange={(e) => setDepositSettings(prev => ({ ...prev, nagadNumber: e.target.value }))} className="flex-1 bg-white dark:bg-slate-800 border-none rounded-xl px-3 py-2.5 text-sm font-black tracking-widest text-[#ea232a] ring-1 ring-slate-100 dark:ring-slate-700" placeholder="01XXX-XXXXXX" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="group">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Min (৳)</label>
+                  <input type="number" value={depositSettings.minDeposit} onChange={(e) => setDepositSettings(prev => ({ ...prev, minDeposit: Number(e.target.value) }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-black" />
+                </div>
+                <div className="group">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Max (৳)</label>
+                  <input type="number" value={depositSettings.maxDeposit} onChange={(e) => setDepositSettings(prev => ({ ...prev, maxDeposit: Number(e.target.value) }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-black opacity-50" />
                 </div>
               </div>
             </div>
-            <button onClick={handleSaveDepositSettings} disabled={isSavingSettings} className="w-full bg-green-600 text-white font-bold py-3 rounded-xl disabled:opacity-50">
-              {isSavingSettings ? 'Saving...' : 'Save Deposit Settings'}
-            </button>
-          </div>
+            
+            <button onClick={handleSaveDepositSettings} disabled={isSavingSettings} className="mt-6 w-full bg-emerald-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-emerald-600/20 active:scale-95 transition-all text-xs">Update Gateways</button>
+          </motion.div>
         </div>
       )}
     </div>
