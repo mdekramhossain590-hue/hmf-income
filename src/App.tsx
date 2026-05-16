@@ -24,6 +24,7 @@ import { Payment } from './pages/Payment';
 import { FullPageLoader } from './components/LoadingSpinner';
 
 import { ActivationPopup } from './components/ActivationPopup';
+import { EmailVerification } from './components/EmailVerification';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -34,6 +35,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+  
+  if (!user.emailVerified) {
+    return <EmailVerification />;
   }
   
   return <>{children}</>;

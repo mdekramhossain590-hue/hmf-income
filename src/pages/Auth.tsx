@@ -60,6 +60,14 @@ export function Auth() {
         
         await createProfileForUser(user, name, email);
         
+        try {
+          // Import sendEmailVerification at the top or use from 'firebase/auth'
+          const { sendEmailVerification } = await import('firebase/auth');
+          await sendEmailVerification(user);
+        } catch (e) {
+          console.error('Failed to send verification email', e);
+        }
+        
         await refreshProfile();
         toast.success("Account Created Successfully! ৳10 Bonus Added.");
         navigate('/');
