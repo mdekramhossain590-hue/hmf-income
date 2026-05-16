@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate, useOutlet } from 'react-router-dom';
 import { Home, Briefcase, Wallet, User as UserIcon, Send, Bell } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAuth } from './AuthProvider';
@@ -14,6 +14,7 @@ export function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { t } = useLanguage();
+  const currentOutlet = useOutlet();
 
   if (!user && location.pathname !== '/login') {
     // If not logged in, we only show outlet without bottom nav if not on login, but the routing handles redirects.
@@ -38,22 +39,22 @@ export function Layout() {
   };
 
   const pageVariants = {
-    initial: { opacity: 0, y: 15, scale: 0.98 },
-    in: { opacity: 1, y: 0, scale: 1 },
-    out: { opacity: 0, y: -15, scale: 0.98 }
+    initial: { opacity: 0, y: 10 },
+    in: { opacity: 1, y: 0 },
+    out: { opacity: 0, y: -10 }
   };
 
   const pageTransition = {
     type: 'tween',
     ease: 'easeInOut',
-    duration: 0.3
+    duration: 0.2
   };
 
   return (
     <div className="max-w-[480px] mx-auto bg-slate-50 dark:bg-slate-950 min-h-screen relative shadow-2xl overflow-x-hidden pb-[90px] transition-colors">
       <NotificationListener />
       
-      <AnimatePresence mode="wait">
+      <AnimatePresence mode="popLayout">
         <motion.div
           key={location.pathname}
           initial="initial"
@@ -63,7 +64,7 @@ export function Layout() {
           transition={pageTransition}
           className="w-full h-full min-h-screen relative"
         >
-          <Outlet />
+          {currentOutlet}
         </motion.div>
       </AnimatePresence>
       
