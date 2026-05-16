@@ -94,6 +94,7 @@ export function Auth() {
                 if (fixedBonus > 0) {
                   await addDoc(collection(db, `users/${referrerId}/referrals`), {
                     referredEmail: email,
+                    referredName: name || 'Anonymous',
                     bonusEarned: fixedBonus,
                     level: level + 1,
                     createdAt: serverTimestamp()

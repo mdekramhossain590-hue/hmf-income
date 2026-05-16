@@ -162,13 +162,28 @@ export function Refer() {
             </div>
           ) : (
             referrals.map((ref) => (
-              <div key={ref.id} className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 flex justify-between items-center">
-                <div>
-                  <h4 className="text-sm font-bold text-gray-800 dark:text-white truncate max-w-[150px]">{ref.referredEmail}</h4>
-                  <p className="text-xs text-gray-500">{ref.createdAt?.toDate().toLocaleDateString() || 'Just now'}</p>
+              <div key={ref.id} className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 flex justify-between items-center group hover:border-indigo-200 dark:hover:border-indigo-900/50 transition-colors">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 font-bold text-xs ring-1 ring-slate-200 dark:ring-slate-600">
+                    {ref.referredName?.charAt(0) || ref.referredEmail?.charAt(0) || '?'}
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-gray-800 dark:text-white truncate max-w-[140px]">
+                      {ref.referredEmail}
+                    </h4>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <p className="text-[10px] text-gray-500 font-medium">
+                        Reg. Date: {ref.createdAt?.toDate ? ref.createdAt.toDate().toLocaleDateString() : 'Just now'}
+                      </p>
+                      <span className="text-[10px] px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-md font-bold uppercase">
+                        Gen {ref.level || 1}
+                      </span>
+                    </div>
+                  </div>
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-black text-green-600 dark:text-green-400">+৳{ref.bonusEarned}</p>
+                  <p className="text-[9px] text-slate-400 uppercase font-bold">Earned</p>
                 </div>
               </div>
             ))
