@@ -194,6 +194,51 @@ export function AdminPanel() {
     }
   };
 
+  const handleUploadImage = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'favicon') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Image must be smaller than 2MB.");
+      return;
+    }
+
+    const toastId = toast.loading(`Uploading ${type}...`);
+    try {
+      const cloudName = (import.meta as any).env.VITE_CLOUDINARY_CLOUD_NAME;
+      const uploadPreset = (import.meta as any).env.VITE_CLOUDINARY_UPLOAD_PRESET;
+
+      if (!cloudName || !uploadPreset) {
+        throw new Error("Cloudinary configuration missing in .env.");
+      }
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('upload_preset', uploadPreset);
+
+      const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error?.message || "Failed to upload image");
+      }
+
+      const data = await res.json();
+      const imageUrl = data.secure_url;
+
+      setSiteSettings(prev => ({
+        ...prev,
+        [type === 'logo' ? 'logoUrl' : 'faviconUrl']: imageUrl
+      }));
+      toast.success(`${type} uploaded successfully!`, { id: toastId });
+    } catch (err: any) {
+      toast.error(err.message || `Failed to upload ${type}`, { id: toastId });
+    }
+  };
+
   const handleSaveSiteSettings = async () => {
     setIsSavingSettings(true);
     try {
@@ -768,24 +813,42 @@ export function AdminPanel() {
             
             <div className="space-y-4 mb-4">
               <div>
-                <label className="text-[12px] text-gray-500 font-bold block mb-1">Logo URL</label>
-                <input
-                  type="text"
-                  value={siteSettings.logoUrl}
-                  onChange={(e) => setSiteSettings(prev => ({ ...prev, logoUrl: e.target.value }))}
-                  className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded"
-                  placeholder="https://example.com/logo.png"
-                />
+                <label className="text-[12px] text-gray-500 font-bold block mb-1">Logo URL (or Upload)</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={siteSettings.logoUrl}
+                    onChange={(e) => setSiteSettings(prev => ({ ...prev, logoUrl: e.target.value }))}
+                    className="flex-1 bg-gray-50 dark:bg-slate-700 border p-2 rounded"
+                    placeholder="https://example.com/logo.png"
+                  />
+                  <div className="relative overflow-hidden inline-block">
+                    <button type="button" className="bg-gray-100 dark:bg-slate-600 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-slate-500 px-4 py-2 rounded font-bold text-sm h-full">
+                      Upload
+                    </button>
+                    <input type="file" accept="image/*" onChange={(e) => handleUploadImage(e, 'logo')} className="absolute inset-0 opacity-0 cursor-pointer" />
+                  </div>
+                </div>
+                {siteSettings.logoUrl && <img src={siteSettings.logoUrl} alt="Logo" className="mt-2 h-10 object-contain" />}
               </div>
               <div>
-                <label className="text-[12px] text-gray-500 font-bold block mb-1">Favicon URL</label>
-                <input
-                  type="text"
-                  value={siteSettings.faviconUrl}
-                  onChange={(e) => setSiteSettings(prev => ({ ...prev, faviconUrl: e.target.value }))}
-                  className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded"
-                  placeholder="https://example.com/favicon.ico"
-                />
+                <label className="text-[12px] text-gray-500 font-bold block mb-1">Favicon URL (or Upload)</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={siteSettings.faviconUrl}
+                    onChange={(e) => setSiteSettings(prev => ({ ...prev, faviconUrl: e.target.value }))}
+                    className="flex-1 bg-gray-50 dark:bg-slate-700 border p-2 rounded"
+                    placeholder="https://example.com/favicon.ico"
+                  />
+                  <div className="relative overflow-hidden inline-block">
+                    <button type="button" className="bg-gray-100 dark:bg-slate-600 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-slate-500 px-4 py-2 rounded font-bold text-sm h-full">
+                      Upload
+                    </button>
+                    <input type="file" accept="image/*" onChange={(e) => handleUploadImage(e, 'favicon')} className="absolute inset-0 opacity-0 cursor-pointer" />
+                  </div>
+                </div>
+                {siteSettings.faviconUrl && <img src={siteSettings.faviconUrl} alt="Favicon" className="mt-2 w-8 h-8 object-contain" />}
               </div>
             </div>
             <button

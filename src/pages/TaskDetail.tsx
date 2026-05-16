@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ExternalLink, Image, UploadCloud, Loader2, X, CheckCircle, Clock } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Image, UploadCloud, Loader2, X, CheckCircle, Clock, XCircle } from 'lucide-react';
 import { useAuth } from '../components/AuthProvider';
 import { doc, getDoc, setDoc, collection, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
@@ -322,16 +322,29 @@ export function TaskDetail() {
       {previousSubmission && !showSubmitForm ? (
         <>
           <div className="flex items-center gap-2 mb-4 dark:text-white">
-            <CheckCircle className="w-5 h-5 text-green-500" />
-            <h3 className="font-bold text-gray-800 dark:text-white">You have submitted this task</h3>
+            {previousSubmission.status === 'approved' ? (
+              <CheckCircle className="w-5 h-5 text-emerald-500" />
+            ) : previousSubmission.status === 'rejected' ? (
+              <XCircle className="w-5 h-5 text-red-500" />
+            ) : (
+              <Clock className="w-5 h-5 text-amber-500" />
+            )}
+            <h3 className="font-bold text-slate-800 dark:text-white">Your Submission</h3>
           </div>
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 p-5 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-slate-700">
-              <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Status</span>
-              <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
-                previousSubmission.status === 'approved' ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400' :
-                previousSubmission.status === 'rejected' ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400' :
-                'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400'
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm ring-1 ring-slate-100 dark:ring-slate-700/50 p-5 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700/50">
+              <div className="flex flex-col">
+                <span className="text-sm font-bold text-slate-500 dark:text-slate-400">Status</span>
+                {previousSubmission.submittedAt && (
+                  <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 mt-0.5 uppercase tracking-wide">
+                    {new Date(previousSubmission.submittedAt?.toDate ? previousSubmission.submittedAt.toDate() : previousSubmission.submittedAt).toLocaleString()}
+                  </span>
+                )}
+              </div>
+              <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                previousSubmission.status === 'approved' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400 ring-1 ring-emerald-500/20' :
+                previousSubmission.status === 'rejected' ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400 ring-1 ring-red-500/20' :
+                'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400 ring-1 ring-amber-500/20'
               }`}>
                 {previousSubmission.status}
               </span>
