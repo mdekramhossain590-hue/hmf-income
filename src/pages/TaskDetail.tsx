@@ -14,6 +14,9 @@ export function TaskDetail() {
   const [job, setJob] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [previousSubmission, setPreviousSubmission] = useState<any>(null);
+  const [submissionCount, setSubmissionCount] = useState(0);
+  const [showSubmitForm, setShowSubmitForm] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
   
   const [proofText, setProofText] = useState('');
   const [proofImage, setProofImage] = useState(''); // Stores URL if pasted
@@ -73,6 +76,7 @@ export function TaskDetail() {
           where("userId", "==", auth.currentUser.uid)
         );
         const subSnap = await getDocs(q);
+        setSubmissionCount(subSnap.size);
         if (!subSnap.empty) {
           setPreviousSubmission({ id: subSnap.docs[0].id, ...subSnap.docs[0].data() });
         }
@@ -109,6 +113,10 @@ export function TaskDetail() {
       return;
     }
 
+    setShowConfirmModal(true);
+  };
+
+  const confirmSubmit = async () => {
     setSubmitting(true);
     setUploadProgress(0);
     setErrorMsg(null);
@@ -172,6 +180,8 @@ export function TaskDetail() {
       await setDoc(subRef, subData);
       
       setPreviousSubmission(subData);
+      setShowSubmitForm(false);
+      setShowConfirmModal(false);
       toast.success('Task submitted successfully! Awaiting review.');
     } catch (e: any) {
       console.error(e);
@@ -229,6 +239,29 @@ export function TaskDetail() {
         >
           Open Task Link <ExternalLink className="w-4 h-4" />
         </a>
+
+        <div className="grid grid-cols-2 gap-3 mt-5">
+          <div className="bg-slate-50 dark:bg-slate-900/50 rounded-xl p-3 border border-slate-100 dark:border-slate-700/50">
+             <span className="block text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">Required Proofs</span>
+             <span className="font-bold text-slate-700 dark:text-slate-300 text-sm">{job.requiredProofs?.length || 0} Items</span>
+          </div>
+          <div className="bg-slate-50 dark:bg-slate-900/50 rounded-xl p-3 border border-slate-100 dark:border-slate-700/50">
+             <span className="block text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">Posted By</span>
+             <span className="font-bold text-slate-700 dark:text-slate-300 text-sm">{job.postedBy || 'Admin'}</span>
+          </div>
+          <div className="bg-slate-50 dark:bg-slate-900/50 rounded-xl p-3 border border-slate-100 dark:border-slate-700/50">
+             <span className="block text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">Allowed Tries</span>
+             <span className="font-bold text-slate-700 dark:text-slate-300 text-sm">
+                {!job.allowedCompletions ? 'Unlimited' : `${submissionCount} / ${job.allowedCompletions}`}
+             </span>
+          </div>
+          {job.deadline && (
+            <div className="bg-slate-50 dark:bg-slate-900/50 rounded-xl p-3 border border-slate-100 dark:border-slate-700/50">
+               <span className="block text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">Deadline</span>
+               <span className="font-bold text-slate-700 dark:text-slate-300 text-sm">{new Date(job.deadline).toLocaleDateString()}</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {job.requiredProofs && job.requiredProofs.length > 0 && (
@@ -286,7 +319,7 @@ export function TaskDetail() {
         </div>
       )}
 
-      {previousSubmission ? (
+      {previousSubmission && !showSubmitForm ? (
         <>
           <div className="flex items-center gap-2 mb-4 dark:text-white">
             <CheckCircle className="w-5 h-5 text-green-500" />
@@ -356,11 +389,24 @@ export function TaskDetail() {
                 <Clock className="w-4 h-4" /> Wait for an administrator to review your submission.
               </div>
             )}
+            
+            {(!job.allowedCompletions || submissionCount < job.allowedCompletions) && (
+              <div className="mt-6 text-center pt-4 border-t border-slate-100 dark:border-slate-700/50">
+                <button 
+                  onClick={() => setShowSubmitForm(true)} 
+                  className="text-indigo-600 dark:text-indigo-400 font-bold hover:underline"
+                >
+                  Submit this task again
+                </button>
+              </div>
+            )}
           </div>
         </>
       ) : (
         <>
-          <h3 className="font-bold text-gray-800 dark:text-white mb-4">Submit Proof</h3>
+          <h3 className="font-bold text-gray-800 dark:text-white mb-4">
+            {previousSubmission ? 'Submit Another Proof' : 'Submit Proof'}
+          </h3>
           
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 p-5">
@@ -491,22 +537,115 @@ export function TaskDetail() {
 
             <button 
               type="submit" 
-              disabled={submitting}
-              className="w-full relative overflow-hidden bg-[#0D47A1] dark:bg-blue-600 text-white font-bold py-3 rounded-xl shadow-lg hover:bg-blue-800 dark:hover:bg-blue-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
+              className="w-full bg-indigo-600 dark:bg-indigo-500 text-white font-bold py-3.5 rounded-2xl shadow-md hover:bg-indigo-700 dark:hover:bg-indigo-600 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
             >
-              {uploadProgress > 0 && uploadProgress < 100 && (
-                 <div 
-                   className="absolute top-0 left-0 h-full bg-blue-500/50 transition-all duration-300"
-                   style={{ width: `${uploadProgress}%` }}
-                 ></div>
-              )}
-              <span className="relative z-10 flex items-center gap-2">
-                {submitting ? (uploadProgress > 0 && uploadProgress < 100 ? `Uploading... ${uploadProgress}%` : 'Submitting...') : 'Submit Work for Review'}
-                {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <UploadCloud className="w-5 h-5" />}
+              <span className="flex items-center gap-2">
+                Submit Work for Review <UploadCloud className="w-5 h-5" />
               </span>
             </button>
+            
+            {previousSubmission && (
+               <button 
+                 type="button"
+                 onClick={() => setShowSubmitForm(false)}
+                 className="w-full mt-3 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold py-3.5 rounded-2xl shadow-sm hover:bg-slate-200 dark:hover:bg-slate-600 transition-all active:scale-[0.98]"
+               >
+                 Cancel
+               </button>
+            )}
           </form>
         </>
+      )}
+
+      {showConfirmModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700 w-full max-w-md p-6 animate-fade-in-up">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-slate-800 dark:text-white tracking-tight">Confirm Submission</h3>
+              <button 
+                onClick={() => setShowConfirmModal(false)}
+                disabled={submitting}
+                className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"
+                type="button"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 font-medium">Please review your proofs before submitting. You cannot edit them after submission until an admin reviews it.</p>
+            
+            <div className="bg-slate-50 dark:bg-slate-900/50 rounded-2xl p-4 space-y-4 mb-6 ring-1 ring-slate-100 dark:ring-slate-700/50 max-h-[40vh] overflow-y-auto custom-scrollbar">
+              {job.requiredProofs?.includes('text') && (
+                <div>
+                  <span className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 mb-1 uppercase tracking-wider">Text Proof</span>
+                  <div className="text-sm font-medium text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
+                    {proofText}
+                  </div>
+                </div>
+              )}
+              {job.requiredProofs?.includes('screenshot') && (proofFile || proofImage) && (
+                <div>
+                  <span className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 mb-2 uppercase tracking-wider">Screenshot</span>
+                  <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-600">
+                    <img src={imagePreview || proofImage} alt="Proof screenshot" className="w-full object-contain bg-white dark:bg-slate-800" />
+                  </div>
+                </div>
+              )}
+              {job.requiredProofs?.includes('username') && (
+                <div>
+                  <span className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 mb-1 uppercase tracking-wider">Username</span>
+                  <div className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                    {username}
+                  </div>
+                </div>
+              )}
+              {job.requiredProofs?.includes('password') && (
+                <div>
+                  <span className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 mb-1 uppercase tracking-wider">Password/Identifier</span>
+                  <div className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                    {password}
+                  </div>
+                </div>
+              )}
+              {job.requiredProofs?.includes('videoUrl') && (
+                <div>
+                  <span className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 mb-1 uppercase tracking-wider">Video URL</span>
+                  <div className="text-sm font-medium text-slate-700 dark:text-slate-300 break-all">
+                    {videoUrl}
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="flex gap-3">
+              <button 
+                type="button"
+                onClick={() => setShowConfirmModal(false)}
+                disabled={submitting}
+                className="flex-1 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold py-3.5 rounded-2xl shadow-sm hover:bg-slate-200 dark:hover:bg-slate-600 transition-all active:scale-[0.98] disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button 
+                type="button"
+                onClick={confirmSubmit}
+                disabled={submitting}
+                className="flex-[2] relative overflow-hidden bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 rounded-2xl shadow-md transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {uploadProgress > 0 && uploadProgress < 100 && (
+                  <div 
+                    className="absolute top-0 left-0 h-full bg-white/20 transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  ></div>
+                )}
+                <span className="relative z-10 flex items-center gap-2">
+                  {submitting ? (uploadProgress > 0 && uploadProgress < 100 ? `Uploading ${uploadProgress}%` : 'Submitting...') : 'Confirm'}
+                  {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle className="w-5 h-5" />}
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -251,9 +251,12 @@ export function Spin() {
         {winningIndex !== null && rewards[winningIndex] > 0 && <Confetti />}
         
         {/* Pointer */}
-        <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-4 z-20 text-4xl text-slate-800 dark:text-white drop-shadow-xl">
-          <motion.div animate={isSpinning ? { rotate: [180, 160, 200, 180] } : { rotate: 180 }} transition={{ repeat: isSpinning ? Infinity : 0, duration: 0.3 }} >
-             <MapPin className="fill-current w-12 h-12" />
+        <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-6 z-20 drop-shadow-[0_4px_6px_rgba(0,0,0,0.4)]">
+          <motion.div animate={isSpinning ? { rotate: [-10, 15, -10] } : { rotate: 0 }} transition={{ repeat: isSpinning ? Infinity : 0, duration: 0.15 }} className="origin-top" >
+             <svg width="36" height="44" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+               <path d="M12 22L4 6C4 6 7 2 12 2C17 2 20 6 20 6L12 22Z" fill="#F59E0B" stroke="#B45309" strokeWidth="2" strokeLinejoin="round"/>
+               <circle cx="12" cy="7" r="2.5" fill="#B45309" />
+             </svg>
           </motion.div>
         </div>
         
@@ -296,8 +299,8 @@ export function Spin() {
             })}
             
             {/* Center dot */}
-            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-14 h-14 bg-white dark:bg-slate-800 rounded-full shadow-2xl border-[6px] border-indigo-600 dark:border-indigo-500 z-10 flex items-center justify-center ring-4 ring-indigo-500/20">
-              <div className="w-4 h-4 bg-indigo-600 dark:bg-indigo-500 rounded-full drop-shadow-sm"></div>
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-16 h-16 bg-white dark:bg-slate-800 rounded-full shadow-2xl border-[6px] border-amber-400 dark:border-amber-500 z-10 flex items-center justify-center ring-4 ring-amber-500/20">
+              <span className="font-black text-[11px] tracking-widest text-amber-500 dark:text-amber-400 drop-shadow-sm">SPIN</span>
             </div>
           </motion.div>
         </div>

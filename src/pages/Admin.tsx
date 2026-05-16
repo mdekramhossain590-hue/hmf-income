@@ -42,6 +42,8 @@ export function AdminPanel() {
     color: 'text-blue-500',
     bg: 'bg-blue-100',
     requiredProofs: ['text'] as string[],
+    allowedCompletions: 1, // 0 for unlimited
+    deadline: '',
   });
 
   const isAdmin = profile?.role === 'admin' || auth.currentUser?.email === 'mdekramhossain590@gmail.com';
@@ -233,11 +235,12 @@ export function AdminPanel() {
       const jobRef = doc(collection(db, "jobs"));
       await setDoc(jobRef, {
         ...newJob,
+        postedBy: profile?.fullName || 'Admin',
         status: 'active',
         createdAt: serverTimestamp()
       });
       toast.success('Job created.');
-      setNewJob({ ...newJob, title: '', description: '', link: '' });
+      setNewJob({ ...newJob, title: '', description: '', link: '', allowedCompletions: 1, deadline: '' });
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, 'jobs');
     }
@@ -550,6 +553,18 @@ export function AdminPanel() {
             
             <input type="text" placeholder="Action Link (e.g., youtube link)" required value={newJob.link} onChange={e => setNewJob({...newJob, link: e.target.value})} className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded" />
             <input type="number" placeholder="Reward Amount" required value={newJob.reward} onChange={e => setNewJob({...newJob, reward: Number(e.target.value)})} className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded" />
+            
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <label className="text-[12px] text-gray-500 font-bold block mb-1">Allowed Completions Per User</label>
+                <input type="number" required min="0" placeholder="0 for unlimited" value={newJob.allowedCompletions} onChange={e => setNewJob({...newJob, allowedCompletions: Number(e.target.value)})} className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded text-sm" />
+                <span className="text-[10px] text-gray-400">0 = unlimited</span>
+              </div>
+              <div className="flex-1">
+                <label className="text-[12px] text-gray-500 font-bold block mb-1">Deadline (Optional)</label>
+                <input type="date" value={newJob.deadline} onChange={e => setNewJob({...newJob, deadline: e.target.value})} className="w-full bg-gray-50 dark:bg-slate-700 border p-2 rounded text-sm" />
+              </div>
+            </div>
             
             <div className="pt-2">
               <label className="text-sm font-bold dark:text-gray-300">Required Proofs:</label>
