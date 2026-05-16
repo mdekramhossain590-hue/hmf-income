@@ -34,7 +34,8 @@ service cloud.firestore {
         (data.keys().hasAny(['photoURL']) ? (data.photoURL is string && data.photoURL.size() <= 600) : true) &&
         (data.keys().hasAny(['totalReferrals']) ? data.totalReferrals is number : true) &&
         (data.keys().hasAny(['totalTasksCompleted']) ? data.totalTasksCompleted is number : true) &&
-        (data.keys().hasAny(['isActive']) ? data.isActive is bool : true);
+        (data.keys().hasAny(['isActive']) ? data.isActive is bool : true) &&
+        (data.keys().hasAny(['deviceId']) ? (data.deviceId is string && data.deviceId.size() <= 100) : true);
     }
 
     function isValidTaskHistory(data) {
@@ -340,8 +341,8 @@ service cloud.firestore {
                        
       allow update: if isSignedIn() && isValidId(userId) &&
                        (
-                         (isValidUser(incoming()) && request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['balances', 'photoURL', 'fullName', 'totalTasksCompleted', 'totalReferrals'])) ||
-                         (isValidUser(incoming()) && request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['balances', 'isActive'])) ||
+                         (isValidUser(incoming()) && request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['balances', 'photoURL', 'fullName', 'totalTasksCompleted', 'totalReferrals', 'deviceId'])) ||
+                         (isValidUser(incoming()) && request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['balances', 'isActive', 'deviceId'])) ||
                          (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['balances', 'totalTasksCompleted', 'totalReferrals', 'isActive', 'role'])) ||
                          (incoming().diff(existing()).affectedKeys().hasOnly(['balances', 'totalReferrals']) && 
                           incoming().balances.main == existing().balances.main &&

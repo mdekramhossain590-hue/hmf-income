@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User, signOut } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { useLanguage } from './LanguageProvider';
 import { ShieldAlert, LogOut } from 'lucide-react';
@@ -68,7 +68,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const docRef = doc(db, 'users', targetUid);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
-        setProfile(docSnap.data() as UserProfile);
+        const data = docSnap.data() as UserProfile;
+        
+        // Auto-link device ID if missing
+        if (!data.deviceId) {
+          try {
+            const { getDeviceId } = await import('../lib/device');
+            const newDeviceId = getDeviceId();
+            await updateDoc(docRef, { deviceId: newDeviceId });
+            data.deviceId = newDeviceId;
+          } catch (e) {
+            console.error('Failed to link device ID:', e);
+          }
+        }
+        
+        setProfile(data);
       }
     } catch (error) {
       console.error('Error fetching profile:', error);
