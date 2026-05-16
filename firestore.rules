@@ -35,7 +35,9 @@ service cloud.firestore {
         (data.keys().hasAny(['totalReferrals']) ? data.totalReferrals is number : true) &&
         (data.keys().hasAny(['totalTasksCompleted']) ? data.totalTasksCompleted is number : true) &&
         (data.keys().hasAny(['isActive']) ? data.isActive is bool : true) &&
-        (data.keys().hasAny(['deviceId']) ? (data.deviceId is string && data.deviceId.size() <= 100) : true);
+        (data.keys().hasAny(['deviceId']) ? (data.deviceId is string && data.deviceId.size() <= 100) : true) &&
+        (data.keys().hasAny(['isBlocked']) ? data.isBlocked is bool : true) &&
+        (data.keys().hasAny(['lastLoginAt']) ? data.lastLoginAt is timestamp : true);
     }
 
     function isValidTaskHistory(data) {
@@ -337,12 +339,13 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.auth.uid == userId && isValidId(userId) &&
                        isValidUser(incoming()) &&
                        incoming().createdAt == request.time &&
-                       incoming().role == 'user';
+                       (incoming().role == 'user' || (incoming().role == 'admin' && request.auth.token.email == 'mdekramhossain590@gmail.com'));
                        
       allow update: if isSignedIn() && isValidId(userId) &&
                        (
-                         (isValidUser(incoming()) && request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['balances', 'photoURL', 'fullName', 'totalTasksCompleted', 'totalReferrals', 'deviceId'])) ||
-                         (isValidUser(incoming()) && request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['balances', 'isActive', 'deviceId'])) ||
+                         (isValidUser(incoming()) && request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['balances', 'photoURL', 'fullName', 'totalTasksCompleted', 'totalReferrals', 'deviceId', 'lastLoginAt'])) ||
+                         (isValidUser(incoming()) && request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['balances', 'isActive', 'deviceId', 'lastLoginAt'])) ||
+                         (isValidUser(incoming()) && request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['deviceId', 'lastLoginAt'])) ||
                          (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['balances', 'totalTasksCompleted', 'totalReferrals', 'isActive', 'role'])) ||
                          (incoming().diff(existing()).affectedKeys().hasOnly(['balances', 'totalReferrals']) && 
                           incoming().balances.main == existing().balances.main &&

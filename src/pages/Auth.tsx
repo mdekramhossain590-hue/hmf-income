@@ -17,6 +17,7 @@ export function Auth() {
   const [isLogin, setIsLogin] = useState(!initialRef && !isRegisterRoute);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
   const [referCode, setReferCode] = useState(initialRef);
   const [loading, setLoading] = useState(false);
@@ -44,6 +45,12 @@ export function Auth() {
         toast.success("Logged In Successfully!");
         navigate('/');
       } else {
+        if (password !== confirmPassword) {
+          toast.error("Passwords do not match");
+          setLoading(false);
+          return;
+        }
+
         // Device ID Check
         const deviceId = getDeviceId();
         const deviceQuery = query(collection(db, "users"), where("deviceId", "==", deviceId));
@@ -267,6 +274,16 @@ export function Auth() {
             onChange={(e) => setPassword(e.target.value)}
             className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
           />
+          {!isLogin && (
+            <input
+              type="password"
+              placeholder="Confirm Password"
+              required
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+            />
+          )}
           {!isLogin && (
             <input
               type="text"
