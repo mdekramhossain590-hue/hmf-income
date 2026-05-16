@@ -89,9 +89,12 @@ export function Dashboard() {
             <>
               <div className="fixed inset-0 z-20" onClick={() => setMenuOpen(false)}></div>
               <div className="absolute top-10 left-0 bg-slate-900 rounded-2xl shadow-2xl border border-slate-700 py-3 w-64 z-30 overflow-hidden shadow-black/40">
-                <div className="px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white mx-3 rounded-xl mb-3 shadow-sm border border-blue-500/30">
-                  <p className="font-bold text-sm tracking-wide">{t('main_menu')}</p>
-                  <p className="text-[10px] text-blue-100 opacity-90 mt-0.5 uppercase tracking-wider">{t('access_all_features')}</p>
+                <div className="px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white mx-3 rounded-xl mb-3 shadow-sm border border-blue-500/30 font-bold text-sm tracking-wide flex items-center gap-2">
+                  <img src={useAuth().siteSettings?.logoUrl || "/favicon.svg"} alt="Logo" className="w-8 h-8 rounded-lg bg-white object-cover shadow-sm" />
+                  <div>
+                    <p>{t('main_menu')}</p>
+                    <p className="text-[10px] text-blue-100 opacity-90 font-normal uppercase tracking-wider">{t('access_all_features')}</p>
+                  </div>
                 </div>
 
                 {/* Current Time inside Menu */}

@@ -149,9 +149,9 @@ export function Auth() {
       <div className="absolute bottom-[-10%] right-[-10%] w-64 h-64 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 dark:opacity-30 pointer-events-none"></div>
       
       <div className="text-center mb-8 flex flex-col items-center relative z-10">
-        <img src={siteSettings?.logoUrl || "/favicon.svg"} alt="HMF Income Logo" className="w-20 h-20 mb-4 drop-shadow-xl rounded-full bg-white dark:bg-slate-800 border p-1 border-slate-200 dark:border-slate-700 object-cover" />
-        <h1 className="text-4xl font-black tracking-tight mb-2 text-slate-900 dark:text-white">HMF <span className="text-indigo-600 dark:text-indigo-400">INCOME</span></h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 font-medium tracking-wide uppercase">Premium Earning Platform</p>
+        <img src={siteSettings?.logoUrl || "/favicon.svg"} alt="Logo" className="w-24 h-24 mb-4 drop-shadow-2xl rounded-3xl bg-white dark:bg-slate-800 border p-2 border-white dark:border-slate-700 object-cover rotate-3 hover:rotate-0 transition-transform duration-300" />
+        <h1 className="text-4xl font-black tracking-tight mb-2 text-slate-900 dark:text-white uppercase">HMF <span className="text-indigo-600 dark:text-indigo-400 font-outline-2">INCOME</span></h1>
+        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold tracking-[0.2em] uppercase">Premium Earning Platform</p>
       </div>
 
       <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white dark:border-slate-800 p-6 rounded-3xl shadow-xl dark:shadow-2xl relative z-10">
