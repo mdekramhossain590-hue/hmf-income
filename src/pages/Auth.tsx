@@ -51,29 +51,23 @@ export function Auth() {
           return;
         }
 
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+
         // Device ID Check
         const deviceId = getDeviceId();
         const deviceQuery = query(collection(db, "users"), where("deviceId", "==", deviceId));
         const deviceSnapshot = await getDocs(deviceQuery);
         
         if (!deviceSnapshot.empty) {
+          await user.delete().catch(() => {});
+          await auth.signOut();
           toast.error(t('only_one_account_allowed'));
           setLoading(false);
           return;
         }
-
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const user = userCredential.user;
         
         await createProfileForUser(user, name, email);
-        
-        try {
-          // Import sendEmailVerification at the top or use from 'firebase/auth'
-          const { sendEmailVerification } = await import('firebase/auth');
-          await sendEmailVerification(user);
-        } catch (e) {
-          console.error('Failed to send verification email', e);
-        }
         
         await refreshProfile();
         toast.success("Account Created Successfully! ৳10 Bonus Added.");
