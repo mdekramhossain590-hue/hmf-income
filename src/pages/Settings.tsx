@@ -49,8 +49,8 @@ export function Settings() {
               <Bell className="w-5 h-5 text-gray-400 dark:text-gray-500" />
               <span className="text-gray-700 dark:text-gray-200 font-medium">{t('notifications')}</span>
             </div>
-            <div className={`w-12 h-6 rounded-full relative transition-colors ${notifications ? 'bg-blue-600' : 'bg-gray-200 dark:bg-slate-600'}`}>
-              <div className={`w-4 h-4 bg-white rounded-full absolute top-1 shadow-sm transition-all ${notifications ? 'right-1' : 'left-1'}`}></div>
+            <div className={`w-12 h-6 rounded-full relative transition-colors duration-200 ease-in-out ${notifications ? 'bg-blue-600' : 'bg-gray-200 dark:bg-slate-600'}`}>
+              <div className={`w-4 h-4 bg-white rounded-full absolute top-1 shadow-sm transition-transform duration-200 ease-in-out ${notifications ? 'translate-x-7' : 'translate-x-1'}`}></div>
             </div>
           </div>
           
@@ -59,8 +59,8 @@ export function Settings() {
               <Moon className="w-5 h-5 text-gray-400 dark:text-gray-500" />
               <span className="text-gray-700 dark:text-gray-200 font-medium">{t('dark_mode')}</span>
             </div>
-            <div className={`w-12 h-6 rounded-full relative transition-colors ${isDark ? 'bg-blue-600' : 'bg-gray-200 dark:bg-slate-600'}`}>
-              <div className={`w-4 h-4 bg-white rounded-full absolute top-1 shadow-sm transition-all ${isDark ? 'right-1' : 'left-1'}`}></div>
+            <div className={`w-12 h-6 rounded-full relative transition-colors duration-200 ease-in-out ${isDark ? 'bg-blue-600' : 'bg-gray-200 dark:bg-slate-600'}`}>
+              <div className={`w-4 h-4 bg-white rounded-full absolute top-1 shadow-sm transition-transform duration-200 ease-in-out ${isDark ? 'translate-x-7' : 'translate-x-1'}`}></div>
             </div>
           </div>
 
