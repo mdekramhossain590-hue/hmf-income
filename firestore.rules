@@ -82,8 +82,8 @@ service cloud.firestore {
     }
 
     function isValidAdminJob(data) {
-      return data.keys().hasAll(['title', 'description', 'reward', 'link', 'type', 'requiredProofs', 'icon', 'color', 'bg', 'status', 'createdAt']) &&
-        data.keys().size() == 11 &&
+      return data.keys().hasAll(['title', 'description', 'reward', 'link', 'type', 'requiredProofs', 'icon', 'color', 'bg', 'status', 'createdAt', 'allowedCompletions', 'deadline', 'postedBy']) &&
+        data.keys().size() == 14 &&
         data.title is string && data.title.size() <= 150 &&
         data.description is string && data.description.size() <= 1000 &&
         data.reward is number &&
@@ -94,7 +94,10 @@ service cloud.firestore {
         data.color is string && data.color.size() <= 50 &&
         data.bg is string && data.bg.size() <= 50 &&
         data.status is string && (data.status == 'active' || data.status == 'inactive') &&
-        data.createdAt is timestamp;
+        data.createdAt is timestamp &&
+        data.allowedCompletions is number &&
+        data.deadline is string &&
+        data.postedBy is string;
     }
 
     function isValidSubmission(data) {
