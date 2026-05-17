@@ -78,14 +78,11 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 }
 
 
-import { ErrorBoundary } from './components/ErrorBoundary';
-
 export default function App() {
   return (
-    <ErrorBoundary>
-      <AuthProvider>
-        <Toaster position="top-center" />
-        <BrowserRouter>
+    <AuthProvider>
+      <Toaster position="top-center" />
+      <BrowserRouter>
           <Routes>
             <Route path="/login" element={<PublicRoute><Auth /></PublicRoute>} />
           <Route path="/register" element={<PublicRoute><Auth /></PublicRoute>} />
@@ -116,6 +113,5 @@ export default function App() {
         </Routes>
         </BrowserRouter>
       </AuthProvider>
-    </ErrorBoundary>
   );
 }

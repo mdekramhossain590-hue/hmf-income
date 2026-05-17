@@ -10,6 +10,7 @@ import toast from 'react-hot-toast';
 export function TaskDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { siteSettings } = useAuth();
   
   const [job, setJob] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -96,6 +97,35 @@ export function TaskDetail() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!auth.currentUser) return;
+
+    // Check per-job user limit
+    if (job.userLimit && job.userLimit > 0) {
+      if (submissionCount >= job.userLimit) {
+        toast.error(`You have already completed this task ${submissionCount} time(s). Limit is ${job.userLimit}.`);
+        return;
+      }
+    }
+
+    // Check daily task limit (site-wide)
+    if (siteSettings.dailyTaskLimit && siteSettings.dailyTaskLimit > 0) {
+      try {
+        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        
+        const dailyQuery = query(
+          collection(db, "submissions"),
+          where("userId", "==", auth.currentUser.uid),
+          where("submittedAt", ">=", twentyFourHoursAgo)
+        );
+        const dailySnap = await getDocs(dailyQuery);
+        
+        if (dailySnap.size >= siteSettings.dailyTaskLimit) {
+          toast.error(`Daily task limit reached (${siteSettings.dailyTaskLimit}). Please try again later.`);
+          return;
+        }
+      } catch (err) {
+        console.error("Error checking daily limit:", err);
+      }
+    }
     
     // Specific input validation
     if (job.requiredProofs?.includes('text') && proofText.trim().length < 10) {
@@ -250,9 +280,15 @@ export function TaskDetail() {
              <span className="font-bold text-slate-700 dark:text-slate-300 text-sm">{job.postedBy || 'Admin'}</span>
           </div>
           <div className="bg-slate-50 dark:bg-slate-900/50 rounded-xl p-3 border border-slate-100 dark:border-slate-700/50">
-             <span className="block text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">Allowed Tries</span>
+             <span className="block text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">Total Slots</span>
              <span className="font-bold text-slate-700 dark:text-slate-300 text-sm">
-                {!job.allowedCompletions ? 'Unlimited' : `${submissionCount} / ${job.allowedCompletions}`}
+                {!job.allowedCompletions ? 'Unlimited' : `${job.allowedCompletions} Total`}
+             </span>
+          </div>
+          <div className="bg-slate-50 dark:bg-slate-900/50 rounded-xl p-3 border border-slate-100 dark:border-slate-700/50">
+             <span className="block text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">Your Limit</span>
+             <span className="font-bold text-slate-700 dark:text-slate-300 text-sm">
+                {!job.userLimit ? 'Unlimited' : `${submissionCount} / ${job.userLimit}`}
              </span>
           </div>
           {job.deadline && (
@@ -403,7 +439,7 @@ export function TaskDetail() {
               </div>
             )}
             
-            {(!job.allowedCompletions || submissionCount < job.allowedCompletions) && (
+            {(!job.allowedCompletions || submissionCount < job.allowedCompletions) && (!job.userLimit || submissionCount < job.userLimit) && (
               <div className="mt-6 text-center pt-4 border-t border-slate-100 dark:border-slate-700/50">
                 <button 
                   onClick={() => setShowSubmitForm(true)} 

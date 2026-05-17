@@ -31,7 +31,7 @@ export function AdminPanel() {
     title: 'Welcome!',
     subtitle: 'Join our official channel for updates'
   });
-  const [siteSettings, setSiteSettings] = useState({ logoUrl: '', faviconUrl: '', telegramUrl: '' });
+  const [siteSettings, setSiteSettings] = useState({ logoUrl: '', faviconUrl: '', telegramUrl: '', dailyTaskLimit: 0 });
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   
   const [newJob, setNewJob] = useState({
@@ -44,7 +44,8 @@ export function AdminPanel() {
     color: 'text-blue-500',
     bg: 'bg-blue-100',
     requiredProofs: ['text'] as string[],
-    allowedCompletions: 1, // 0 for unlimited
+    allowedCompletions: 1, // Total job slots
+    userLimit: 1, // 0 for unlimited per user, 1 for once, 2 for twice etc
     deadline: '',
   });
 
@@ -171,7 +172,8 @@ export function AdminPanel() {
         setSiteSettings({
           logoUrl: data.logoUrl || '',
           faviconUrl: data.faviconUrl || '',
-          telegramUrl: data.telegramUrl || ''
+          telegramUrl: data.telegramUrl || '',
+          dailyTaskLimit: data.dailyTaskLimit || 0
         });
       }
     }, (err) => console.log(err));
@@ -291,7 +293,7 @@ export function AdminPanel() {
         createdAt: serverTimestamp()
       });
       toast.success('Job created.');
-      setNewJob({ ...newJob, title: '', description: '', link: '', allowedCompletions: 1, deadline: '' });
+      setNewJob({ ...newJob, title: '', description: '', link: '', allowedCompletions: 1, userLimit: 1, deadline: '' });
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, 'jobs');
     }
@@ -695,6 +697,17 @@ export function AdminPanel() {
               </div>
             </div>
 
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-1 block">Total Slots (All Users)</label>
+                <input type="number" value={newJob.allowedCompletions} onChange={e => setNewJob({...newJob, allowedCompletions: Number(e.target.value)})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold" placeholder="0 for unlimited" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-1 block">Max Per User</label>
+                <input type="number" value={newJob.userLimit} onChange={e => setNewJob({...newJob, userLimit: Number(e.target.value)})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold text-orange-500" placeholder="0 for unlimited" />
+              </div>
+            </div>
+
             <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-3xl space-y-3">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 pl-1">Appearance & Requirements</p>
               <div className="grid grid-cols-2 gap-2">
@@ -1020,8 +1033,8 @@ export function AdminPanel() {
                 <Globe className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Brand Identity</h3>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Visual Branding</p>
+                <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Identity & Limits</h3>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Branding & Task Controls</p>
               </div>
             </div>
             
@@ -1050,6 +1063,11 @@ export function AdminPanel() {
               <div className="group">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-emerald-500">Floating Telegram URL</label>
                 <input type="text" value={siteSettings.telegramUrl} onChange={(e) => setSiteSettings(prev => ({ ...prev, telegramUrl: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-[11px] font-bold ring-1 ring-slate-100 dark:ring-slate-800" placeholder="https://t.me/yourchannel" />
+              </div>
+              <div className="group">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-emerald-500">Daily Task Limit (Per User)</label>
+                <input type="number" value={siteSettings.dailyTaskLimit} onChange={(e) => setSiteSettings(prev => ({ ...prev, dailyTaskLimit: Number(e.target.value) }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-[11px] font-bold ring-1 ring-slate-100 dark:ring-slate-800" placeholder="0 for unlimited" />
+                <p className="text-[9px] text-slate-400 mt-1 px-1">Maximum tasks a user can submit in 24 hours.</p>
               </div>
             </div>
             

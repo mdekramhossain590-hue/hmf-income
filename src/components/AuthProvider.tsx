@@ -29,6 +29,7 @@ export interface SiteSettings {
   logoUrl?: string;
   faviconUrl?: string;
   telegramUrl?: string;
+  dailyTaskLimit?: number;
 }
 
 interface AuthContextType {

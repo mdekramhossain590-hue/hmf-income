@@ -82,12 +82,12 @@ service cloud.firestore {
     }
 
     function isValidAdminJob(data) {
-      return data.keys().hasAll(['title', 'description', 'reward', 'link', 'type', 'requiredProofs', 'icon', 'color', 'bg', 'status', 'createdAt', 'allowedCompletions', 'deadline', 'postedBy']) &&
-        data.keys().size() == 14 &&
+      return data.keys().hasAll(['title', 'description', 'reward', 'link', 'type', 'requiredProofs', 'icon', 'color', 'bg', 'status', 'createdAt', 'allowedCompletions', 'deadline', 'postedBy', 'userLimit']) &&
+        data.keys().size() == 15 &&
         data.title is string && data.title.size() <= 150 &&
         data.description is string && data.description.size() <= 1000 &&
         data.reward is number &&
-        data.link is string && data.link.size() <= 500 &&
+        data.link is string && data.link.size() <= 600 &&
         data.type is string && data.type.size() <= 50 &&
         data.requiredProofs is list && data.requiredProofs.size() <= 10 &&
         data.icon is string && data.icon.size() <= 50 &&
@@ -97,7 +97,8 @@ service cloud.firestore {
         data.createdAt is timestamp &&
         data.allowedCompletions is number &&
         data.deadline is string &&
-        data.postedBy is string;
+        data.postedBy is string &&
+        data.userLimit is number;
     }
 
     function isValidSubmission(data) {
@@ -232,7 +233,9 @@ service cloud.firestore {
       return data.keys().hasAll(['updatedAt']) &&
         data.updatedAt is timestamp &&
         (data.keys().hasAny(['logoUrl']) ? data.logoUrl is string && data.logoUrl.size() <= 500 : true) &&
-        (data.keys().hasAny(['faviconUrl']) ? data.faviconUrl is string && data.faviconUrl.size() <= 500 : true);
+        (data.keys().hasAny(['faviconUrl']) ? data.faviconUrl is string && data.faviconUrl.size() <= 500 : true) &&
+        (data.keys().hasAny(['telegramUrl']) ? data.telegramUrl is string && data.telegramUrl.size() <= 500 : true) &&
+        (data.keys().hasAny(['dailyTaskLimit']) ? data.dailyTaskLimit is number : true);
     }
 
     function isValidLeaderboardEntry(data) {
