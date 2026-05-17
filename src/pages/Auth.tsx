@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, AuthProvider as FirebaseAuthProvider } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, AuthProvider as FirebaseAuthProvider } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp, collection, query, where, getDocs, updateDoc, increment, addDoc, getDoc } from 'firebase/firestore';
-import { auth, db, handleFirestoreError, OperationType, googleProvider } from '../lib/firebase';
+import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../components/AuthProvider';
 import { useLanguage } from '../components/LanguageProvider';
 import { getDeviceId } from '../lib/device';
@@ -80,50 +80,6 @@ export function Auth() {
         toast.error("Invalid email or password.");
       } else {
         toast.error("Error: " + error.message);
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSocialLogin = async (provider: FirebaseAuthProvider) => {
-    setLoading(true);
-    try {
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-      
-      const userDoc = await getDoc(doc(db, "users", user.uid));
-      const deviceId = getDeviceId();
-
-      if (!userDoc.exists()) {
-        // Device ID Check for new Social Signup
-        const deviceQuery = query(collection(db, "users"), where("deviceId", "==", deviceId));
-        const deviceSnapshot = await getDocs(deviceQuery);
-        
-        if (!deviceSnapshot.empty) {
-          // If device ID exists but this is a new user UID, block it
-          toast.error(t('only_one_account_allowed'));
-          // Sign out the user immediately since they just "signed up" with a provider
-          await auth.signOut();
-          setLoading(false);
-          return;
-        }
-
-        await createProfileForUser(user, user.displayName || 'User', user.email || '');
-        toast.success("Welcome! Your account has been created.");
-      } else {
-        // Update device ID for existing social users
-        await updateDoc(doc(db, "users", user.uid), {
-          deviceId: deviceId,
-          lastLoginAt: serverTimestamp()
-        }).catch(() => {});
-      }
-      
-      await refreshProfile();
-      navigate('/');
-    } catch (error: any) {
-      if (error.code !== 'auth/popup-closed-by-user') {
-        toast.error("Login Failed: " + error.message);
       }
     } finally {
       setLoading(false);
@@ -296,28 +252,6 @@ export function Auth() {
             {loading ? 'Processing...' : (isLogin ? 'Log In' : 'Sign Up')}
           </button>
         </form>
-
-        <div className="mt-6">
-          <div className="relative mb-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-slate-200 dark:border-slate-800"></div>
-            </div>
-            <div className="relative flex justify-center text-[10px] uppercase font-black tracking-widest text-slate-400 dark:text-slate-500 bg-white dark:bg-slate-900 px-3 mx-auto w-fit">
-              {t('or_continue_with')}
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-3">
-            <button 
-              onClick={() => handleSocialLogin(googleProvider)}
-              disabled={loading}
-              className="flex items-center justify-center gap-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-750 transition-all active:scale-[0.98] disabled:opacity-50 shadow-sm"
-            >
-              <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
-              <span>{t('login_google')}</span>
-            </button>
-          </div>
-        </div>
         
         <p className="text-center mt-5 text-sm text-slate-500 dark:text-slate-400 font-medium">
           {isLogin ? "Don't have an account?" : "Already have an account?"}{' '}
