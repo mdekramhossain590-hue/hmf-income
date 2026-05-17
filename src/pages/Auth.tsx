@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, AuthProvider as FirebaseAuthProvider } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, AuthProvider as FirebaseAuthProvider } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp, collection, query, where, getDocs, updateDoc, increment, addDoc, getDoc } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../components/AuthProvider';
@@ -81,6 +81,22 @@ export function Auth() {
       } else {
         toast.error("Error: " + error.message);
       }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      toast.error("Please enter your email address first.");
+      return;
+    }
+    setLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, email);
+      toast.success("Password reset email sent! Check your inbox.");
+    } catch (error: any) {
+      toast.error("Error: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -224,6 +240,18 @@ export function Auth() {
             onChange={(e) => setPassword(e.target.value)}
             className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
           />
+          {isLogin && (
+            <div className="flex justify-end mt-1">
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                disabled={loading}
+                className="text-xs text-indigo-600 dark:text-indigo-400 font-medium hover:underline focus:outline-none disabled:opacity-50"
+              >
+                Forgot Password?
+              </button>
+            </div>
+          )}
           {!isLogin && (
             <input
               type="password"
