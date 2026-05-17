@@ -123,21 +123,31 @@ export function Onboarding() {
               ))}
             </div>
             
-            <div className="flex gap-3">
-              {currentStep > 0 && (
+            <div className="flex flex-col gap-3">
+              <div className="flex gap-3">
+                {currentStep > 0 && (
+                  <button 
+                    onClick={prevStep}
+                    className="flex-1 py-3 rounded-xl font-bold bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-600 transition active:scale-95 text-sm"
+                  >
+                    Back
+                  </button>
+                )}
                 <button 
-                  onClick={prevStep}
-                  className="flex-1 py-3 rounded-xl font-bold bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-600 transition active:scale-95 text-sm"
+                  onClick={nextStep}
+                  className="flex-[2] py-3 rounded-xl font-bold bg-[#0D47A1] text-white shadow-lg shadow-blue-900/20 dark:shadow-blue-500/30 hover:opacity-90 transition active:scale-95 text-sm"
                 >
-                  Back
+                  {currentStep === steps.length - 1 ? "Let's Earn!" : "Next"}
+                </button>
+              </div>
+              {currentStep < steps.length - 1 && (
+                <button 
+                  onClick={handleClose}
+                  className="py-2 text-xs font-semibold text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                >
+                  Skip Tutorial
                 </button>
               )}
-              <button 
-                onClick={nextStep}
-                className="flex-[2] py-3 rounded-xl font-bold bg-[#0D47A1] text-white shadow-lg shadow-blue-900/20 dark:shadow-blue-500/30 hover:opacity-90 transition active:scale-95 text-sm"
-              >
-                {currentStep === steps.length - 1 ? "Let's Earn!" : "Next"}
-              </button>
             </div>
           </div>
         </motion.div>

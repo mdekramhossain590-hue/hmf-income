@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthProvider';
 import { useLanguage } from '../components/LanguageProvider';
 import { useSearchParams } from 'react-router-dom';
-import { History, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
+import { History, ArrowUpRight, ArrowDownLeft, Copy } from 'lucide-react';
 import { collection, query, orderBy, onSnapshot, doc, writeBatch, increment, serverTimestamp } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, ReferenceLine, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -252,20 +252,12 @@ export function Wallet() {
   };
 
   // Process data for the chart from transactions
-  // We'll calculate a cumulative balance backwards if needed, or just show earnings over days.
-  // For simplicity, let's just group transactions by day and calculate total earnings/spending.
-  const chartData = [...transactions].reverse().map((t, index) => {
+  const barChartData = [...transactions].reverse().map((t) => {
     return {
       name: t.createdAt ? t.createdAt.toDate().toLocaleDateString() : 'Now',
-      amount: t.type === 'withdraw' ? -t.amount : t.amount
+      Deposit: t.type !== 'withdraw' ? t.amount : 0,
+      Withdrawal: t.type === 'withdraw' ? -t.amount : 0
     };
-  });
-  
-  // Calculate a mock running balance for the chart
-  let runningBal = 0;
-  const runningBalData = chartData.map(d => {
-    runningBal += d.amount;
-    return { name: d.name, balance: runningBal };
   });
 
   return (
@@ -324,12 +316,28 @@ export function Wallet() {
       {/* Deposit Form */}
       {activeTab === 'deposit' && (
         <div className="bg-white/70 backdrop-blur-md p-5 rounded-2xl shadow-sm border border-gray-100 dark:bg-slate-800/80 dark:border-slate-700">
-          <div className="bg-blue-50 border border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 p-3 rounded-xl mb-4 text-center">
-            <p className="text-xs text-gray-600 dark:text-gray-300">{t('our_number')}</p>
-            <h3 className="text-lg font-display font-bold text-[#0D47A1] dark:text-blue-400 tracking-wider my-1">
-              {depositMethod === 'bKash' ? depositSettings.bkashNumber : depositMethod === 'Nagad' ? depositSettings.nagadNumber : 'Select a method first'}
-            </h3>
-            <p className="text-[10px] text-red-500 dark:text-red-400">{t('send_money_only')}</p>
+          <div className="bg-blue-50 border border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 p-4 rounded-xl mb-4 flex flex-col items-center">
+            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">{t('our_number')}</p>
+            <div className="flex items-center gap-3">
+              <h3 className="text-xl font-display font-black text-[#0D47A1] dark:text-blue-400 tracking-wider">
+                {depositMethod === 'bKash' ? depositSettings.bkashNumber : depositMethod === 'Nagad' ? depositSettings.nagadNumber : 'Select a method first'}
+              </h3>
+              {(depositMethod === 'bKash' || depositMethod === 'Nagad') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const num = depositMethod === 'bKash' ? depositSettings.bkashNumber : depositSettings.nagadNumber;
+                    navigator.clipboard.writeText(num);
+                    toast.success('Number copied!');
+                  }}
+                  className="p-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors dark:bg-blue-800/40 dark:text-blue-300 dark:hover:bg-blue-800/60 active:scale-95"
+                  title="Copy Number"
+                >
+                  <Copy className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+            <p className="text-[10px] text-red-500 dark:text-red-400 font-medium mt-1">{t('send_money_only')}</p>
           </div>
           <form onSubmit={handleDeposit} className="space-y-3">
             <select 
@@ -422,24 +430,20 @@ export function Wallet() {
         <div className="space-y-4">
           <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700">
             <h3 className="text-sm font-display font-bold text-gray-700 dark:text-gray-300 mb-4">Balance Timeline</h3>
-            {runningBalData.length > 0 ? (
+            {barChartData.length > 0 ? (
               <div className="h-48 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={runningBalData}>
-                    <defs>
-                      <linearGradient id="colorBal" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <XAxis dataKey="name" hide />
-                    <YAxis hide domain={['dataMin - 10', 'auto']} />
+                  <BarChart data={barChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} />
+                    <YAxis fontSize={10} tickLine={false} axisLine={false} />
                     <Tooltip 
-                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                      itemStyle={{ color: '#0D47A1', fontWeight: 'bold' }}
+                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }}
+                      cursor={{ fill: 'transparent' }}
                     />
-                    <Area type="monotone" dataKey="balance" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorBal)" />
-                  </AreaChart>
+                    <ReferenceLine y={0} stroke="#cbd5e1" />
+                    <Bar dataKey="Deposit" fill="#10b981" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="Withdrawal" fill="#ef4444" radius={[0, 0, 4, 4]} />
+                  </BarChart>
                 </ResponsiveContainer>
               </div>
             ) : (
