@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthProvider';
 import { useLanguage } from '../components/LanguageProvider';
 import { useSearchParams } from 'react-router-dom';
-import { History, ArrowUpRight, ArrowDownLeft, Copy } from 'lucide-react';
+import { History, ArrowUpRight, ArrowDownLeft, Copy, Wallet as WalletIcon } from 'lucide-react';
 import { collection, query, orderBy, onSnapshot, doc, writeBatch, increment, serverTimestamp } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { BarChart, Bar, ReferenceLine, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
@@ -264,50 +264,60 @@ export function Wallet() {
     <div className="pt-6 px-4 pb-24">
       <h2 className="text-2xl font-display font-black mb-6 tracking-tight text-slate-800 dark:text-white text-center">{t('wallet')}</h2>
       
-      <div className="flex overflow-x-auto gap-4 pb-4 mb-2 no-scrollbar px-1">
-        <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-2xl p-5 text-white shadow-lg min-w-[160px] text-center flex-shrink-0 relative overflow-hidden border border-indigo-400/30">
-           <div className="absolute top-0 right-0 w-24 h-24 bg-white opacity-10 blur-xl rounded-full pointer-events-none"></div>
-           <p className="text-xs font-semibold opacity-80 mb-1 uppercase tracking-wider">Main Wallet</p>
-           <h3 className="text-3xl font-display font-black tracking-tight">৳ {profile?.balances?.main?.toFixed(2) || '0.00'}</h3>
+      <div className="mb-8">
+        <div className="bg-gradient-to-br from-indigo-600 via-blue-600 to-indigo-800 rounded-[1.5rem] p-6 text-white shadow-xl shadow-indigo-500/20 mb-4 relative overflow-hidden border border-indigo-400/30">
+           <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 blur-2xl rounded-full pointer-events-none"></div>
+           <div className="absolute bottom-0 left-0 w-24 h-24 bg-indigo-400 opacity-20 blur-2xl rounded-full pointer-events-none"></div>
+           <p className="text-xs font-semibold opacity-90 mb-1 uppercase tracking-widest text-indigo-100 flex items-center gap-1.5"><WalletIcon className="w-4 h-4" /> Add Money Balance</p>
+           <h3 className="text-4xl font-display font-black tracking-tight mt-1">৳ {profile?.balances?.main?.toFixed(2) || '0.00'}</h3>
         </div>
-        <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-5 text-white shadow-lg min-w-[160px] text-center flex-shrink-0 relative overflow-hidden border border-emerald-400/30">
-           <div className="absolute top-0 left-0 w-24 h-24 bg-white opacity-10 blur-xl rounded-full pointer-events-none"></div>
-           <p className="text-xs font-semibold opacity-80 mb-1 uppercase tracking-wider">Bonus</p>
-           <h3 className="text-3xl font-display font-black tracking-tight">৳ {profile?.balances?.bonus?.toFixed(2) || '0.00'}</h3>
+
+        <div className="grid grid-cols-2 gap-3 mb-4">
+           <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-[1.25rem] p-4 text-white shadow-lg shadow-emerald-500/20 relative overflow-hidden border border-emerald-400/30">
+             <div className="absolute top-0 left-0 w-20 h-20 bg-white opacity-10 blur-xl rounded-full pointer-events-none"></div>
+             <p className="text-[10px] font-bold opacity-90 mb-1 uppercase tracking-widest text-emerald-50 text-center">Bonus</p>
+             <h3 className="text-2xl font-display font-black tracking-tight text-center">৳ {profile?.balances?.bonus?.toFixed(2) || '0.00'}</h3>
+           </div>
+           <div className="bg-gradient-to-br from-purple-500 to-violet-600 rounded-[1.25rem] p-4 text-white shadow-lg shadow-purple-500/20 relative overflow-hidden border border-purple-400/30">
+             <div className="absolute bottom-0 right-0 w-20 h-20 bg-white opacity-10 blur-xl rounded-full pointer-events-none"></div>
+             <p className="text-[10px] font-bold opacity-90 mb-1 uppercase tracking-widest text-purple-50 text-center">Referral</p>
+             <h3 className="text-2xl font-display font-black tracking-tight text-center">৳ {profile?.balances?.referral?.toFixed(2) || '0.00'}</h3>
+           </div>
         </div>
-        <div className="bg-gradient-to-br from-purple-500 to-violet-600 rounded-2xl p-5 text-white shadow-lg min-w-[160px] text-center flex-shrink-0 relative overflow-hidden border border-purple-400/30">
-           <div className="absolute bottom-0 right-0 w-24 h-24 bg-white opacity-10 blur-xl rounded-full pointer-events-none"></div>
-           <p className="text-xs font-semibold opacity-80 mb-1 uppercase tracking-wider">Referral</p>
-           <h3 className="text-3xl font-display font-black tracking-tight">৳ {profile?.balances?.referral?.toFixed(2) || '0.00'}</h3>
+
+        <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-[1.5rem] p-4 shadow-sm border border-slate-100 dark:border-slate-700">
+          <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-3 ml-1 uppercase tracking-widest text-center">Task Earnings</p>
+          <div className="flex overflow-x-auto gap-3 pb-2 no-scrollbar px-1 items-center">
+            {['Facebook', 'Gmail', 'Instagram', 'Sell Accounts', 'Microjob', 'Typing', 'Watch Ads', 'Other'].map((taskName) => {
+              const balance = profile?.balances?.tasks?.[taskName] || 0;
+              return (
+                <div key={taskName} className="bg-slate-50 dark:bg-slate-900/50 rounded-[1rem] p-3 min-w-[110px] text-center flex-shrink-0 relative overflow-hidden border border-slate-200 dark:border-slate-700/50">
+                   <p className="text-[9px] font-bold opacity-80 mb-1 leading-tight uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate">{taskName}</p>
+                   <h3 className="text-base font-display font-black tracking-tight text-slate-800 dark:text-white">৳ {balance.toFixed(2)}</h3>
+                </div>
+              );
+            })}
+          </div>
         </div>
-        {['Facebook', 'Gmail', 'Instagram', 'Sell Accounts', 'Microjob', 'Typing', 'Watch Ads', 'Other'].map((taskName) => {
-          const balance = profile?.balances?.tasks?.[taskName] || 0;
-          return (
-            <div key={taskName} className="bg-slate-800 dark:bg-slate-800 rounded-2xl p-5 text-white shadow-lg min-w-[160px] text-center flex-shrink-0 relative overflow-hidden border border-slate-700">
-               <p className="text-xs font-semibold opacity-80 mb-1 leading-tight uppercase tracking-wider text-slate-400">{taskName}</p>
-               <h3 className="text-2xl font-display font-black tracking-tight text-white">৳ {balance.toFixed(2)}</h3>
-            </div>
-          );
-        })}
       </div>
       
       {/* Tabs */}
-      <div className="flex bg-slate-100 dark:bg-slate-900/50 p-1 rounded-xl mb-6 ring-1 ring-slate-200 dark:ring-slate-800">
+      <div className="flex bg-slate-200/50 dark:bg-slate-800/50 p-1.5 rounded-2xl mb-6 ring-1 ring-slate-200 dark:ring-slate-700/50 backdrop-blur-sm relative z-10 mx-1">
         <button 
           onClick={() => setActiveTab('deposit')}
-          className={`flex-1 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-1 transition-all duration-200 ${activeTab === 'deposit' ? 'bg-white shadow-sm text-indigo-600 dark:bg-slate-800 dark:text-indigo-400' : 'bg-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
+          className={`flex-1 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all duration-300 ${activeTab === 'deposit' ? 'bg-white shadow-md text-indigo-600 dark:bg-slate-700 dark:text-white scale-[1.02]' : 'bg-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
         >
           <ArrowDownLeft className="w-4 h-4" /> {t('deposit')}
         </button>
         <button 
           onClick={() => setActiveTab('withdraw')}
-          className={`flex-1 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-1 transition-all duration-200 ${activeTab === 'withdraw' ? 'bg-white shadow-sm text-indigo-600 dark:bg-slate-800 dark:text-indigo-400' : 'bg-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
+          className={`flex-1 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all duration-300 ${activeTab === 'withdraw' ? 'bg-white shadow-md text-indigo-600 dark:bg-slate-700 dark:text-white scale-[1.02]' : 'bg-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
         >
           <ArrowUpRight className="w-4 h-4" /> {t('withdraw')}
         </button>
         <button 
           onClick={() => setActiveTab('history')}
-          className={`flex-1 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-1 transition-all duration-200 ${activeTab === 'history' ? 'bg-white shadow-sm text-indigo-600 dark:bg-slate-800 dark:text-indigo-400' : 'bg-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
+          className={`flex-1 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all duration-300 ${activeTab === 'history' ? 'bg-white shadow-md text-indigo-600 dark:bg-slate-700 dark:text-white scale-[1.02]' : 'bg-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
         >
           <History className="w-4 h-4" /> History
         </button>
@@ -315,10 +325,16 @@ export function Wallet() {
 
       {/* Deposit Form */}
       {activeTab === 'deposit' && (
-        <div className="bg-white/70 backdrop-blur-md p-5 rounded-2xl shadow-sm border border-gray-100 dark:bg-slate-800/80 dark:border-slate-700">
-          <div className="bg-blue-50 border border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 p-4 rounded-xl mb-4 flex flex-col items-center">
-            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">{t('our_number')}</p>
-            <div className="flex items-center gap-3">
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          className="bg-white/70 backdrop-blur-md p-5 rounded-3xl shadow-sm border border-slate-100 dark:bg-slate-800/80 dark:border-slate-700"
+        >
+          <div className="bg-blue-50 border border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 p-5 rounded-2xl mb-6 flex flex-col items-center relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-400/10 rounded-full blur-2xl transform translate-x-1/2 -translate-y-1/2"></div>
+            <p className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-2 z-10">{t('our_number')}</p>
+            <div className="flex items-center gap-3 z-10 bg-white dark:bg-slate-800 py-2 px-4 rounded-xl shadow-sm border border-blue-100 dark:border-slate-700">
               <h3 className="text-xl font-display font-black text-[#0D47A1] dark:text-blue-400 tracking-wider">
                 {depositMethod === 'bKash' ? depositSettings.bkashNumber : depositMethod === 'Nagad' ? depositSettings.nagadNumber : 'Select a method first'}
               </h3>
@@ -330,161 +346,206 @@ export function Wallet() {
                     navigator.clipboard.writeText(num);
                     toast.success('Number copied!');
                   }}
-                  className="p-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors dark:bg-blue-800/40 dark:text-blue-300 dark:hover:bg-blue-800/60 active:scale-95"
+                  className="p-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors dark:bg-blue-800/40 dark:text-blue-300 dark:hover:bg-blue-800/60 active:scale-95"
                   title="Copy Number"
                 >
                   <Copy className="w-4 h-4" />
                 </button>
               )}
             </div>
-            <p className="text-[10px] text-red-500 dark:text-red-400 font-medium mt-1">{t('send_money_only')}</p>
+            <p className="text-[10px] text-red-500 dark:text-red-400 font-bold mt-3 z-10 bg-red-50 dark:bg-red-900/30 px-3 py-1 rounded-full">{t('send_money_only')}</p>
           </div>
-          <form onSubmit={handleDeposit} className="space-y-3">
-            <select 
-              value={depositMethod}
-              onChange={(e) => setDepositMethod(e.target.value)}
-              className="w-full bg-white border border-gray-200 dark:bg-slate-700 dark:border-slate-600 dark:text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#3b82f6]"
-            >
-              <option value="">{t('select_method') || 'Select Method'}</option>
-              <option value="bKash">bKash</option>
-              <option value="Nagad">Nagad</option>
-            </select>
-            <input 
-              type="number" 
-              placeholder={`${t('amount')} (${depositSettings.minDeposit}-${depositSettings.maxDeposit})`} 
-              required 
-              min={depositSettings.minDeposit}
-              max={depositSettings.maxDeposit}
-              value={depositAmount}
-              onChange={(e) => setDepositAmount(e.target.value)}
-              className="w-full bg-white border border-gray-200 dark:bg-slate-700 dark:border-slate-600 dark:text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#3b82f6]"
-            />
-            <input 
-              type="text" 
-              placeholder={t('trx_id') || 'TrxID'} 
-              required 
-              value={depositTrx}
-              onChange={(e) => setDepositTrx(e.target.value)}
-              className="w-full bg-white border border-gray-200 dark:bg-slate-700 dark:border-slate-600 dark:text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#3b82f6]"
-            />
-            <button type="submit" className="w-full bg-indigo-600 dark:bg-indigo-500 text-white font-bold py-3 rounded-xl shadow-md mt-2 hover:bg-indigo-700 dark:hover:bg-indigo-600 transition active:scale-[0.98]">
+          <form onSubmit={handleDeposit} className="space-y-4">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest pl-1 mb-1.5">{t('select_method') || 'Select Method'}</label>
+              <select 
+                value={depositMethod}
+                onChange={(e) => setDepositMethod(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 dark:bg-slate-900/50 dark:border-slate-700 dark:text-white rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium transition-all"
+              >
+                <option value="">Choose Method</option>
+                <option value="bKash">bKash</option>
+                <option value="Nagad">Nagad</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest pl-1 mb-1.5">{t('amount')} (৳{depositSettings.minDeposit} - ৳{depositSettings.maxDeposit})</label>
+              <input 
+                type="number" 
+                placeholder={`e.g. 500`} 
+                required 
+                min={depositSettings.minDeposit}
+                max={depositSettings.maxDeposit}
+                value={depositAmount}
+                onChange={(e) => setDepositAmount(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 dark:bg-slate-900/50 dark:border-slate-700 dark:text-white rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-display font-medium text-lg transition-all"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest pl-1 mb-1.5">{t('trx_id') || 'TrxID'}</label>
+              <input 
+                type="text" 
+                placeholder="Enter Transaction ID" 
+                required 
+                value={depositTrx}
+                onChange={(e) => setDepositTrx(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 dark:bg-slate-900/50 dark:border-slate-700 dark:text-white rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono transition-all"
+              />
+            </div>
+            <button type="submit" className="w-full bg-indigo-600 dark:bg-indigo-500 text-white font-bold py-4 rounded-xl shadow-lg mt-4 hover:bg-indigo-700 dark:hover:bg-indigo-600 transition active:scale-[0.98] text-base">
               {t('submit_deposit')}
             </button>
           </form>
-        </div>
+        </motion.div>
       )}
 
       {/* Withdraw Form */}
       {activeTab === 'withdraw' && (
-        <div className="bg-white/70 backdrop-blur-md p-5 rounded-2xl shadow-sm border border-gray-100 dark:bg-slate-800/80 dark:border-slate-700">
-          <form onSubmit={handleWithdraw} className="space-y-3">
-            <select 
-              value={selectedWallet} 
-              onChange={e => setSelectedWallet(e.target.value)}
-              className="w-full bg-white border border-gray-200 dark:bg-slate-700 dark:border-slate-600 dark:text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#3b82f6] font-bold"
-            >
-              <option value="main">Main Wallet (৳{profile?.balances?.main?.toFixed(2) || '0.00'})</option>
-              <option value="bonus">Bonus (৳{profile?.balances?.bonus?.toFixed(2) || '0.00'})</option>
-              <option value="referral">Referral (৳{profile?.balances?.referral?.toFixed(2) || '0.00'})</option>
-              {['Facebook', 'Gmail', 'Instagram', 'Sell Accounts', 'Microjob', 'Typing', 'Watch Ads', 'Other'].map((taskName) => {
-                const balance = profile?.balances?.tasks?.[taskName] || 0;
-                return (
-                  <option key={taskName} value={taskName}>{taskName} (৳{balance.toFixed(2)})</option>
-                );
-              })}
-            </select>
-            <select 
-              value={withdrawMethod}
-              onChange={(e) => setWithdrawMethod(e.target.value)}
-              className="w-full bg-white border border-gray-200 dark:bg-slate-700 dark:border-slate-600 dark:text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#3b82f6]"
-            >
-              <option value="">{t('select_method') || 'Select Method'}</option>
-              <option value="bKash">bKash</option>
-              <option value="Nagad">Nagad</option>
-            </select>
-            <input 
-              type="text" 
-              placeholder={t('account_number') || 'Account Number'} 
-              required 
-              value={withdrawAccount}
-              onChange={(e) => setWithdrawAccount(e.target.value)}
-              className="w-full bg-white border border-gray-200 dark:bg-slate-700 dark:border-slate-600 dark:text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#3b82f6]"
-            />
-            <input 
-              type="number" 
-              placeholder={t('amount') || 'Amount'} 
-              required 
-              value={withdrawAmount}
-              onChange={(e) => setWithdrawAmount(e.target.value)}
-              className="w-full bg-white border border-gray-200 dark:bg-slate-700 dark:border-slate-600 dark:text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#3b82f6]"
-            />
-            <button type="submit" className="w-full bg-indigo-600 dark:bg-indigo-500 text-white font-bold py-3 rounded-xl shadow-md mt-2 hover:bg-indigo-700 dark:hover:bg-indigo-600 transition active:scale-[0.98]">
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          className="bg-white/70 backdrop-blur-md p-5 rounded-3xl shadow-sm border border-slate-100 dark:bg-slate-800/80 dark:border-slate-700"
+        >
+          <div className="bg-indigo-50 border border-indigo-200 dark:bg-indigo-900/20 dark:border-indigo-800 p-5 rounded-2xl mb-6 flex flex-col items-center relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-400/10 rounded-full blur-2xl transform translate-x-1/2 -translate-y-1/2"></div>
+            <ArrowUpRight className="w-8 h-8 text-indigo-500 mb-2 z-10" />
+            <h3 className="font-bold text-slate-800 dark:text-white z-10">Withdraw Funds</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 text-center mt-1 z-10">Select wallet and method to withdraw your balance</p>
+          </div>
+          <form onSubmit={handleWithdraw} className="space-y-4">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest pl-1 mb-1.5">From Wallet</label>
+              <select 
+                value={selectedWallet} 
+                onChange={e => setSelectedWallet(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 dark:bg-slate-900/50 dark:border-slate-700 dark:text-white rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold transition-all"
+              >
+                <option value="main">Main Wallet (৳{profile?.balances?.main?.toFixed(2) || '0.00'})</option>
+                <option value="bonus">Bonus (৳{profile?.balances?.bonus?.toFixed(2) || '0.00'})</option>
+                <option value="referral">Referral (৳{profile?.balances?.referral?.toFixed(2) || '0.00'})</option>
+                {['Facebook', 'Gmail', 'Instagram', 'Sell Accounts', 'Microjob', 'Typing', 'Watch Ads', 'Other'].map((taskName) => {
+                  const balance = profile?.balances?.tasks?.[taskName] || 0;
+                  return (
+                    <option key={taskName} value={taskName}>{taskName} (৳{balance.toFixed(2)})</option>
+                  );
+                })}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest pl-1 mb-1.5">{t('select_method') || 'Method'}</label>
+              <select 
+                value={withdrawMethod}
+                onChange={(e) => setWithdrawMethod(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 dark:bg-slate-900/50 dark:border-slate-700 dark:text-white rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium transition-all"
+              >
+                <option value="">Choose Method</option>
+                <option value="bKash">bKash</option>
+                <option value="Nagad">Nagad</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest pl-1 mb-1.5">{t('account_number') || 'Account details'}</label>
+              <input 
+                type="text" 
+                placeholder="e.g. 017XXXXXXXX" 
+                required 
+                value={withdrawAccount}
+                onChange={(e) => setWithdrawAccount(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 dark:bg-slate-900/50 dark:border-slate-700 dark:text-white rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono transition-all"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest pl-1 mb-1.5">{t('amount')} (৳)</label>
+              <input 
+                type="number" 
+                placeholder="0.00" 
+                required 
+                value={withdrawAmount}
+                onChange={(e) => setWithdrawAmount(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 dark:bg-slate-900/50 dark:border-slate-700 dark:text-white rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-display font-medium text-lg transition-all"
+              />
+            </div>
+            <button type="submit" className="w-full bg-indigo-600 dark:bg-indigo-500 text-white font-bold py-4 rounded-xl shadow-lg mt-4 hover:bg-indigo-700 dark:hover:bg-indigo-600 transition active:scale-[0.98] text-base">
               {t('request_withdraw')}
             </button>
           </form>
-        </div>
+        </motion.div>
       )}
 
       {/* History & Chart Tab */}
       {activeTab === 'history' && (
-        <div className="space-y-4">
-          <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700">
-            <h3 className="text-sm font-display font-bold text-gray-700 dark:text-gray-300 mb-4">Balance Timeline</h3>
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          className="space-y-4"
+        >
+          <div className="bg-white/90 backdrop-blur-md dark:bg-slate-800/90 p-5 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700">
+            <h3 className="text-sm font-display font-bold text-slate-700 dark:text-slate-300 mb-4 capitalize tracking-wide hidden">Balance Timeline</h3>
             {barChartData.length > 0 ? (
               <div className="h-48 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={barChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} />
-                    <YAxis fontSize={10} tickLine={false} axisLine={false} />
+                    <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} tick={{fill: '#94a3b8'}} />
+                    <YAxis fontSize={10} tickLine={false} axisLine={false} tick={{fill: '#94a3b8'}} />
                     <Tooltip 
-                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }}
-                      cursor={{ fill: 'transparent' }}
+                      contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 4px 20px -2px rgb(0 0 0 / 0.15)', fontSize: '12px', fontWeight: 'bold' }}
+                      cursor={{ fill: 'rgba(148, 163, 184, 0.1)' }}
                     />
-                    <ReferenceLine y={0} stroke="#cbd5e1" />
-                    <Bar dataKey="Deposit" fill="#10b981" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="Withdrawal" fill="#ef4444" radius={[0, 0, 4, 4]} />
+                    <ReferenceLine y={0} stroke="#cbd5e1" strokeDasharray="3 3"/>
+                    <Bar dataKey="Deposit" fill="#10b981" radius={[4, 4, 0, 0]} barSize={20} />
+                    <Bar dataKey="Withdrawal" fill="#ef4444" radius={[0, 0, 4, 4]} barSize={20} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             ) : (
-              <div className="h-24 flex items-center justify-center text-gray-400 text-sm">
-                No activity yet.
+              <div className="h-32 flex flex-col items-center justify-center text-slate-400 text-sm">
+                <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-2">
+                  <History className="w-5 h-5 opacity-50" />
+                </div>
+                <p>No activity yet.</p>
               </div>
             )}
           </div>
 
           <div className="space-y-3 mt-4">
             {transactions.length === 0 ? (
-              <div className="text-center py-6 text-gray-400 text-sm">No transactions found.</div>
+              <div className="text-center py-6 text-slate-400 text-sm">No transactions found.</div>
             ) : (
               transactions.map((tx) => (
-                <div key={tx.id} className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 flex justify-between items-center">
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  key={tx.id} 
+                  className="bg-white/90 backdrop-blur-md dark:bg-slate-800/90 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex justify-between items-center"
+                >
                   <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 flex items-center justify-center rounded-full ${
-                      tx.type === 'withdraw' ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' : 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400'
+                    <div className={`w-12 h-12 flex items-center justify-center rounded-2xl shadow-inner ${
+                      tx.type === 'withdraw' ? 'bg-rose-50 text-rose-500 dark:bg-rose-900/20 dark:text-rose-400' : 'bg-emerald-50 text-emerald-500 dark:bg-emerald-900/20 dark:text-emerald-400'
                     }`}>
-                      {tx.type === 'withdraw' ? <ArrowUpRight className="w-5 h-5" /> : <ArrowDownLeft className="w-5 h-5" />}
+                      {tx.type === 'withdraw' ? <ArrowUpRight className="w-6 h-6" /> : <ArrowDownLeft className="w-6 h-6" />}
                     </div>
                     <div>
-                      <h4 className="text-sm font-bold text-gray-800 dark:text-white capitalize">{tx.type}</h4>
-                      <p className="text-xs text-gray-500">{tx.createdAt?.toDate().toLocaleString() || 'Pending'}</p>
+                      <h4 className="text-sm font-bold text-slate-800 dark:text-white capitalize">{tx.type}</h4>
+                      <p className="text-[11px] font-medium text-slate-500 mt-0.5 tracking-wide">{tx.createdAt?.toDate().toLocaleDateString() || 'Pending'}</p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className={`text-sm font-black ${
-                      tx.type === 'withdraw' ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'
+                    <p className={`text-base font-black tracking-tight ${
+                      tx.type === 'withdraw' ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'
                     }`}>
                       {tx.type === 'withdraw' ? '-' : '+'}৳{tx.amount?.toFixed(2)}
                     </p>
-                    {tx.status === 'pending' && <p className="text-[10px] text-orange-500 font-bold uppercase mt-1">Pending</p>}
-                    {tx.status === 'approved' && <p className="text-[10px] text-green-500 font-bold uppercase mt-1">Approved</p>}
-                    {tx.status === 'rejected' && <p className="text-[10px] text-red-500 font-bold uppercase mt-1">Rejected</p>}
+                    {tx.status === 'pending' && <p className="text-[10px] text-amber-500 font-bold uppercase mt-1 tracking-wider bg-amber-50 dark:bg-amber-900/30 px-2 py-0.5 rounded-full inline-block">Pending</p>}
+                    {tx.status === 'approved' && <p className="text-[10px] text-emerald-500 font-bold uppercase mt-1 tracking-wider bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full inline-block">Approved</p>}
+                    {tx.status === 'rejected' && <p className="text-[10px] text-rose-500 font-bold uppercase mt-1 tracking-wider bg-rose-50 dark:bg-rose-900/30 px-2 py-0.5 rounded-full inline-block">Rejected</p>}
                   </div>
-                </div>
+                </motion.div>
               ))
             )}
           </div>
-        </div>
+        </motion.div>
       )}
 
       {/* Confirmation Modal */}

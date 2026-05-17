@@ -14,6 +14,8 @@ import { Wallet } from './pages/Wallet';
 import { Profile } from './pages/Profile';
 import { Leaderboard } from './pages/Leaderboard';
 import { Rewards } from './pages/Rewards';
+import { Recharge } from './pages/Recharge';
+import { AdsView } from './pages/AdsView';
 import { Settings } from './pages/Settings';
 import { Support } from './pages/Support';
 import { Privacy } from './pages/Privacy';
@@ -94,6 +96,8 @@ export default function App() {
             <Route path="/math" element={<ActiveGuard><MathQuiz /></ActiveGuard>} />
             <Route path="/refer" element={<ActiveGuard><Refer /></ActiveGuard>} />
             <Route path="/wallet" element={<Wallet />} />
+            <Route path="/recharge" element={<Recharge />} />
+            <Route path="/ads" element={<ActiveGuard><AdsView /></ActiveGuard>} />
             <Route path="/payment" element={<Payment />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/leaderboard" element={<ActiveGuard><Leaderboard /></ActiveGuard>} />

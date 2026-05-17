@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { User, Bell, Wallet, ListChecks, Target, Users, Send, MoreVertical, Settings, HelpCircle, LogOut, Award, Shield, FileText, Calculator, Megaphone, Trophy, Copy, Check, Link, Eye, EyeOff } from 'lucide-react';
+import { User, Bell, Wallet, ListChecks, Target, Users, Send, MoreVertical, Settings, HelpCircle, LogOut, Award, Shield, FileText, Calculator, Megaphone, Trophy, Copy, Check, Link, Eye, EyeOff, Smartphone, BookOpen, Banknote, MonitorPlay, Car } from 'lucide-react';
 import { useAuth } from '../components/AuthProvider';
 import { useState, useEffect } from 'react';
 import { useLanguage } from '../components/LanguageProvider';
@@ -324,6 +324,49 @@ export function Dashboard() {
         </motion.div>
       </div>
       
+      {/* Quick Actions Grid */}
+      <div className="grid grid-cols-5 gap-2 mb-8 select-none">
+        <motion.div whileTap={{ scale: 0.9 }} onClick={() => toast('Coming soon!')} className="flex flex-col items-center gap-2 cursor-pointer group">
+          <div className="w-full aspect-square max-w-[64px] rounded-2xl bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/40 dark:to-blue-800/20 text-blue-600 dark:text-blue-400 flex items-center justify-center shadow-sm border border-blue-200/50 dark:border-blue-700/30 group-hover:shadow-md transition-all relative overflow-hidden">
+            <div className="absolute inset-0 bg-white/20 dark:bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+            <Car className="w-6 h-6 xl:w-7 xl:h-7" strokeWidth={1.5} />
+          </div>
+          <span className="text-[10px] sm:text-[11px] font-bold text-center leading-tight truncate w-full text-slate-700 dark:text-slate-300">Drive Offer</span>
+        </motion.div>
+        
+        <motion.div whileTap={{ scale: 0.9 }} onClick={() => navigate('/recharge')} className="flex flex-col items-center gap-2 cursor-pointer group">
+          <div className="w-full aspect-square max-w-[64px] rounded-2xl bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-900/40 dark:to-emerald-800/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shadow-sm border border-emerald-200/50 dark:border-emerald-700/30 group-hover:shadow-md transition-all relative overflow-hidden">
+            <div className="absolute inset-0 bg-white/20 dark:bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+            <Smartphone className="w-6 h-6 xl:w-7 xl:h-7" strokeWidth={1.5} />
+          </div>
+          <span className="text-[10px] sm:text-[11px] font-bold text-center leading-tight truncate w-full text-slate-700 dark:text-slate-300">Recharge</span>
+        </motion.div>
+
+        <motion.div whileTap={{ scale: 0.9 }} onClick={() => toast('Coming soon!')} className="flex flex-col items-center gap-2 cursor-pointer group">
+          <div className="w-full aspect-square max-w-[64px] rounded-2xl bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/40 dark:to-purple-800/20 text-purple-600 dark:text-purple-400 flex items-center justify-center shadow-sm border border-purple-200/50 dark:border-purple-700/30 group-hover:shadow-md transition-all relative overflow-hidden">
+            <div className="absolute inset-0 bg-white/20 dark:bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+            <BookOpen className="w-6 h-6 xl:w-7 xl:h-7" strokeWidth={1.5} />
+          </div>
+          <span className="text-[10px] sm:text-[11px] font-bold text-center leading-tight truncate w-full text-slate-700 dark:text-slate-300">Course</span>
+        </motion.div>
+
+        <motion.div whileTap={{ scale: 0.9 }} onClick={() => toast('Coming soon!')} className="flex flex-col items-center gap-2 cursor-pointer group">
+          <div className="w-full aspect-square max-w-[64px] rounded-2xl bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/40 dark:to-amber-800/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shadow-sm border border-amber-200/50 dark:border-amber-700/30 group-hover:shadow-md transition-all relative overflow-hidden">
+            <div className="absolute inset-0 bg-white/20 dark:bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+            <Banknote className="w-6 h-6 xl:w-7 xl:h-7" strokeWidth={1.5} />
+          </div>
+          <span className="text-[10px] sm:text-[11px] font-bold text-center leading-tight truncate w-full text-slate-700 dark:text-slate-300">Salary</span>
+        </motion.div>
+        
+        <motion.div whileTap={{ scale: 0.9 }} onClick={() => navigate('/ads')} className="flex flex-col items-center gap-2 cursor-pointer group">
+          <div className="w-full aspect-square max-w-[64px] rounded-2xl bg-gradient-to-br from-rose-50 to-rose-100 dark:from-rose-900/40 dark:to-rose-800/20 text-rose-600 dark:text-rose-400 flex items-center justify-center shadow-sm border border-rose-200/50 dark:border-rose-700/30 group-hover:shadow-md transition-all relative overflow-hidden">
+            <div className="absolute inset-0 bg-white/20 dark:bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+            <MonitorPlay className="w-6 h-6 xl:w-7 xl:h-7" strokeWidth={1.5} />
+          </div>
+          <span className="text-[10px] sm:text-[11px] font-bold text-center leading-tight truncate w-full text-slate-700 dark:text-slate-300">Ads View</span>
+        </motion.div>
+      </div>
+
       {/* Referral Code Section */}
       <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 shadow-sm ring-1 ring-slate-100 dark:ring-slate-700/50 mb-6 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/[0.03] dark:bg-indigo-500/[0.05] blur-2xl rounded-full"></div>
