@@ -2,5 +2,5 @@
   "name": "HMF Income",
   "description": "Complete tasks, earn money daily, and withdraw easily with bKash and Nagad.",
   "requestFramePermissions": [],
-  "majorCapabilities": []
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

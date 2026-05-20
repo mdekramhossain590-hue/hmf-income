@@ -3,13 +3,27 @@ import { useAuth } from '../components/AuthProvider';
 import { collection, query, onSnapshot, doc, writeBatch, serverTimestamp, setDoc, orderBy, deleteDoc, increment, updateDoc } from 'firebase/firestore';
 import { processReferralCommission } from '../lib/referral';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
-import { Trash2, CheckCircle, XCircle, Users, ShieldAlert, ShieldCheck, Wallet, ListChecks, Settings, User, Eye, Calculator, MessageSquare, Globe, Coins, Megaphone, Gamepad2, CreditCard, Lock, BellRing, RefreshCw, Smartphone, Mail, Camera, MessageCircle, Send } from 'lucide-react';
+import { Trash2, CheckCircle, XCircle, Users, ShieldAlert, ShieldCheck, Wallet, ListChecks, Settings, User, Eye, Calculator, MessageSquare, Globe, Coins, Megaphone, Gamepad2, CreditCard, Lock, BellRing, RefreshCw, Smartphone, Mail, Camera, MessageCircle, Send, BookOpen, Layers } from 'lucide-react';
 import { motion } from 'motion/react';
 import toast from 'react-hot-toast';
 
 export function AdminPanel() {
   const { profile } = useAuth();
-  const [activeTab, setActiveTab] = useState<'jobs' | 'submissions' | 'settings' | 'requests' | 'users'>('submissions');
+  const [activeTab, setActiveTab] = useState<'jobs' | 'submissions' | 'settings' | 'requests' | 'users' | 'drives' | 'courses'>('submissions');
+  
+  // Courses Administration States
+  const [adminCourses, setAdminCourses] = useState<any[]>([]);
+  const [newCourseTitle, setNewCourseTitle] = useState('');
+  const [newCourseDesc, setNewCourseDesc] = useState('');
+  const [newCourseThumbnail, setNewCourseThumbnail] = useState('');
+  const [newCourseLink, setNewCourseLink] = useState('');
+  const [newCourseCategory, setNewCourseCategory] = useState<'টাস্ক কমপ্লিট' | 'টাকা উইথড্র' | 'অন্যান্য'>('টাস্ক কমপ্লিট');
+  const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
+  const [courseItems, setCourseItems] = useState<{ title: string; description: string; thumbnailUrl: string; videoLink: string; }[]>([]);
+  const [optTitle, setOptTitle] = useState('');
+  const [optDesc, setOptDesc] = useState('');
+  const [optThumbnail, setOptThumbnail] = useState('');
+  const [optLink, setOptLink] = useState('');
   
   const [jobs, setJobs] = useState<any[]>([]);
   const [userList, setUserList] = useState<any[]>([]);
@@ -31,7 +45,7 @@ export function AdminPanel() {
     title: 'Welcome!',
     subtitle: 'Join our official channel for updates'
   });
-  const [siteSettings, setSiteSettings] = useState({ logoUrl: '', faviconUrl: '', telegramUrl: '', dailyTaskLimit: 0 });
+  const [siteSettings, setSiteSettings] = useState({ logoUrl: '', faviconUrl: '', telegramUrl: '', dailyTaskLimit: 0, driveOffersEnabled: true, coursesEnabled: true });
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   
   const [newJob, setNewJob] = useState({
@@ -48,6 +62,13 @@ export function AdminPanel() {
     userLimit: 1, // 0 for unlimited per user, 1 for once, 2 for twice etc
     deadline: '',
   });
+
+  const [newDriveTitle, setNewDriveTitle] = useState('');
+  const [newDriveOperator, setNewDriveOperator] = useState('Grameenphone');
+  const [newDriveValidity, setNewDriveValidity] = useState('30 Days');
+  const [newDriveOriginalPrice, setNewDriveOriginalPrice] = useState('');
+  const [newDriveSalePrice, setNewDriveSalePrice] = useState('');
+  const [adminOffers, setAdminOffers] = useState<any[]>([]);
 
   const isAdmin = profile?.role === 'admin' || auth.currentUser?.email === 'mdekramhossain590@gmail.com';
 
@@ -173,7 +194,9 @@ export function AdminPanel() {
           logoUrl: data.logoUrl || '',
           faviconUrl: data.faviconUrl || '',
           telegramUrl: data.telegramUrl || '',
-          dailyTaskLimit: data.dailyTaskLimit || 0
+          dailyTaskLimit: data.dailyTaskLimit || 0,
+          driveOffersEnabled: data.driveOffersEnabled !== false,
+          coursesEnabled: data.coursesEnabled !== false
         });
       }
     }, (err) => console.log(err));
@@ -181,7 +204,15 @@ export function AdminPanel() {
     const uQ = query(collection(db, "users"), orderBy("createdAt", "desc"));
     const unsubU = onSnapshot(uQ, (snap) => setUserList(snap.docs.map(d => ({id: d.id, ...d.data()}))), (err) => handleFirestoreError(err, OperationType.GET, 'users'));
 
-    return () => { unsubJ(); unsubS(); unsubP(); unsubSpin(); unsubReferral(); unsubBanner(); unsubGameSettings(); unsubWithdrawSettings(); unsubDepositSettings(); unsubActivationSettings(); unsubPopupSettings(); unsubSupportSettings(); unsubSiteSettings(); unsubU(); };
+    const unsubD = onSnapshot(collection(db, "drive_offers"), (snap) => {
+      setAdminOffers(snap.docs.map(d => ({id: d.id, ...d.data()})));
+    }, (err) => console.log(err));
+
+    const unsubC = onSnapshot(collection(db, "courses"), (snap) => {
+      setAdminCourses(snap.docs.map(d => ({id: d.id, ...d.data()})));
+    }, (err) => console.log(err));
+
+    return () => { unsubJ(); unsubS(); unsubP(); unsubSpin(); unsubReferral(); unsubBanner(); unsubGameSettings(); unsubWithdrawSettings(); unsubDepositSettings(); unsubActivationSettings(); unsubPopupSettings(); unsubSupportSettings(); unsubSiteSettings(); unsubU(); unsubD(); unsubC(); };
   }, [isAdmin]);
 
   if (!isAdmin) return <div className="p-10 text-center">Access Denied</div>;
@@ -561,7 +592,9 @@ export function AdminPanel() {
         {[
           { id: 'submissions', label: 'Review', icon: CheckCircle, color: 'text-orange-500' },
           { id: 'requests', label: 'Payments', icon: Wallet, color: 'text-emerald-500' },
+          { id: 'drives', label: 'Drives', icon: Smartphone, color: 'text-sky-500' },
           { id: 'jobs', label: 'Jobs', icon: ListChecks, color: 'text-blue-500' },
+          { id: 'courses', label: 'Courses', icon: BookOpen, color: 'text-purple-500' },
           { id: 'users', label: 'Users', icon: Users, color: 'text-indigo-500' },
           { id: 'settings', label: 'Configs', icon: Settings, color: 'text-rose-500' }
         ].map(tab => (
@@ -905,6 +938,544 @@ export function AdminPanel() {
         </div>
       )}
 
+      {activeTab === 'drives' && (
+        <div className="space-y-6">
+          {/* Create Drive Offer Form */}
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-[32px] border border-slate-100 dark:border-slate-700 shadow-sm">
+            <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight text-sm mb-4">Create New Drive Offer</h3>
+            <form 
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!newDriveTitle || !newDriveOriginalPrice || !newDriveSalePrice) {
+                  toast.error("Please fill all required fields");
+                  return;
+                }
+                const originalCost = parseFloat(newDriveOriginalPrice);
+                const saleCost = parseFloat(newDriveSalePrice);
+                if (saleCost >= originalCost) {
+                  toast.error("Sale price must be less than original price");
+                  return;
+                }
+                try {
+                  const id = `offer_${Date.now()}`;
+                  await setDoc(doc(db, "drive_offers", id), {
+                    title: newDriveTitle,
+                    operator: newDriveOperator,
+                    validity: newDriveValidity,
+                    originalPrice: originalCost,
+                    salePrice: saleCost,
+                    status: 'active'
+                  });
+                  toast.success("Drive pack created successfully!");
+                  setNewDriveTitle('');
+                  setNewDriveOriginalPrice('');
+                  setNewDriveSalePrice('');
+                  setNewDriveValidity('30 Days');
+                } catch (err) {
+                  toast.error("Failed to create drive offer");
+                  console.error(err);
+                }
+              }}
+              className="space-y-4"
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Package Title (প্যাকের নাম)</label>
+                  <input type="text" placeholder="e.g. GP 40GB + 800 Min Combo" required value={newDriveTitle} onChange={(e) => setNewDriveTitle(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 focus:ring-2 focus:ring-indigo-500 transition-all text-slate-900 dark:text-white" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Mobile Operator</label>
+                  <select value={newDriveOperator} onChange={(e) => setNewDriveOperator(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500">
+                    <option value="Grameenphone">Grameenphone</option>
+                    <option value="Robi">Robi</option>
+                    <option value="Banglalink">Banglalink</option>
+                    <option value="Airtel">Airtel</option>
+                    <option value="Teletalk">Teletalk</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Validity (মেয়াদ)</label>
+                  <input type="text" placeholder="e.g. 30 Days" required value={newDriveValidity} onChange={(e) => setNewDriveValidity(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 text-slate-900 dark:text-white" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Original (৳)</label>
+                  <input type="number" placeholder="e.g. 799" required value={newDriveOriginalPrice} onChange={(e) => setNewDriveOriginalPrice(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 text-slate-900 dark:text-white" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Sale (৳)</label>
+                  <input type="number" placeholder="e.g. 580" required value={newDriveSalePrice} onChange={(e) => setNewDriveSalePrice(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 text-slate-900 dark:text-white" />
+                </div>
+              </div>
+
+              <button type="submit" className="w-full bg-[#0D47A1] hover:bg-blue-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg transition-all text-xs">
+                Create Drive Pack
+              </button>
+            </form>
+          </div>
+
+          {/* Drive Packs List */}
+          <div className="space-y-3">
+            <h3 className="font-black dark:text-white uppercase tracking-tight text-xs pl-1">Live Drive Packs ({adminOffers.length})</h3>
+            
+            {adminOffers.length === 0 && (
+              <div className="text-center py-12 bg-white dark:bg-slate-800/45 rounded-[32px] border-2 border-dashed border-slate-100 dark:border-slate-800">
+                <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">No active drive packs registered yet.</p>
+              </div>
+            )}
+
+            <div className="grid gap-3">
+              {adminOffers.map(of => {
+                const operatorTags: Record<string, string> = {
+                  Grameenphone: 'text-sky-600 bg-sky-50 dark:bg-sky-950/20 border-sky-200 dark:border-sky-800/30',
+                  Robi: 'text-red-500 bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800/30',
+                  Banglalink: 'text-amber-500 bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/30',
+                  Airtel: 'text-rose-500 bg-rose-50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800/30',
+                  Teletalk: 'text-emerald-500 bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/30',
+                };
+                return (
+                  <div key={of.id} className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-100 dark:border-slate-700 flex items-center justify-between gap-4 shadow-sm">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`text-[9px] px-2 py-0.5 font-bold uppercase tracking-wide rounded-full border ${operatorTags[of.operator] || 'text-indigo-600 border-indigo-200 bg-indigo-50'}`}>
+                          {of.operator}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">{of.validity}</span>
+                      </div>
+                      <h4 className="font-black text-slate-900 dark:text-white text-sm truncate uppercase">{of.title}</h4>
+                      <p className="text-xs font-bold text-slate-505 mt-1 dark:text-slate-400">Regular: <span className="line-through">৳{of.originalPrice}</span> &bull; Sale: <span className="text-emerald-550 dark:text-emerald-400">৳{of.salePrice}</span></p>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={async () => {
+                          try {
+                            const newStatus = of.status === 'active' ? 'inactive' : 'active';
+                            await updateDoc(doc(db, "drive_offers", of.id), { status: newStatus });
+                            toast.success(`Package set ${newStatus}`);
+                          } catch (e) {
+                            toast.error("Failed to alter status");
+                          }
+                        }}
+                        className={`text-[10px] font-black uppercase px-2.5 py-1.5 rounded-xl border ${of.status === 'active' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20' : 'bg-slate-50 text-slate-500 dark:bg-slate-900/20'}`}
+                      >
+                        {of.status === 'active' ? 'Active' : 'Paused'}
+                      </button>
+                      <button 
+                        onClick={async () => {
+                          if (confirm("Delete this Drive Pack?")) {
+                            try {
+                              await deleteDoc(doc(db, "drive_offers", of.id));
+                              toast.success("Pack deleted");
+                            } catch (e) {
+                              toast.error("Failed to delete pack");
+                            }
+                          }
+                        }}
+                        className="p-2 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/30 text-rose-500 rounded-xl"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'courses' && (
+        <div className="space-y-6">
+          {/* Create/Edit Course Form */}
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-[32px] border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden">
+            <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight text-sm mb-4">
+              {editingCourseId ? 'কোর্স বা টিউটোরিয়াল এডিট করুন' : 'নতুন কোর্স বা টিউটোরিয়াল তৈরি করুন'}
+            </h3>
+            
+            <form 
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!newCourseTitle || !newCourseDesc || !newCourseThumbnail || !newCourseLink) {
+                  toast.error("সবগুলো ঘর সঠিকভাবে পূরণ করুন");
+                  return;
+                }
+                
+                try {
+                  const id = editingCourseId || `course_${Date.now()}`;
+                  await setDoc(doc(db, "courses", id), {
+                    title: newCourseTitle,
+                    description: newCourseDesc,
+                    thumbnailUrl: newCourseThumbnail,
+                    videoLink: newCourseLink,
+                    category: newCourseCategory,
+                    status: 'active',
+                    items: courseItems,
+                    updatedAt: serverTimestamp()
+                  }, { merge: true });
+                  
+                  toast.success(editingCourseId ? "কোর্স বা টিউটোরিয়াল সফলভাবে আপডেট হয়েছে!" : "নতুন টিউটোরিয়াল সফলভাবে যুক্ত হয়েছে!");
+                  
+                  // Clear form
+                  setNewCourseTitle('');
+                  setNewCourseDesc('');
+                  setNewCourseThumbnail('');
+                  setNewCourseLink('');
+                  setNewCourseCategory('টাস্ক কমপ্লিট');
+                  setCourseItems([]);
+                  setEditingCourseId(null);
+                } catch (err) {
+                  toast.error("সেভ করতে ব্যর্থ হয়েছে");
+                  console.error(err);
+                }
+              }}
+              className="space-y-4"
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">কোর্সের শিরোনাম (Title)</label>
+                  <input 
+                    type="text" 
+                    placeholder="উদাঃ সঠিক উপায়ে ডেইলি স্পিন খেলুন" 
+                    required 
+                    value={newCourseTitle} 
+                    onChange={(e) => setNewCourseTitle(e.target.value)} 
+                    className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 focus:ring-2 focus:ring-purple-555 transition-all text-slate-900 dark:text-white" 
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">টিউটোরিয়াল ক্যাটাগরি (Category)</label>
+                  <select 
+                    value={newCourseCategory} 
+                    onChange={(e) => setNewCourseCategory(e.target.value as any)} 
+                    className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-555"
+                  >
+                    <option value="টাস্ক কমপ্লিট">টাস্ক কমপ্লিট</option>
+                    <option value="টাকা উইথড্র">টাকা উইথড্র</option>
+                    <option value="অন্যান্য">অন্যান্য হেল্প</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">থাম্বনেইল ইমেজ লিংক (Thumbnail URL)</label>
+                  <input 
+                    type="url" 
+                    placeholder="https://images.unsplash.com/..." 
+                    required 
+                    value={newCourseThumbnail} 
+                    onChange={(e) => setNewCourseThumbnail(e.target.value)} 
+                    className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 focus:ring-2 focus:ring-purple-555 transition-all text-slate-900 dark:text-white" 
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">ভিডিও বা রেফারেল লিংক (Video/Instruction Link)</label>
+                  <input 
+                    type="url" 
+                    placeholder="https://youtube.com/watch?v=..." 
+                    required 
+                    value={newCourseLink} 
+                    onChange={(e) => setNewCourseLink(e.target.value)} 
+                    className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 focus:ring-2 focus:ring-purple-555 transition-all text-slate-900 dark:text-white" 
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">পূর্ণাঙ্গ ডেসক্রিপশন বা নির্দেশনা (Detailed Description)</label>
+                <textarea 
+                  placeholder="ধাপে ধাপে কিভাবে টাস্ক সম্পন্ন করবে বা কিভাবে উইথড্র করবে তার বিস্তারিত বিবরণ লিখুন..." 
+                  required 
+                  rows={4} 
+                  value={newCourseDesc} 
+                  onChange={(e) => setNewCourseDesc(e.target.value)} 
+                  className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 focus:ring-2 focus:ring-purple-555 transition-all text-slate-900 dark:text-white"
+                />
+              </div>
+
+              {/* Option Creator UI Section */}
+              <div className="bg-slate-50 dark:bg-slate-900/40 p-5 rounded-[24px] border border-slate-100 dark:border-slate-800 space-y-4">
+                <div className="flex items-center gap-1.5 border-b border-slate-100 dark:border-slate-800 pb-2">
+                  <Layers className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                  <div className="flex-1">
+                    <h4 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tight">আলাদা আলাদা অপশন / বহুবিধ টিউটোরিয়াল যোগ করুন (Multiple Option Items)</h4>
+                    <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">Add sub-tutorials for How to complete tasks, How to withdraw, etc.</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">অপশন শিরোনাম (Option Title)</label>
+                    <input 
+                      type="text" 
+                      placeholder="উদাঃ ১. কিভাবে সঠিক উপায়ে টাস্ক সম্পন্ন করবেন" 
+                      value={optTitle} 
+                      onChange={(e) => setOptTitle(e.target.value)} 
+                      className="w-full bg-white dark:bg-slate-800 border-none px-4 py-2.5 rounded-xl text-xs font-bold ring-1 ring-slate-100 dark:ring-slate-800 focus:ring-2 focus:ring-purple-555 transition-all text-slate-900 dark:text-white" 
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">অপশন থাম্বনেইল লিংক (Option Thumbnail URL)</label>
+                    <input 
+                      type="url" 
+                      placeholder="https://images.unsplash.com/..." 
+                      value={optThumbnail} 
+                      onChange={(e) => setOptThumbnail(e.target.value)} 
+                      className="w-full bg-white dark:bg-slate-800 border-none px-4 py-2.5 rounded-xl text-xs font-bold ring-1 ring-slate-100 dark:ring-slate-800 focus:ring-2 focus:ring-purple-555 transition-all text-slate-900 dark:text-white" 
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">অপশন ভিডিও/টিউটোরিয়াল লিংক (Option Video/Instruction Link)</label>
+                    <input 
+                      type="url" 
+                      placeholder="https://youtube.com/watch?v=..." 
+                      value={optLink} 
+                      onChange={(e) => setOptLink(e.target.value)} 
+                      className="w-full bg-white dark:bg-slate-800 border-none px-4 py-2.5 rounded-xl text-xs font-bold ring-1 ring-slate-100 dark:ring-slate-800 focus:ring-2 focus:ring-purple-555 transition-all text-slate-900 dark:text-white" 
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">অপশন সংক্ষিপ্ত বিবরণ (Option Description)</label>
+                    <input 
+                      type="text" 
+                      placeholder="উদাঃ নিয়মগুলো এবং স্টেপ-বাই-স্টেপ সিক্রেট ভিডিও মেথড দেখুন।" 
+                      value={optDesc} 
+                      onChange={(e) => setOptDesc(e.target.value)} 
+                      className="w-full bg-white dark:bg-slate-800 border-none px-4 py-2.5 rounded-xl text-xs font-bold ring-1 ring-slate-100 dark:ring-slate-800 focus:ring-2 focus:ring-purple-555 transition-all text-slate-900 dark:text-white" 
+                    />
+                  </div>
+                </div>
+
+                <button 
+                  type="button"
+                  onClick={() => {
+                    if (!optTitle || !optLink) {
+                      toast.error("অপশন টাইটেল ও টিউটোরিয়াল লিংক আবশ্যক");
+                      return;
+                    }
+                    const newItem = {
+                      title: optTitle,
+                      description: optDesc || 'ভিডিও টিউটোরিয়াল দেখুন।',
+                      thumbnailUrl: optThumbnail || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=600&auto=format&fit=crop',
+                      videoLink: optLink
+                    };
+                    setCourseItems(prev => [...prev, newItem]);
+                    // Clear option fields
+                    setOptTitle('');
+                    setOptDesc('');
+                    setOptThumbnail('');
+                    setOptLink('');
+                    toast.success("অপশনটি সফলভাবে নিচে লিস্টে যুক্ত হয়েছে!");
+                  }}
+                  className="bg-purple-600 hover:bg-purple-550 text-white font-black px-5 py-2.5 rounded-xl text-[10px] uppercase tracking-wider flex items-center gap-1 hover:scale-98 active:scale-95 transition-all"
+                >
+                  সবুজ লিস্টে অপশন যোগ করুন (+ Add Option)
+                </button>
+
+                {/* Render added list items */}
+                {courseItems.length > 0 && (
+                  <div className="space-y-2 pt-3 border-t border-slate-100 dark:border-slate-800/80">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">যুক্তকৃত অপশনসমূহ ({courseItems.length})</p>
+                    <div className="grid gap-2 max-h-[220px] overflow-y-auto pr-1">
+                      {courseItems.map((item, index) => (
+                        <div key={index} className="bg-white dark:bg-slate-900/60 p-3 rounded-xl border border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span className="w-5 h-5 rounded-full bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 text-[9px] font-black flex items-center justify-center shrink-0">
+                              {index + 1}
+                            </span>
+                            <img src={item.thumbnailUrl} alt="" className="w-10 h-8 object-cover rounded bg-slate-105 shrink-0 border border-slate-200/40 dark:border-slate-800" />
+                            <div className="min-w-0">
+                              <h5 className="text-xs font-black text-slate-800 dark:text-white truncate max-w-[200px] leading-tight">{item.title}</h5>
+                              <p className="text-[9px] text-slate-400 truncate max-w-[200px] leading-tight">{item.videoLink}</p>
+                            </div>
+                          </div>
+                          <button 
+                            type="button" 
+                            onClick={() => {
+                              setCourseItems(prev => prev.filter((_, idx) => idx !== index));
+                              toast.success("টি বাদ দেওয়া হয়েছে!");
+                            }}
+                            className="text-[9px] font-black uppercase text-rose-500 hover:text-rose-600 hover:underline shrink-0"
+                          >
+                            বাদ দিন
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-2.5">
+                <button 
+                  type="submit" 
+                  className="flex-1 bg-purple-600 hover:bg-purple-550 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-purple-600/10 transition-all text-xs"
+                >
+                  {editingCourseId ? 'আপডেট সেভ করুন (Save Changes)' : 'কোর্স বা টিউটোরিয়াল তৈরি করুন (Create)'}
+                </button>
+                
+                {editingCourseId && (
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      setNewCourseTitle('');
+                      setNewCourseDesc('');
+                      setNewCourseThumbnail('');
+                      setNewCourseLink('');
+                      setNewCourseCategory('টাস্ক কমপ্লিট');
+                      setCourseItems([]);
+                      setEditingCourseId(null);
+                    }}
+                    className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold px-6 py-3.5 rounded-2xl text-xs"
+                  >
+                    বাতিল (Cancel)
+                  </button>
+                )}
+              </div>
+            </form>
+          </div>
+
+          {/* Admin Courses List */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between px-1">
+              <h3 className="font-black dark:text-white uppercase tracking-tight text-xs">লাইভ কোর্স এবং টিউটোরিয়ালসমূহ ({adminCourses.length})</h3>
+              
+              <button 
+                onClick={async () => {
+                  try {
+                    const batch = writeBatch(db);
+                    const DEFAULT_ITEMS = [
+                      {
+                        title: "নিয়ম মেনে প্রতিদিনের কাজ সম্পন্ন করার গাইডলাইন",
+                        description: "আমাদের অ্যাপে দেওয়া প্রতিদিনের টাস্ক বা কাজগুলো কিভাবে সঠিক নিয়মে সম্পন্ন করবেন, কোন কোন ভুলগুলো পরিহার করবেন এবং সঠিক উপায়ে আর্নিং ব্যালেন্স যোগ করবেন তা বিস্তারিত দেখুন। ভুল নিয়মে কাজ করলে আইডি ব্লক হতে পারে।",
+                        thumbnailUrl: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=600&auto=format&fit=crop",
+                        videoLink: "https://www.youtube.com",
+                        category: "টাস্ক কমপ্লিট",
+                        status: 'active'
+                      },
+                      {
+                        title: "বিকাশ ও নগদে সফলভাবে উইথড্র বা টাকা তোলার নিয়ম",
+                        description: "বিকাশ, নগদ বা রকেটের মাধ্যমে কিভাবে সফলভাবে আপনার কষ্টার্জিত টাকা মাত্র ১ মিনিটে উইথড্র নিবেন তা ধাপে ধাপে শিখুন। পেমেন্ট রিকুয়েস্ট দেওয়ার পর এডমিন লাইংথ অনুযায়ী কতক্ষণে টাকা পাবেন তা জানুন।",
+                        thumbnailUrl: "https://images.unsplash.com/photo-1559526324-4b87b5e36e44?q=80&w=600&auto=format&fit=crop",
+                        videoLink: "https://www.youtube.com",
+                        category: "টাকা উইথড্র",
+                        status: 'active'
+                      },
+                      {
+                        title: "ডেইলি স্পিন ও কুইজ গেম খেলে আনলিমিটেড আয়ের উপায়",
+                        description: "প্লাটফর্মে প্রতিদিন কোনো লিমিট ছাড়া কিভাবে আনলিমিটেড স্পিন এবং সহজ ম্যাথ কুইজ সমাধান করে অতিরিক্ত রিওয়ার্ড আর্ন করবেন তার পূর্ণাঙ্গ সিক্রেট নিয়মাবলি।",
+                        thumbnailUrl: "https://images.unsplash.com/photo-1606167668584-78701c57f13d?q=80&w=600&auto=format&fit=crop",
+                        videoLink: "https://www.youtube.com",
+                        category: "অন্যান্য",
+                        status: 'active'
+                      }
+                    ];
+                    DEFAULT_ITEMS.forEach((it, ix) => {
+                      const id = `course_imported_${ix + Date.now()}`;
+                      batch.set(doc(db, "courses", id), it);
+                    });
+                    await batch.commit();
+                    toast.success("ডিফল্ট উদাহরণ কোর্স সফলভাবে ইম্পোর্ট করা হয়েছে!");
+                  } catch (err) {
+                    toast.error("ইম্পোর্ট ব্যর্থ হয়েছে");
+                  }
+                }}
+                className="text-[10px] font-black uppercase text-purple-600 hover:text-purple-550 underline"
+              >
+                ডিফল্ট নমুনা বাটন লোড করুন
+              </button>
+            </div>
+
+            {adminCourses.length === 0 && (
+              <div className="text-center py-12 bg-white dark:bg-slate-800/40 rounded-[32px] border-2 border-dashed border-slate-100 dark:border-slate-800">
+                <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">এখনো কোনো কোর্স বা টিউটোরিয়াল তৈরি করা হয়নি।</p>
+              </div>
+            )}
+
+            <div className="grid gap-4">
+              {adminCourses.map(course => (
+                <div key={course.id} className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+                  <div className="flex items-center gap-3 w-full sm:w-auto">
+                    <img 
+                      src={course.thumbnailUrl} 
+                      alt="" 
+                      className="w-16 h-12 object-cover rounded-xl bg-slate-50 border border-slate-100/50 shrink-0" 
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[9px] px-2 py-0.5 bg-purple-50 dark:bg-purple-950/20 border border-purple-100/20 text-purple-600 dark:text-purple-400 font-bold rounded-lg uppercase">
+                          {course.category}
+                        </span>
+                        <span className={`text-[8px] px-1.5 py-0.5 rounded font-black uppercase tracking-wider ${course.status === 'active' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-400'}`}>
+                          {course.status}
+                        </span>
+                      </div>
+                      <h4 className="font-black text-slate-900 dark:text-white text-xs mt-1 truncate uppercase">{course.title}</h4>
+                      <p className="text-[10px] text-slate-400 font-bold max-w-sm truncate leading-none mt-1">{course.description}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 w-full sm:w-auto shrink-0 border-t sm:border-y-0 border-slate-50 dark:border-slate-750/30 pt-3 sm:pt-0">
+                    <button 
+                      onClick={() => {
+                        setNewCourseTitle(course.title);
+                        setNewCourseDesc(course.description);
+                        setNewCourseThumbnail(course.thumbnailUrl);
+                        setNewCourseLink(course.videoLink);
+                        setNewCourseCategory(course.category);
+                        setCourseItems(course.items || []);
+                        setEditingCourseId(course.id);
+                        toast.success("সম্পাদনার জন্য ডাটা লোড হয়েছে!");
+                      }}
+                      className="text-[10px] font-black uppercase px-2.5 py-1.5 rounded-xl border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:text-slate-350"
+                    >
+                      এডিট
+                    </button>
+                    
+                    <button 
+                      onClick={async () => {
+                        try {
+                          const toggledStatus = course.status === 'active' ? 'inactive' : 'active';
+                          await updateDoc(doc(db, "courses", course.id), { status: toggledStatus });
+                          toast.success(`কործ স্ট্যাটাস ${toggledStatus} সফল হয়েছে`);
+                        } catch (err) {
+                          toast.error("অবস্থা পরিবর্তনে ব্যর্থতা");
+                        }
+                      }}
+                      className={`text-[10px] font-black uppercase px-2.5 py-1.5 rounded-xl border ${course.status === 'active' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-50 text-slate-400 border-slate-100'}`}
+                    >
+                      {course.status === 'active' ? 'চলমান' : 'বন্ধ'}
+                    </button>
+
+                    <button 
+                      onClick={async () => {
+                        if (confirm("এই টিউটোরিয়ালটি কি চিরতরে মুছে ফেলতে চান?")) {
+                          try {
+                            await deleteDoc(doc(db, "courses", course.id));
+                            toast.success("মুছে ফেলা হয়েছে!");
+                          } catch (err) {
+                            toast.error("ফেইল্ড!");
+                          }
+                        }
+                      }}
+                      className="p-2 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/40 text-rose-500 rounded-xl transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {activeTab === 'users' && (
         <div className="space-y-4">
           <div className="flex justify-between items-center mb-4 px-1">
@@ -1068,6 +1639,32 @@ export function AdminPanel() {
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-emerald-500">Daily Task Limit (Per User)</label>
                 <input type="number" value={siteSettings.dailyTaskLimit} onChange={(e) => setSiteSettings(prev => ({ ...prev, dailyTaskLimit: Number(e.target.value) }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-[11px] font-bold ring-1 ring-slate-100 dark:ring-slate-800" placeholder="0 for unlimited" />
                 <p className="text-[9px] text-slate-400 mt-1 px-1">Maximum tasks a user can submit in 24 hours.</p>
+              </div>
+              <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tight">Drive Offer Option</h4>
+                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Enable/Disable Drive Offer page access</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSiteSettings(prev => ({ ...prev, driveOffersEnabled: !prev.driveOffersEnabled }))}
+                  className={`w-12 h-6 rounded-full transition-colors relative ${siteSettings.driveOffersEnabled ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-705'}`}
+                >
+                  <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${siteSettings.driveOffersEnabled ? 'translate-x-6' : ''}`} />
+                </button>
+              </div>
+              <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tight">Course Feature Option</h4>
+                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Enable/Disable Course action access</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSiteSettings(prev => ({ ...prev, coursesEnabled: !prev.coursesEnabled }))}
+                  className={`w-12 h-6 rounded-full transition-colors relative ${siteSettings.coursesEnabled !== false ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-705'}`}
+                >
+                  <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${siteSettings.coursesEnabled !== false ? 'translate-x-6' : ''}`} />
+                </button>
               </div>
             </div>
             

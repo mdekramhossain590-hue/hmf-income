@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
-import { User, Bell, Wallet, ListChecks, Target, Users, Send, MoreVertical, Settings, HelpCircle, LogOut, Award, Shield, FileText, Calculator, Megaphone, Trophy, Copy, Check, Link, Eye, EyeOff, Smartphone, BookOpen, Banknote, MonitorPlay, Car } from 'lucide-react';
+import { User, Bell, Wallet, ListChecks, Target, Users, Send, MoreVertical, Settings, HelpCircle, LogOut, Award, Shield, FileText, Calculator, Megaphone, Trophy, Copy, Check, Link, Eye, EyeOff, Smartphone, BookOpen, Banknote, MonitorPlay, Wifi } from 'lucide-react';
 import { useAuth } from '../components/AuthProvider';
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../components/LanguageProvider';
 import { auth, db } from '../lib/firebase';
 import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
@@ -20,6 +20,7 @@ export function Dashboard() {
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [showBalance, setShowBalance] = useState(true);
+  const [comingSoonFeature, setComingSoonFeature] = useState<{ title: string; desc: string; icon: React.ReactNode; color: string } | null>(null);
   const { t } = useLanguage();
 
   const handleCopy = (text: string, type: 'code' | 'link') => {
@@ -326,15 +327,40 @@ export function Dashboard() {
       
       {/* Quick Actions Grid */}
       <div className="grid grid-cols-5 gap-2 mb-8 select-none">
-        <motion.div whileTap={{ scale: 0.9 }} onClick={() => toast('Coming soon!')} className="flex flex-col items-center gap-2 cursor-pointer group">
-          <div className="w-full aspect-square max-w-[64px] rounded-2xl bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/40 dark:to-blue-800/20 text-blue-600 dark:text-blue-400 flex items-center justify-center shadow-sm border border-blue-200/50 dark:border-blue-700/30 group-hover:shadow-md transition-all relative overflow-hidden">
+        <motion.div 
+          whileTap={{ scale: 0.9 }} 
+          onClick={() => {
+            playTapSound();
+            if (siteSettings?.driveOffersEnabled === false) {
+              setComingSoonFeature({ 
+                title: 'Drive Offers Suspended', 
+                desc: 'দুঃখিত, ড্রাইভ অফার প্যাক ক্রয় করার সুবিধাটি এডমিন দ্বারা সাময়িকভাবে বন্ধ রাখা হয়েছে। নতুন অফারগুলোর সাথে শীঘ্রই পুনরায় সার্ভিসটি চালু হবে। আমাদের সাথে থাকুন!', 
+                icon: <Wifi className="w-7 h-7" />, 
+                color: 'from-blue-600 to-indigo-700' 
+              });
+            } else {
+              navigate('/drive');
+            }
+          }} 
+          className="flex flex-col items-center gap-2 cursor-pointer group"
+        >
+          <div className={`w-full aspect-square max-w-[64px] rounded-2xl flex items-center justify-center shadow-sm border transition-all relative overflow-hidden group-hover:shadow-md ${
+            siteSettings?.driveOffersEnabled === false
+              ? "bg-slate-100 dark:bg-slate-800 border-slate-200/30 text-slate-400 dark:text-slate-500 opacity-60 saturate-50"
+              : "bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/40 dark:to-blue-800/20 text-blue-600 text-blue-600 dark:text-blue-400 border-blue-200/50 dark:border-blue-700/30"
+          }`}>
             <div className="absolute inset-0 bg-white/20 dark:bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            <Car className="w-6 h-6 xl:w-7 xl:h-7" strokeWidth={1.5} />
+            <Wifi className="w-6 h-6 xl:w-7 xl:h-7" strokeWidth={1.5} />
+            {siteSettings?.driveOffersEnabled === false && (
+              <div className="absolute top-[3px] right-[3px] px-1 py-0.5 rounded-lg bg-rose-500 text-[6.5px] font-black tracking-widest text-white uppercase leading-none shadow shadow-rose-500/25 animate-pulse">Off</div>
+            )}
           </div>
-          <span className="text-[10px] sm:text-[11px] font-bold text-center leading-tight truncate w-full text-slate-700 dark:text-slate-300">Drive Offer</span>
+          <span className={`text-[10px] sm:text-[11px] font-bold text-center leading-tight truncate w-full ${
+            siteSettings?.driveOffersEnabled === false ? "text-slate-450 dark:text-slate-500" : "text-slate-700 dark:text-slate-300"
+          }`}>Drive Offer</span>
         </motion.div>
         
-        <motion.div whileTap={{ scale: 0.9 }} onClick={() => navigate('/recharge')} className="flex flex-col items-center gap-2 cursor-pointer group">
+        <motion.div whileTap={{ scale: 0.9 }} onClick={() => { playTapSound(); navigate('/recharge'); }} className="flex flex-col items-center gap-2 cursor-pointer group">
           <div className="w-full aspect-square max-w-[64px] rounded-2xl bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-900/40 dark:to-emerald-800/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shadow-sm border border-emerald-200/50 dark:border-emerald-700/30 group-hover:shadow-md transition-all relative overflow-hidden">
             <div className="absolute inset-0 bg-white/20 dark:bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
             <Smartphone className="w-6 h-6 xl:w-7 xl:h-7" strokeWidth={1.5} />
@@ -342,15 +368,42 @@ export function Dashboard() {
           <span className="text-[10px] sm:text-[11px] font-bold text-center leading-tight truncate w-full text-slate-700 dark:text-slate-300">Recharge</span>
         </motion.div>
 
-        <motion.div whileTap={{ scale: 0.9 }} onClick={() => toast('Coming soon!')} className="flex flex-col items-center gap-2 cursor-pointer group">
-          <div className="w-full aspect-square max-w-[64px] rounded-2xl bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/40 dark:to-purple-800/20 text-purple-600 dark:text-purple-400 flex items-center justify-center shadow-sm border border-purple-200/50 dark:border-purple-700/30 group-hover:shadow-md transition-all relative overflow-hidden">
+        <motion.div 
+          whileTap={{ scale: 0.9 }} 
+          onClick={() => { 
+            playTapSound(); 
+            if (siteSettings?.coursesEnabled === false) {
+              setComingSoonFeature({ 
+                title: 'Premium Courses', 
+                desc: 'খুব শীঘ্রই আমাদের প্রিমিয়াম কোর্সগুলো (ডিজিটাল মার্কেটিং, ভিডিও এডিটিং ও গ্রাফিক্স ডিজাইন) ড্যাশবোর্ডে লাইভ হবে যা শিখে আপনি স্থায়ীভাবে ইনকাম বাড়াতে পারবেন। আমাদের সাথেই থাকুন!', 
+                icon: <BookOpen className="w-7 h-7" />, 
+                color: 'from-purple-500 to-indigo-650' 
+              }); 
+            } else {
+              navigate('/courses');
+            }
+          }} 
+          className="flex flex-col items-center gap-2 cursor-pointer group"
+        >
+          <div className={`w-full aspect-square max-w-[64px] rounded-2xl flex items-center justify-center shadow-sm border transition-all relative overflow-hidden group-hover:shadow-md ${
+            siteSettings?.coursesEnabled === false
+              ? "bg-slate-100 dark:bg-slate-800 border-slate-200/30 text-slate-400 dark:text-slate-500 opacity-60 saturate-50"
+              : "bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/40 dark:to-purple-800/20 text-purple-600 dark:text-purple-400 border-purple-200/50 dark:border-purple-700/30"
+          }`}>
             <div className="absolute inset-0 bg-white/20 dark:bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
             <BookOpen className="w-6 h-6 xl:w-7 xl:h-7" strokeWidth={1.5} />
+            {siteSettings?.coursesEnabled === false ? (
+              <div className="absolute top-[3px] right-[3px] px-1 py-0.5 rounded-lg bg-orange-500 text-[6.5px] font-black tracking-widest text-white uppercase leading-none shadow shadow-orange-500/25">Soon</div>
+            ) : (
+              <div className="absolute top-[3px] right-[3px] px-1 py-0.5 rounded-lg bg-emerald-500 text-[6.5px] font-black tracking-widest text-white uppercase leading-none shadow shadow-emerald-500/25 animate-bounce">LIVE</div>
+            )}
           </div>
-          <span className="text-[10px] sm:text-[11px] font-bold text-center leading-tight truncate w-full text-slate-700 dark:text-slate-300">Course</span>
+          <span className={`text-[10px] sm:text-[11px] font-bold text-center leading-tight truncate w-full ${
+            siteSettings?.coursesEnabled === false ? "text-slate-450 dark:text-slate-500" : "text-slate-700 dark:text-slate-300"
+          }`}>Course</span>
         </motion.div>
 
-        <motion.div whileTap={{ scale: 0.9 }} onClick={() => toast('Coming soon!')} className="flex flex-col items-center gap-2 cursor-pointer group">
+        <motion.div whileTap={{ scale: 0.9 }} onClick={() => { playTapSound(); setComingSoonFeature({ title: 'Monthly Salary', desc: 'একটি নির্দিষ্ট সংখ্যক রেফার ও টাস্ক সম্পন্নকারী বিশ্বস্ত ইউজারদের জন্য মাসিক নিয়মিত "ফিক্সড স্যালারি" বা ফিক্সড বেতন ফিচার আসছে! কাজের ধারাবাহিকতা বজায় রাখুন।', icon: <Banknote className="w-7 h-7" />, color: 'from-amber-500 to-orange-600' }); }} className="flex flex-col items-center gap-2 cursor-pointer group">
           <div className="w-full aspect-square max-w-[64px] rounded-2xl bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/40 dark:to-amber-800/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shadow-sm border border-amber-200/50 dark:border-amber-700/30 group-hover:shadow-md transition-all relative overflow-hidden">
             <div className="absolute inset-0 bg-white/20 dark:bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
             <Banknote className="w-6 h-6 xl:w-7 xl:h-7" strokeWidth={1.5} />
@@ -358,12 +411,25 @@ export function Dashboard() {
           <span className="text-[10px] sm:text-[11px] font-bold text-center leading-tight truncate w-full text-slate-700 dark:text-slate-300">Salary</span>
         </motion.div>
         
-        <motion.div whileTap={{ scale: 0.9 }} onClick={() => navigate('/ads')} className="flex flex-col items-center gap-2 cursor-pointer group">
-          <div className="w-full aspect-square max-w-[64px] rounded-2xl bg-gradient-to-br from-rose-50 to-rose-100 dark:from-rose-900/40 dark:to-rose-800/20 text-rose-600 dark:text-rose-400 flex items-center justify-center shadow-sm border border-rose-200/50 dark:border-rose-700/30 group-hover:shadow-md transition-all relative overflow-hidden">
+        <motion.div 
+          whileTap={{ scale: 0.9 }} 
+          onClick={() => { 
+            playTapSound(); 
+            setComingSoonFeature({ 
+              title: 'Ads View Earnings', 
+              desc: 'ভিডিও ও বিজ্ঞাপন দেখে প্রতি ভিউতে অতিরিক্ত বোনাস টাকা ক্যাশব্যাক করার হাই-পেইড সেলফ ইনকাম ফিচারটি আমাদের পরবর্তী আপডেটে উন্নত এড-নেটওয়ার্ক ও ইনস্ট্যান্ট উইথড্র সুবিধা সহ চালু হচ্ছে। আমাদের সাথেই থাকুন!', 
+              icon: <MonitorPlay className="w-7 h-7" />, 
+              color: 'from-rose-500 to-pink-600' 
+            }); 
+          }} 
+          className="flex flex-col items-center gap-2 cursor-pointer group"
+        >
+          <div className="w-full aspect-square max-w-[64px] rounded-2xl bg-slate-100 dark:bg-slate-800 border-slate-250/35 text-slate-400 dark:text-slate-500 opacity-60 saturate-50 flex items-center justify-center shadow-sm border group-hover:shadow-md transition-all relative overflow-hidden">
             <div className="absolute inset-0 bg-white/20 dark:bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
             <MonitorPlay className="w-6 h-6 xl:w-7 xl:h-7" strokeWidth={1.5} />
+            <div className="absolute top-[3px] right-[3px] px-1 py-0.5 rounded-lg bg-orange-500 text-[6.5px] font-black tracking-widest text-white uppercase leading-none shadow shadow-orange-500/25">Soon</div>
           </div>
-          <span className="text-[10px] sm:text-[11px] font-bold text-center leading-tight truncate w-full text-slate-700 dark:text-slate-300">Ads View</span>
+          <span className="text-[10px] sm:text-[11px] font-bold text-center leading-tight truncate w-full text-slate-450 dark:text-slate-500">Ads View</span>
         </motion.div>
       </div>
 
@@ -588,6 +654,78 @@ export function Dashboard() {
       {showActivationPopup && (
         <ActivationPopup onClose={() => setShowActivationPopup(false)} />
       )}
+
+      {/* Polish and Upgraded Coming Soon Modal Dialog */}
+      <AnimatePresence>
+        {comingSoonFeature && (
+          <>
+            {/* Backdrop with elegant blur */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setComingSoonFeature(null)}
+              className="fixed inset-0 bg-black/70 z-50 backdrop-blur-md"
+            />
+
+            {/* Modal Card sheet with gorgeous micro-animations */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 30 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 30 }}
+              className="fixed inset-x-4 bottom-8 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:top-1/2 md:-translate-y-1/2 md:bottom-auto md:w-full md:max-w-md bg-white dark:bg-slate-900 rounded-[32px] p-6 shadow-2xl z-55 border border-slate-100 dark:border-slate-800 overflow-hidden"
+            >
+              {/* Decorative premium glass blobs */}
+              <div className="absolute -top-12 -right-12 w-28 h-28 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none"></div>
+              <div className="absolute -bottom-10 -left-10 w-28 h-28 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none"></div>
+              
+              {/* Background gradient hint */}
+              <div className={`absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r ${comingSoonFeature.color}`}></div>
+              
+              <div className="text-center pt-4">
+                <div className={`w-16 h-16 rounded-[24px] bg-gradient-to-br ${comingSoonFeature.color} text-white flex items-center justify-center mx-auto mb-4 pb-0.5 shadow-xl shadow-indigo-500/10`}>
+                  {comingSoonFeature.icon}
+                </div>
+                
+                <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.2em] text-indigo-600 dark:text-indigo-400 flex items-center justify-center gap-1.5 leading-none">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping"></span>
+                  SYSTEM NOTICE &bull; জরুরি নোটিশ
+                </span>
+                <h3 className="text-xl sm:text-2xl font-display font-black tracking-tight text-slate-900 dark:text-white mt-2.5 mb-3">
+                  {comingSoonFeature.title}
+                </h3>
+                
+                <div className="bg-slate-50 dark:bg-slate-950/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-850 text-slate-600 dark:text-slate-300 text-xs sm:text-sm leading-relaxed font-semibold">
+                  {comingSoonFeature.desc}
+                </div>
+                
+                <div className="h-6"></div>
+
+                <div className="flex flex-col gap-2">
+                  {siteSettings?.telegramUrl && (
+                    <a
+                      href={siteSettings.telegramUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white font-black py-3 px-4 rounded-[18px] text-[11px] uppercase tracking-widest transition-transform hover:scale-[1.01] active:scale-[0.98] shadow-md shadow-blue-500/10 flex items-center justify-center gap-2"
+                    >
+                      <Send className="w-4 h-4" /> অফিশিয়াল চ্যানেল এ যুক্ত হন
+                    </a>
+                  )}
+                  
+                  <button
+                    type="button"
+                    onClick={() => setComingSoonFeature(null)}
+                    className="w-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-350 font-black py-3 px-4 rounded-[18px] text-[11px] uppercase tracking-widest transition-all hover:bg-slate-200 dark:hover:bg-slate-700 active:scale-[0.98]"
+                  >
+                    বন্ধ করুন (Close)
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

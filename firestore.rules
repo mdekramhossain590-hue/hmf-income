@@ -17,6 +17,11 @@ service cloud.firestore {
              (isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
     }
 
+    function isFreeActivationSettings() {
+      return !exists(/databases/$(database)/documents/settings/activation) || 
+             get(/databases/$(database)/documents/settings/activation).data.mode == 'free';
+    }
+
     function isValidUser(data) {
       return data.keys().hasAll(['fullName', 'email', 'myReferCode', 'usedReferCode', 'balances', 'role', 'createdAt']) &&
         data.fullName is string && data.fullName.size() <= 100 &&
@@ -247,6 +252,18 @@ service cloud.firestore {
         data.updatedAt is timestamp;
     }
 
+    function isValidCourse(data) {
+      return data.keys().hasAll(['title', 'description', 'thumbnailUrl', 'videoLink', 'category', 'status']) &&
+        data.title is string && data.title.size() <= 200 &&
+        data.description is string && data.description.size() <= 2000 &&
+        data.thumbnailUrl is string && data.thumbnailUrl.size() <= 1000 &&
+        data.videoLink is string && data.videoLink.size() <= 1000 &&
+        data.category is string && (data.category == 'টাস্ক কমপ্লিট' || data.category == 'টাকা উইথড্র' || data.category == 'অন্যান্য') &&
+        data.status is string && (data.status == 'active' || data.status == 'inactive') &&
+        (data.keys().hasAny(['items']) ? data.items is list : true) &&
+        (data.keys().hasAny(['updatedAt']) ? data.updatedAt is timestamp : true);
+    }
+
     function isValidSettingsAdsView(data) {
       return data.keys().hasAll(['description', 'link']) &&
         data.description is string && data.description.size() <= 1000 &&
@@ -324,6 +341,18 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    match /courses/{courseId} {
+      allow list, get: if isSignedIn();
+      allow create, update: if isAdmin() && isValidId(courseId) && isValidCourse(incoming());
+      allow delete: if isAdmin();
+    }
+
+    match /drive_offers/{offerId} {
+      allow list, get: if isSignedIn();
+      allow create, update: if isAdmin() && isValidId(offerId);
+      allow delete: if isAdmin();
+    }
+
     match /submissions/{submissionId} {
       allow get, list: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
       allow create: if isSignedIn() && isValidId(submissionId) && 
@@ -361,7 +390,7 @@ service cloud.firestore {
       allow update: if isSignedIn() && isValidId(userId) &&
                        (
                          (isValidUser(incoming()) && request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['balances', 'photoURL', 'fullName', 'totalTasksCompleted', 'totalReferrals', 'deviceId', 'lastLoginAt'])) ||
-                         (isValidUser(incoming()) && request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['balances', 'isActive', 'deviceId', 'lastLoginAt'])) ||
+                         (isValidUser(incoming()) && request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['balances', 'isActive', 'deviceId', 'lastLoginAt']) && (incoming().isActive == existing().isActive || (incoming().isActive == true && isFreeActivationSettings()))) ||
                          (isValidUser(incoming()) && request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['deviceId', 'lastLoginAt'])) ||
                          (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['balances', 'totalTasksCompleted', 'totalReferrals', 'isActive', 'role', 'isBlocked', 'updatedAt'])) ||
                          (incoming().diff(existing()).affectedKeys().hasOnly(['balances', 'totalReferrals']) && 

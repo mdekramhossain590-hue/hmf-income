@@ -16,12 +16,14 @@ import { Leaderboard } from './pages/Leaderboard';
 import { Rewards } from './pages/Rewards';
 import { Recharge } from './pages/Recharge';
 import { AdsView } from './pages/AdsView';
+import { Drive } from './pages/Drive';
 import { Settings } from './pages/Settings';
 import { Support } from './pages/Support';
 import { Privacy } from './pages/Privacy';
 import { Terms } from './pages/Terms';
 import { AdminPanel } from './pages/Admin';
 import { Payment } from './pages/Payment';
+import { Courses } from './pages/Courses';
 
 import { FullPageLoader } from './components/LoadingSpinner';
 
@@ -97,6 +99,8 @@ export default function App() {
             <Route path="/refer" element={<ActiveGuard><Refer /></ActiveGuard>} />
             <Route path="/wallet" element={<Wallet />} />
             <Route path="/recharge" element={<Recharge />} />
+            <Route path="/drive" element={<ActiveGuard><Drive /></ActiveGuard>} />
+            <Route path="/courses" element={<Courses />} />
             <Route path="/ads" element={<ActiveGuard><AdsView /></ActiveGuard>} />
             <Route path="/payment" element={<Payment />} />
             <Route path="/profile" element={<Profile />} />

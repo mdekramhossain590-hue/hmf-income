@@ -30,6 +30,8 @@ export interface SiteSettings {
   faviconUrl?: string;
   telegramUrl?: string;
   dailyTaskLimit?: number;
+  driveOffersEnabled?: boolean;
+  coursesEnabled?: boolean;
 }
 
 interface AuthContextType {

@@ -3,7 +3,8 @@ import { useAuth } from './AuthProvider';
 import { useNavigate } from 'react-router-dom';
 import { doc, getDoc, updateDoc, increment } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
-import { Lock, CreditCard, ShieldCheck } from 'lucide-react';
+import { Lock, CreditCard, ShieldCheck, CheckCircle2, ChevronRight, XCircle } from 'lucide-react';
+import { motion } from 'motion/react';
 import toast from 'react-hot-toast';
 
 export function ActivationPopup({ onClose }: { onClose: () => void }) {
@@ -42,7 +43,6 @@ export function ActivationPopup({ onClose }: { onClose: () => void }) {
       }
       
       try {
-        // Simple update approach - deduct fee & activate
         const currentRef = doc(db, 'users', auth.currentUser.uid);
         await updateDoc(currentRef, {
           'balances.main': increment(-settings.fee),
@@ -69,64 +69,91 @@ export function ActivationPopup({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 border border-gray-100 dark:border-slate-700">
-        <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-6 text-center text-white relative">
-          <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3 shadow-inner">
-            {settings.mode === 'paid' ? <Lock className="w-8 h-8 text-white" /> : <ShieldCheck className="w-8 h-8 text-white" />}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95, y: 15 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="bg-white dark:bg-slate-900 rounded-[32px] w-full max-w-md shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800/80 relative"
+      >
+        {/* Banner with modern circular meshes */}
+        <div className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-800 p-8 text-center text-white relative overflow-hidden">
+          <div className="absolute -top-12 -right-12 w-40 h-40 bg-white/5 rounded-full blur-xl"></div>
+          <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-indigo-500/10 rounded-full blur-lg"></div>
+          
+          <div className="w-16 h-16 bg-white/10 dark:bg-white/5 backdrop-blur-md rounded-2xl flex items-center justify-center mx-auto mb-4 border border-white/20 shadow-inner">
+            {settings.mode === 'paid' ? (
+              <Lock className="w-8 h-8 text-white animate-pulse" />
+            ) : (
+              <ShieldCheck className="w-8 h-8 text-emerald-300" />
+            )}
           </div>
-          <h2 className="text-xl font-bold">Account Activation</h2>
-          <p className="text-indigo-100 text-sm mt-1">Activate to unlock all features</p>
+          <h2 className="text-2xl font-display font-black tracking-tight">Account Activation</h2>
+          <p className="text-indigo-200 text-xs font-bold uppercase tracking-widest mt-1">অ্যাকাউন্ট ভেরিফিকেশন ও অ্যাক্টিভেশন</p>
         </div>
         
-        <div className="p-6 space-y-4 text-center">
+        <div className="p-6 space-y-5 text-center">
           {loading ? (
-            <p className="text-gray-500 text-sm py-4">Checking requirements...</p>
+            <div className="py-12 flex flex-col items-center justify-center gap-3">
+              <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+              <p className="text-slate-450 text-xs font-black uppercase tracking-wider">Checking Requirements...</p>
+            </div>
           ) : (
             <>
-              <p className="text-sm text-gray-600 dark:text-gray-300">
-                Your account is currently inactive. You must activate it to participate in tasks, spin the wheel, and earn rewards.
-              </p>
+              <div className="text-left bg-slate-50 dark:bg-slate-950/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-850/60">
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 font-semibold leading-relaxed">
+                  আপনার অ্যাকাউন্টটি বর্তমানে <strong className="text-rose-500 underline">ইন-অ্যাক্টিভ</strong> রয়েছে। কাজ শুরু করতে, টাস্ক সম্পন্ন করতে এবং ডেইলি উইথড্র নিতে অ্যাকাউন্টটি অ্যাক্টিভ করা বাধ্যতামূলক।
+                </p>
+              </div>
               
-              <div className="bg-gray-50 dark:bg-slate-700 p-4 rounded-xl border border-gray-100 dark:border-slate-600">
-                <span className="block text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1">Activation Fee</span>
-                {settings.mode === 'paid' ? (
-                  <span className="text-2xl font-black text-indigo-600 dark:text-indigo-400">৳ {settings.fee}</span>
-                ) : (
-                  <span className="text-2xl font-black text-green-500">FREE</span>
-                )}
+              {/* Fee badge */}
+              <div className="bg-gradient-to-tr from-slate-50 to-indigo-50/30 dark:from-slate-955 dark:to-indigo-950/20 p-5 rounded-2xl border border-slate-150/45 dark:border-indigo-900/15 flex justify-between items-center text-left">
+                <div>
+                  <span className="block text-[10px] font-black text-slate-400 dark:text-slate-555 uppercase tracking-widest">Activation Mode</span>
+                  <span className="text-sm font-bold text-slate-800 dark:text-slate-300">
+                    {settings.mode === 'paid' ? 'Paid Activation (ফি)' : 'Instant Trial (ফ্রি)'}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="block text-[10px] font-black text-slate-400 dark:text-slate-555 uppercase tracking-widest text-right">Fee (চার্জ)</span>
+                  {settings.mode === 'paid' ? (
+                    <span className="text-2xl font-black text-indigo-600 dark:text-indigo-400">৳{settings.fee}</span>
+                  ) : (
+                    <span className="text-2xl font-black text-emerald-500">FREE</span>
+                  )}
+                </div>
               </div>
 
               {settings.mode === 'paid' && (
-                <p className="text-xs text-gray-500 font-medium">
-                  You need to pay the activation fee via bKash/Nagad.
+                <p className="text-[11px] text-slate-450 dark:text-slate-400 font-bold bg-indigo-50/30 dark:bg-slate-800/40 py-2.5 px-3 rounded-xl border border-indigo-100/10 flex items-center justify-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-indigo-500 animate-ping"></span>
+                  অ্যাক্টিভেশন ফি বিকাশ, রকেট বা নগদের মাধ্যমে পেমেন্ট করুন।
                 </p>
               )}
 
-              <button
-                onClick={() => {
-                  navigate('/payment');
-                  onClose();
-                }}
-                disabled={activating}
-                className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold transition shadow-sm
-                  ${activating ? 'opacity-70 cursor-not-allowed bg-indigo-400 text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}`}
-              >
-                <>
-                  <ShieldCheck className="w-5 h-5" /> Proceed to Activation
-                </>
-              </button>
+              <div className="space-y-2.5">
+                <button
+                  onClick={() => {
+                    navigate('/payment');
+                    onClose();
+                  }}
+                  disabled={activating}
+                  className="w-full flex items-center justify-center gap-2 py-4 rounded-[18px] text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-600/10 bg-indigo-600 hover:bg-indigo-550 text-white transition-all active:scale-[0.98] disabled:opacity-75"
+                >
+                  <ShieldCheck className="w-4 h-4" /> Act Now / পেমেন্ট করুন
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+
+                <button
+                  onClick={onClose}
+                  className="w-full text-slate-450 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 text-xs font-black uppercase tracking-wider transition-colors py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/40 rounded-xl"
+                >
+                  Cancel / পরে করব
+                </button>
+              </div>
             </>
           )}
-
-          <button
-            onClick={onClose}
-            className="w-full text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-sm font-semibold transition py-1"
-          >
-            Cancel
-          </button>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

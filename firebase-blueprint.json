@@ -206,6 +206,21 @@
         "updatedAt": { "type": "string", "format": "timestamp" }
       },
       "required": ["text", "link", "updatedAt"]
+    },
+    "Course": {
+      "title": "Course/Tutorial",
+      "description": "Educational help and video tutorials for using the app",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "thumbnailUrl": { "type": "string" },
+        "videoLink": { "type": "string" },
+        "category": { "type": "string", "enum": ["টাস্ক কমপ্লিট", "টাকা উইথড্র", "অন্যান্য"] },
+        "status": { "type": "string", "enum": ["active", "inactive"] },
+        "updatedAt": { "type": "string", "format": "timestamp" }
+      },
+      "required": ["title", "description", "thumbnailUrl", "videoLink", "category", "status"]
     }
   },
   "firestore": {
@@ -280,6 +295,12 @@
         "$ref": "#/entities/SettingsReferral"
       },
       "description": "Global referral settings"
+    },
+    "/courses/{courseId}": {
+      "schema": {
+        "$ref": "#/entities/Course"
+      },
+      "description": "Collection of courses and educational tutorials."
     }
   }
 }

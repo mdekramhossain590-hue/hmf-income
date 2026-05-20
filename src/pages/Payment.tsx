@@ -49,6 +49,10 @@ export function Payment() {
 
   const handleFreeActivation = async () => {
     if (!auth.currentUser) return;
+    if (settings.mode !== 'free') {
+      toast.error("Free activation is currently disabled.");
+      return;
+    }
     setSubmitting(true);
     try {
       const batch = writeBatch(db);

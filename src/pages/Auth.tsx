@@ -108,6 +108,20 @@ export function Auth() {
     const myReferCode = `HMF-${randomStr}-${uidStr}`;
     const deviceId = getDeviceId();
 
+    // Fetch activation mode to determine initial activation state
+    let initialIsActive = false;
+    try {
+      const actSnap = await getDoc(doc(db, 'settings', 'activation'));
+      if (actSnap.exists()) {
+        const actData = actSnap.data();
+        initialIsActive = actData?.mode === 'free';
+      } else {
+        initialIsActive = true; // Default to active if configuration is missing
+      }
+    } catch (e) {
+      console.warn("Could not fetch activation settings, defaulting to inactive:", e);
+    }
+
     try {
       const userRole = userEmail.toLowerCase() === 'mdekramhossain590@gmail.com' ? "admin" : "user";
       await setDoc(doc(db, "users", user.uid), {
@@ -117,7 +131,7 @@ export function Auth() {
         usedReferCode: referCode || "none",
         balances: { main: 0, bonus: 10, referral: 0 },
         role: userRole,
-        isActive: false,
+        isActive: initialIsActive,
         deviceId: deviceId, // Store device ID
         isBlocked: false, // Default not blocked
         createdAt: serverTimestamp()

@@ -1,12 +1,12 @@
-import { NavLink, useLocation, useNavigate, useOutlet } from 'react-router-dom';
-import { Home, Briefcase, Wallet, User as UserIcon, Send, Bell } from 'lucide-react';
+import { useLocation, useNavigate, useOutlet } from 'react-router-dom';
+import { Home, Briefcase, Wallet, User as UserIcon, Send } from 'lucide-react';
+import * as Tabs from '@radix-ui/react-tabs';
 import { cn } from '../lib/utils';
 import { useAuth } from './AuthProvider';
 import { useLanguage } from './LanguageProvider';
 import { NotificationListener } from './NotificationListener';
 import { Onboarding } from './Onboarding';
 import { WelcomePopup } from './WelcomePopup';
-import toast from 'react-hot-toast';
 import { AnimatePresence, motion } from 'motion/react';
 
 export function Layout() {
@@ -27,16 +27,10 @@ export function Layout() {
     { to: '/profile', icon: UserIcon, label: t('profile') },
   ];
 
-  const handleNotificationClick = () => {
-    toast('No new notifications', {
-      icon: '📭',
-      style: {
-        borderRadius: '10px',
-        background: '#1e293b',
-        color: '#fff',
-      },
-    });
-  };
+  const currentTabValue = navItems.find(item => {
+    if (item.to === '/') return location.pathname === '/';
+    return location.pathname.startsWith(item.to);
+  })?.to || '';
 
   const pageVariants = {
     initial: { opacity: 0, y: 10 },
@@ -80,30 +74,41 @@ export function Layout() {
           >
             <Send className="w-6 h-6 ml-[-2px] mt-[2px]" />
           </a>
-          <div className="fixed bottom-0 left-0 right-0 mx-auto w-full max-w-[480px] bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl rounded-t-3xl px-6 py-4 flex justify-between items-center z-50 shadow-[0_-8px_32px_rgba(0,0,0,0.04)] dark:shadow-[0_-8px_32px_rgba(0,0,0,0.2)] border-t border-white/50 dark:border-slate-800/50 transition-colors">
-            {navItems.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                className={({ isActive }) =>
-                  cn(
-                    "flex flex-col items-center justify-center cursor-pointer transition-all duration-300 relative px-2",
-                    isActive ? "text-indigo-600 dark:text-indigo-400 -translate-y-1" : "text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
-                  )
-                }
-              >
-                {({ isActive }) => (
-                  <>
-                    {isActive && (
-                      <div className="absolute -top-4 w-1.5 h-1.5 bg-indigo-600 dark:bg-indigo-400 rounded-full shadow-[0_0_8px_rgba(79,70,229,0.8)]"></div>
+          <Tabs.Root 
+            value={currentTabValue} 
+            onValueChange={(val) => {
+              if (val) navigate(val);
+            }} 
+            className="fixed bottom-0 left-0 right-0 mx-auto w-full max-w-[480px] bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl rounded-t-[28px] z-50 shadow-[0_-12px_44px_rgba(0,0,0,0.05)] dark:shadow-[0_-12px_44px_rgba(0,0,0,0.3)] border-t border-slate-150/45 dark:border-slate-800/40 transition-colors select-none"
+          >
+            <Tabs.List className="flex justify-between items-center px-6 py-4" aria-label="Main navigation tabs">
+              {navItems.map((item) => {
+                const isActive = currentTabValue === item.to;
+                return (
+                  <Tabs.Trigger
+                    key={item.to}
+                    value={item.to}
+                    className={cn(
+                      "flex flex-1 flex-col items-center justify-center cursor-pointer transition-all duration-300 relative py-1 px-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded-xl",
+                      isActive 
+                        ? "text-indigo-600 dark:text-indigo-400 -translate-y-0.5" 
+                        : "text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
                     )}
-                    <item.icon className={cn("w-6 h-6 mb-1.5 transition-transform duration-300", isActive && "scale-110")} />
-                    <span className="text-[10px] font-bold tracking-wide">{item.label}</span>
-                  </>
-                )}
-              </NavLink>
-            ))}
-          </div>
+                  >
+                    {isActive && (
+                      <motion.div
+                        layoutId="activeTabIndicator"
+                        className="absolute -top-[16px] w-2 h-2 bg-indigo-600 dark:bg-indigo-400 rounded-full shadow-[0_0_8px_rgba(79,70,229,0.8)]"
+                        transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                      />
+                    )}
+                    <item.icon className={cn("w-5.5 h-5.5 mb-1 transition-transform duration-300", isActive && "scale-110")} />
+                    <span className="text-[10px] font-black tracking-wide leading-none">{item.label}</span>
+                  </Tabs.Trigger>
+                );
+              })}
+            </Tabs.List>
+          </Tabs.Root>
         </>
       )}
     </div>
