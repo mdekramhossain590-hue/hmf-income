@@ -1,7 +1,7 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
 import { getAuth, FacebookAuthProvider } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { initializeFirestore } from "firebase/firestore";
 import toast from "react-hot-toast";
 // @ts-ignore - The json file is generated at runtime
 import firebaseConfig from "../../firebase-applet-config.json" with { type: "json" };
@@ -10,7 +10,9 @@ import firebaseConfig from "../../firebase-applet-config.json" with { type: "jso
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+export const db = initializeFirestore(app, {
+  experimentalForceLongPolling: true
+}, firebaseConfig.firestoreDatabaseId);
 
 export enum OperationType {
   CREATE = 'create',

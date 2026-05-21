@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthProvider';
-import { collection, query, onSnapshot, doc, writeBatch, serverTimestamp, setDoc, orderBy, deleteDoc, increment, updateDoc } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, writeBatch, serverTimestamp, setDoc, orderBy, deleteDoc, increment, updateDoc, getDocs } from 'firebase/firestore';
 import { processReferralCommission } from '../lib/referral';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { Trash2, CheckCircle, XCircle, Users, ShieldAlert, ShieldCheck, Wallet, ListChecks, Settings, User, Eye, Calculator, MessageSquare, Globe, Coins, Megaphone, Gamepad2, CreditCard, Lock, BellRing, RefreshCw, Smartphone, Mail, Camera, MessageCircle, Send, BookOpen, Layers } from 'lucide-react';
@@ -331,6 +331,7 @@ export function AdminPanel() {
   };
   
   const handleDeleteJob = async (jobId: string) => {
+    if (!window.confirm("Are you sure you want to delete this job?")) return;
     try {
       await deleteDoc(doc(db, "jobs", jobId));
     } catch (err) {
@@ -339,6 +340,7 @@ export function AdminPanel() {
   };
 
   const reviewSubmission = async (subId: string, userId: string, subReward: number, subTitle: string, jobType: string, status: 'approved' | 'rejected') => {
+    if (!window.confirm(`Are you sure you want to ${status.toUpperCase()} this job submission?`)) return;
     try {
       const batch = writeBatch(db);
       
@@ -529,6 +531,7 @@ export function AdminPanel() {
   };
 
   const handlePaymentRequest = async (reqId: string, reqUserId: string, reqAmount: number, reqType: 'deposit' | 'withdraw' | 'activation', status: 'approved' | 'rejected', txId: string, wallet: string) => {
+    if (!window.confirm(`Are you sure you want to ${status.toUpperCase()} this ${reqType} request?`)) return;
     try {
       const batch = writeBatch(db);
       
@@ -574,6 +577,8 @@ export function AdminPanel() {
   };
 
   const handleToggleBlock = async (userId: string, currentStatus: boolean) => {
+    const action = currentStatus ? 'UNBLOCK' : 'BLOCK';
+    if (!window.confirm(`Are you sure you want to ${action} this user?`)) return;
     try {
       await updateDoc(doc(db, "users", userId), {
         isBlocked: !currentStatus,
@@ -582,6 +587,56 @@ export function AdminPanel() {
       toast.success(currentStatus ? 'User Unblocked' : 'User Blocked');
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `users/${userId}`);
+    }
+  };
+
+  const handleWipeData = async () => {
+    if (confirm("Are you absolutely sure you want to WIPE the entire database? This will delete all users (except admins), tasks, transactions, submissions, leaderboards, and requests. This cannot be undone.") && prompt("Type 'WIPE' to confirm:") === 'WIPE') {
+      try {
+        toast.loading("Wiping Database (This may take a while)...", { id: "wipe_db" });
+        setIsSavingSettings(true);
+        const adminEmail = profile?.email || 'mdekramhossain590@gmail.com';
+
+        // Helper to cleanly delete collection
+        const cleanCol = async (collPath: string) => {
+          const qs = await getDocs(collection(db, collPath));
+          for (const docSnap of qs.docs) {
+            await deleteDoc(doc(db, collPath, docSnap.id)).catch(e => console.warn(e));
+          }
+        };
+
+        await cleanCol("jobs");
+        await cleanCol("submissions");
+        await cleanCol("payment_requests");
+        await cleanCol("drive_offers");
+        await cleanCol("courses");
+
+        // Delete users (except admin) and their subcollections
+        const uQs = await getDocs(collection(db, "users"));
+        for (const uDoc of uQs.docs) {
+          const uData = uDoc.data();
+          if (uData.role === 'admin' || uData.email === adminEmail) continue;
+
+          // Delete subcollections manually (Firestore structure limits)
+          const uid = uDoc.id;
+          const userSubs = ["tasks", "mathHistory", "transactions", "referrals", "notifications"];
+          for (const s of userSubs) {
+            const subQs = await getDocs(collection(db, `users/${uid}/${s}`));
+            for (const subDoc of subQs.docs) {
+              await deleteDoc(doc(db, `users/${uid}/${s}`, subDoc.id)).catch(() => {});
+            }
+          }
+          await deleteDoc(doc(db, "users", uid)).catch(e => console.warn(e));
+          await deleteDoc(doc(db, "leaderboard", uid)).catch(() => {});
+        }
+
+        toast.success("Database successfully wiped!", { id: "wipe_db" });
+      } catch (err: any) {
+        console.error(err);
+        toast.error("Error wiping database: " + err.message, { id: "wipe_db" });
+      } finally {
+        setIsSavingSettings(false);
+      }
     }
   };
 
@@ -882,21 +937,33 @@ export function AdminPanel() {
                 )}
                 {req.type === 'deposit' && (
                   <div className="space-y-1">
+                    <div className="flex justify-between border-b border-slate-200 dark:border-slate-700 pb-1.5 mb-1.5">
+                      <span className="text-[10px] font-black text-slate-400 uppercase">Sender Number</span>
+                      <span className="font-mono font-bold text-slate-700 dark:text-slate-200 tracking-wider text-[11px]">{req.account || 'Unknown'}</span>
+                    </div>
                     <div className="flex justify-between">
                       <span className="text-[10px] font-black text-slate-400 uppercase">Transaction ID</span>
-                      <span className="font-mono font-bold text-indigo-600 selection:bg-indigo-100 tracking-wider">{req.trxId}</span>
+                      <span className="font-mono font-bold text-indigo-600 selection:bg-indigo-100 tracking-wider text-[11px]">{req.trxId}</span>
                     </div>
                     <div className="flex justify-between border-t border-slate-200 dark:border-slate-700 mt-1.5 pt-1.5">
-                      <span className="text-[10px] font-black text-slate-400 uppercase">Recipient</span>
-                      <span className="font-bold text-xs">{req.method} Personal</span>
+                      <span className="text-[10px] font-black text-slate-400 uppercase">Method</span>
+                      <span className="font-bold text-xs uppercase text-indigo-600 dark:text-indigo-400">{req.method || 'Bkash/Nagad merely indicated'}</span>
                     </div>
                   </div>
                 )}
                 {req.type === 'activation' && (
                   <div className="space-y-1">
+                    <div className="flex justify-between border-b border-slate-200 dark:border-slate-700 pb-1.5 mb-1.5">
+                      <span className="text-[10px] font-black text-slate-400 uppercase">Sender Number</span>
+                      <span className="font-mono font-bold text-slate-700 dark:text-slate-200 tracking-wider text-[11px]">{req.account || 'Unknown'}</span>
+                    </div>
                     <div className="flex justify-between">
-                      <span className="text-[10px] font-black text-slate-400 uppercase">TrxID</span>
-                      <span className="font-mono font-bold text-emerald-600 tracking-wider">{req.trxId}</span>
+                      <span className="text-[10px] font-black text-slate-400 uppercase">Transaction ID</span>
+                      <span className="font-mono font-bold text-emerald-600 tracking-wider text-[11px]">{req.trxId}</span>
+                    </div>
+                    <div className="flex justify-between border-t border-slate-200 dark:border-slate-700 mt-1.5 pt-1.5">
+                      <span className="text-[10px] font-black text-slate-400 uppercase">Method</span>
+                      <span className="font-bold text-xs uppercase text-emerald-600 dark:text-emerald-400">{req.method || 'Bkash/Nagad'}</span>
                     </div>
                   </div>
                 )}
@@ -925,8 +992,11 @@ export function AdminPanel() {
               {paymentRequests.filter(req => req.status !== 'pending').slice(0, 5).map(req => (
                 <div key={req.id} className="bg-white dark:bg-slate-800 p-3 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex justify-between items-center opacity-70">
                   <div className="flex-1 overflow-hidden pr-4">
-                    <p className="font-black text-[13px] text-slate-800 dark:text-slate-200 italic uppercase">৳{req.amount} &bull; {req.type}</p>
-                    <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold truncate tracking-widest uppercase">{req.userEmail}</p>
+                    <p className="font-black text-[13px] text-slate-800 dark:text-slate-200 italic uppercase flex items-center gap-1.5">
+                      ৳{req.amount} &bull; {req.type}
+                      {req.method && <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 rounded text-[9px] not-italic">{req.method}</span>}
+                    </p>
+                    <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold truncate tracking-widest uppercase">{req.userEmail} {req.account ? `• ${req.account}` : ''}</p>
                   </div>
                   <div className={`text-[9px] px-3 py-1 rounded-full font-black uppercase tracking-widest border ${req.status === 'approved' ? 'bg-emerald-100 text-emerald-600 border-emerald-200' : 'bg-rose-100 text-rose-600 border-rose-200'}`}>
                     {req.status}
@@ -1954,6 +2024,29 @@ export function AdminPanel() {
             </div>
             
             <button onClick={handleSaveDepositSettings} disabled={isSavingSettings} className="mt-6 w-full bg-emerald-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-emerald-600/20 active:scale-95 transition-all text-xs">Update Gateways</button>
+          </motion.div>
+
+          {/* DANGER ZONE: Wipe Data */}
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.9 }} className="bg-rose-50 dark:bg-rose-900/10 p-6 rounded-[32px] shadow-sm border border-rose-200 dark:border-rose-900/30 md:col-span-2 mt-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-2xl bg-rose-100 dark:bg-rose-900/50 flex items-center justify-center text-rose-600">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-black text-rose-700 dark:text-rose-400 uppercase tracking-tight">Danger Zone: Factory Reset</h3>
+                <p className="text-[10px] font-bold text-rose-500/80 uppercase tracking-widest leading-none">Irreversible Database Wipe</p>
+              </div>
+            </div>
+            <p className="text-sm font-semibold text-rose-600 dark:text-rose-400 mb-6">
+              This action will completely wipe all user accounts (except admins), tasks, courses, requests, and transactions from Firestore. This cannot be undone. Ensure you have backed up the data if needed.
+            </p>
+            <button 
+              onClick={handleWipeData} 
+              disabled={isSavingSettings} 
+              className="w-full bg-rose-600 hover:bg-rose-700 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-rose-600/20 active:scale-95 transition-all text-xs"
+            >
+              Understand & Wipe Everything
+            </button>
           </motion.div>
         </div>
       )}

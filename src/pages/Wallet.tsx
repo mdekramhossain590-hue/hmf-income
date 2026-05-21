@@ -83,6 +83,7 @@ export function Wallet() {
   const [depositAmount, setDepositAmount] = useState('');
   const [depositMethod, setDepositMethod] = useState('');
   const [depositTrx, setDepositTrx] = useState('');
+  const [depositAccount, setDepositAccount] = useState('');
   
   const [withdrawMethod, setWithdrawMethod] = useState('');
   const [withdrawAccount, setWithdrawAccount] = useState('');
@@ -98,8 +99,8 @@ export function Wallet() {
       return;
     }
     
-    if (!depositMethod || !depositTrx) {
-      toast.error('Please fill all fields');
+    if (!depositMethod || !depositTrx || !depositAccount) {
+      toast.error('Please fill all fields, including sender number');
       return;
     }
 
@@ -113,6 +114,7 @@ export function Wallet() {
         status: 'pending',
         method: depositMethod,
         trxId: depositTrx,
+        account: depositAccount,
         createdAt: serverTimestamp()
       });
 
@@ -126,6 +128,7 @@ export function Wallet() {
         status: 'pending',
         method: depositMethod,
         trxId: depositTrx,
+        account: depositAccount,
         createdAt: serverTimestamp()
       });
       
@@ -135,6 +138,7 @@ export function Wallet() {
       setDepositAmount('');
       setDepositMethod('');
       setDepositTrx('');
+      setDepositAccount('');
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `payment_requests`);
       toast.error("Error processing deposit.");
@@ -389,6 +393,17 @@ export function Wallet() {
                 required 
                 value={depositTrx}
                 onChange={(e) => setDepositTrx(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 dark:bg-slate-900/50 dark:border-slate-700 dark:text-white rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono transition-all"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest pl-1 mb-1.5">{t('sender_number') || 'Sender Number'}</label>
+              <input 
+                type="text" 
+                placeholder="Number you sent from (e.g. 017...)" 
+                required 
+                value={depositAccount}
+                onChange={(e) => setDepositAccount(e.target.value)}
                 className="w-full bg-slate-50 border border-slate-200 dark:bg-slate-900/50 dark:border-slate-700 dark:text-white rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono transition-all"
               />
             </div>

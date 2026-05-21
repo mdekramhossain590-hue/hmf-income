@@ -332,6 +332,7 @@ service cloud.firestore {
       allow update: if isSignedIn() && isValidId(userId) &&
                        isValidLeaderboardEntry(incoming()) && incoming().updatedAt == request.time &&
                        (request.auth.uid == userId || incoming().diff(existing()).affectedKeys().hasOnly(['referrals', 'totalIncome', 'bonus', 'updatedAt', 'fullName']));
+      allow delete: if isAdmin();
     }
 
     match /jobs/{jobId} {
@@ -364,6 +365,7 @@ service cloud.firestore {
                        incoming().userId == existing().userId &&
                        incoming().jobId == existing().jobId &&
                        (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'reviewedAt']));
+      allow delete: if isAdmin();
     }
 
     match /payment_requests/{requestId} {
@@ -398,12 +400,14 @@ service cloud.firestore {
                           incoming().balances.bonus == existing().balances.bonus &&
                           (existing().balances.keys().hasAny(['tasks']) ? (incoming().balances.tasks == existing().balances.tasks) : true))
                        );
+      allow delete: if isAdmin();
                        
       match /tasks/{taskId} {
         allow list, get: if isSignedIn() && request.auth.uid == userId;
         allow create: if isSignedIn() && (request.auth.uid == userId || isAdmin()) && isValidId(taskId) &&
                          isValidTaskHistory(incoming()) &&
                          incoming().completedAt == request.time;
+        allow delete: if isAdmin();
       }
       
       match /mathHistory/{mathId} {
@@ -411,6 +415,7 @@ service cloud.firestore {
         allow create: if isSignedIn() && request.auth.uid == userId && isValidId(mathId) &&
                          isValidMathHistory(incoming()) &&
                          incoming().completedAt == request.time;
+        allow delete: if isAdmin();
       }
       
       match /transactions/{transactionId} {
@@ -422,6 +427,7 @@ service cloud.firestore {
         allow update: if isAdmin() && isValidId(transactionId) &&
                          isValidTransactionHistory(incoming()) &&
                          (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']));
+        allow delete: if isAdmin();
       }
       
       match /referrals/{referralId} {
@@ -429,6 +435,7 @@ service cloud.firestore {
         allow create: if isSignedIn() && isValidId(referralId) &&
                          isValidReferralHistory(incoming()) &&
                          incoming().createdAt == request.time;
+        allow delete: if isAdmin();
       }
       match /notifications/{notificationId} {
         allow list, get: if isSignedIn() && request.auth.uid == userId;
@@ -438,6 +445,7 @@ service cloud.firestore {
         allow update: if isSignedIn() && request.auth.uid == userId && isValidId(notificationId) &&
                          isValidNotification(incoming()) &&
                          (incoming().diff(existing()).affectedKeys().hasOnly(['read']));
+        allow delete: if isAdmin();
       }
     }
   }
