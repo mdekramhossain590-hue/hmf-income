@@ -48,6 +48,17 @@ export function AdminPanel() {
   const [siteSettings, setSiteSettings] = useState({ logoUrl: '', faviconUrl: '', telegramUrl: '', dailyTaskLimit: 0, driveOffersEnabled: true, coursesEnabled: true });
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    isPrompt?: boolean;
+    promptExpected?: string;
+    onConfirm: () => void;
+  } | null>(null);
+
+  const [promptInput, setPromptInput] = useState('');
+  
   const [newJob, setNewJob] = useState({
     title: '',
     description: '',
@@ -330,79 +341,91 @@ export function AdminPanel() {
     }
   };
   
-  const handleDeleteJob = async (jobId: string) => {
-    if (!window.confirm("Are you sure you want to delete this job?")) return;
-    try {
-      await deleteDoc(doc(db, "jobs", jobId));
-    } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, `jobs/${jobId}`);
-    }
+  const handleDeleteJob = (jobId: string) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Delete Job',
+      message: 'Are you sure you want to delete this job?',
+      onConfirm: async () => {
+        try {
+          await deleteDoc(doc(db, "jobs", jobId));
+        } catch (err) {
+          handleFirestoreError(err, OperationType.DELETE, `jobs/${jobId}`);
+        }
+      }
+    });
   };
 
-  const reviewSubmission = async (subId: string, userId: string, subReward: number, subTitle: string, jobType: string, status: 'approved' | 'rejected') => {
-    if (!window.confirm(`Are you sure you want to ${status.toUpperCase()} this job submission?`)) return;
-    try {
-      const batch = writeBatch(db);
-      
-      const subRef = doc(db, "submissions", subId);
-      batch.update(subRef, {
-        status,
-        reviewedAt: serverTimestamp()
-      });
-      
-      if (status === 'approved') {
-        const userRef = doc(db, "users", userId);
-        const updateData: any = {
-          totalTasksCompleted: increment(1)
-        };
-        if (jobType) {
-          updateData[`balances.tasks.${jobType}`] = increment(subReward);
-        } else {
-          updateData["balances.main"] = increment(subReward);
+  const reviewSubmission = (subId: string, userId: string, subReward: number, subTitle: string, jobType: string, status: 'approved' | 'rejected') => {
+    setConfirmDialog({
+      isOpen: true,
+      title: `${status === 'approved' ? 'Approve' : 'Reject'} Submission`,
+      message: `Are you sure you want to ${status.toUpperCase()} this job submission?`,
+      onConfirm: async () => {
+        try {
+          const batch = writeBatch(db);
+          
+          const subRef = doc(db, "submissions", subId);
+          batch.update(subRef, {
+            status,
+            reviewedAt: serverTimestamp()
+          });
+          
+          if (status === 'approved') {
+            const userRef = doc(db, "users", userId);
+            const updateData: any = {
+              totalTasksCompleted: increment(1)
+            };
+            if (jobType) {
+              updateData[`balances.tasks.${jobType}`] = increment(subReward);
+            } else {
+              updateData["balances.main"] = increment(subReward);
+            }
+            batch.update(userRef, updateData);
+            
+            const txRef = doc(collection(db, "users", userId, "transactions"));
+            batch.set(txRef, {
+              amount: subReward,
+              type: 'task',
+              status: 'completed',
+              createdAt: serverTimestamp()
+            });
+            
+            const taskHisRef = doc(collection(db, "users", userId, "tasks"));
+            batch.set(taskHisRef, {
+              title: subTitle,
+              reward: subReward,
+              completedAt: serverTimestamp()
+            });
+
+            const leaderboardRef = doc(db, "leaderboard", userId);
+            batch.set(leaderboardRef, {
+              totalIncome: increment(subReward),
+              updatedAt: serverTimestamp()
+            }, { merge: true });
+          }
+
+          const notifRef = doc(collection(db, "users", userId, "notifications"));
+          batch.set(notifRef, {
+            title: status === 'approved' ? 'Task Approved' : 'Task Rejected',
+            message: `Your submission for "${subTitle}" was ${status}. ${status === 'approved' ? `You earned ৳${subReward}!` : ''}`,
+            type: status === 'approved' ? 'task_approved' : 'task_rejected',
+            read: false,
+            createdAt: serverTimestamp()
+          });
+          
+          await batch.commit();
+
+          if (status === 'approved') {
+            await processReferralCommission(userId, subReward, `Job: ${subTitle}`);
+          }
+
+          toast.success(`Submission ${status}`);
+        } catch (err) {
+          handleFirestoreError(err, OperationType.UPDATE, `submissions/${subId}`);
         }
-        batch.update(userRef, updateData);
-        
-        const txRef = doc(collection(db, "users", userId, "transactions"));
-        batch.set(txRef, {
-          amount: subReward,
-          type: 'task',
-          status: 'completed',
-          createdAt: serverTimestamp()
-        });
-        
-        const taskHisRef = doc(collection(db, "users", userId, "tasks"));
-        batch.set(taskHisRef, {
-          title: subTitle,
-          reward: subReward,
-          completedAt: serverTimestamp()
-        });
-
-        const leaderboardRef = doc(db, "leaderboard", userId);
-        batch.set(leaderboardRef, {
-          totalIncome: increment(subReward),
-          updatedAt: serverTimestamp()
-        }, { merge: true });
       }
-
-      const notifRef = doc(collection(db, "users", userId, "notifications"));
-      batch.set(notifRef, {
-        title: status === 'approved' ? 'Task Approved' : 'Task Rejected',
-        message: `Your submission for "${subTitle}" was ${status}. ${status === 'approved' ? `You earned ৳${subReward}!` : ''}`,
-        type: status === 'approved' ? 'task_approved' : 'task_rejected',
-        read: false,
-        createdAt: serverTimestamp()
-      });
-      
-      await batch.commit();
-
-      if (status === 'approved') {
-        await processReferralCommission(userId, subReward, `Job: ${subTitle}`);
-      }
-
-      toast.success(`Submission ${status}`);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `submissions/${subId}`);
-    }
+    });
   };
 
   const handleSaveSpinSettings = async () => {
@@ -530,71 +553,90 @@ export function AdminPanel() {
     }
   };
 
-  const handlePaymentRequest = async (reqId: string, reqUserId: string, reqAmount: number, reqType: 'deposit' | 'withdraw' | 'activation', status: 'approved' | 'rejected', txId: string, wallet: string) => {
-    if (!window.confirm(`Are you sure you want to ${status.toUpperCase()} this ${reqType} request?`)) return;
-    try {
-      const batch = writeBatch(db);
-      
-      const reqRef = doc(db, "payment_requests", reqId);
-      batch.update(reqRef, { status, updatedAt: serverTimestamp() });
-      
-      if (txId) {
-        const txRef = doc(db, "users", reqUserId, "transactions", txId);
-        batch.update(txRef, { status, updatedAt: serverTimestamp() });
+  const handlePaymentRequest = (reqId: string, reqUserId: string, reqAmount: number, reqType: 'deposit' | 'withdraw' | 'activation', status: 'approved' | 'rejected', txId: string, wallet: string) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: `${status === 'approved' ? 'Approve' : 'Reject'} Request`,
+      message: `Are you sure you want to ${status.toUpperCase()} this ${reqType} request?`,
+      onConfirm: async () => {
+        try {
+          const batch = writeBatch(db);
+          
+          const reqRef = doc(db, "payment_requests", reqId);
+          batch.update(reqRef, { status, updatedAt: serverTimestamp() });
+          
+          if (txId) {
+            const txRef = doc(db, "users", reqUserId, "transactions", txId);
+            batch.update(txRef, { status, updatedAt: serverTimestamp() });
+          }
+          
+          const userRef = doc(db, "users", reqUserId);
+          
+          if (reqType === 'deposit' && status === 'approved') {
+            batch.update(userRef, { "balances.main": increment(reqAmount) });
+          } else if (reqType === 'withdraw' && status === 'rejected') {
+            const updateData: any = {};
+            if (wallet === 'main') updateData["balances.main"] = increment(reqAmount);
+            else if (wallet === 'bonus') updateData["balances.bonus"] = increment(reqAmount);
+            else if (wallet === 'referral') updateData["balances.referral"] = increment(reqAmount);
+            else updateData[`balances.tasks.${wallet}`] = increment(reqAmount);
+            
+            batch.update(userRef, updateData);
+          } else if (reqType === 'activation' && status === 'approved') {
+            batch.update(userRef, { isActive: true });
+          }
+          
+          const notifRef = doc(collection(db, "users", reqUserId, "notifications"));
+          batch.set(notifRef, {
+            title: `${reqType === 'deposit' ? 'Deposit' : reqType === 'activation' ? 'Account Activation' : 'Withdrawal'} ${status}`,
+            message: `Your ${reqType} request of ৳${reqAmount} has been ${status}.`,
+            type: `payment_${status}`,
+            read: false,
+            createdAt: serverTimestamp()
+          });
+          
+          await batch.commit();
+          toast.success(`${reqType} request ${status}`);
+        } catch (err) {
+          handleFirestoreError(err, OperationType.UPDATE, `payment_requests/${reqId}`);
+          toast.error('Failed to process request');
+        }
       }
-      
-      const userRef = doc(db, "users", reqUserId);
-      
-      if (reqType === 'deposit' && status === 'approved') {
-        batch.update(userRef, { "balances.main": increment(reqAmount) });
-      } else if (reqType === 'withdraw' && status === 'rejected') {
-        const updateData: any = {};
-        if (wallet === 'main') updateData["balances.main"] = increment(reqAmount);
-        else if (wallet === 'bonus') updateData["balances.bonus"] = increment(reqAmount);
-        else if (wallet === 'referral') updateData["balances.referral"] = increment(reqAmount);
-        else updateData[`balances.tasks.${wallet}`] = increment(reqAmount);
-        
-        batch.update(userRef, updateData);
-      } else if (reqType === 'activation' && status === 'approved') {
-        batch.update(userRef, { isActive: true });
-      }
-      
-      const notifRef = doc(collection(db, "users", reqUserId, "notifications"));
-      batch.set(notifRef, {
-        title: `${reqType === 'deposit' ? 'Deposit' : reqType === 'activation' ? 'Account Activation' : 'Withdrawal'} ${status}`,
-        message: `Your ${reqType} request of ৳${reqAmount} has been ${status}.`,
-        type: `payment_${status}`,
-        read: false,
-        createdAt: serverTimestamp()
-      });
-      
-      await batch.commit();
-      toast.success(`${reqType} request ${status}`);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `payment_requests/${reqId}`);
-      toast.error('Failed to process request');
-    }
+    });
   };
 
-  const handleToggleBlock = async (userId: string, currentStatus: boolean) => {
+  const handleToggleBlock = (userId: string, currentStatus: boolean) => {
     const action = currentStatus ? 'UNBLOCK' : 'BLOCK';
-    if (!window.confirm(`Are you sure you want to ${action} this user?`)) return;
-    try {
-      await updateDoc(doc(db, "users", userId), {
-        isBlocked: !currentStatus,
-        updatedAt: serverTimestamp()
-      });
-      toast.success(currentStatus ? 'User Unblocked' : 'User Blocked');
-    } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `users/${userId}`);
-    }
+    setConfirmDialog({
+      isOpen: true,
+      title: `${action} User`,
+      message: `Are you sure you want to ${action} this user?`,
+      onConfirm: async () => {
+        try {
+          await updateDoc(doc(db, "users", userId), {
+            isBlocked: !currentStatus,
+            updatedAt: serverTimestamp()
+          });
+          toast.success(currentStatus ? 'User Unblocked' : 'User Blocked');
+        } catch (err) {
+          handleFirestoreError(err, OperationType.UPDATE, `users/${userId}`);
+        }
+      }
+    });
   };
 
-  const handleWipeData = async () => {
-    if (confirm("Are you absolutely sure you want to WIPE the entire database? This will delete all users (except admins), tasks, transactions, submissions, leaderboards, and requests. This cannot be undone.") && prompt("Type 'WIPE' to confirm:") === 'WIPE') {
-      try {
-        toast.loading("Wiping Database (This may take a while)...", { id: "wipe_db" });
-        setIsSavingSettings(true);
+  const handleWipeData = () => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Wipe Database',
+      message: 'Are you absolutely sure you want to WIPE the entire database? This will delete all users (except admins), tasks, transactions, submissions, leaderboards, and requests. This cannot be undone.',
+      isPrompt: true,
+      promptExpected: 'WIPE',
+      onConfirm: async () => {
+        try {
+          toast.loading("Wiping Database (This may take a while)...", { id: "wipe_db" });
+          setIsSavingSettings(true);
+
         const adminEmail = profile?.email || 'mdekramhossain590@gmail.com';
 
         // Helper to cleanly delete collection
@@ -638,7 +680,8 @@ export function AdminPanel() {
         setIsSavingSettings(false);
       }
     }
-  };
+  });
+};
 
   return (
     <div className="pt-6 px-4 pb-20">
@@ -2047,6 +2090,59 @@ export function AdminPanel() {
             >
               Understand & Wipe Everything
             </button>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Custom Confirm Modal */}
+      {confirmDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-slate-900/60 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white dark:bg-slate-800 rounded-[32px] p-6 shadow-2xl max-w-sm w-full border border-slate-100 dark:border-slate-700"
+          >
+            <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <ShieldAlert className="w-8 h-8" />
+            </div>
+            <h3 className="text-center font-black text-xl mb-2 text-slate-800 dark:text-white uppercase tracking-tight">{confirmDialog.title}</h3>
+            <p className="text-center font-medium text-slate-500 mb-6">{confirmDialog.message}</p>
+            
+            {confirmDialog.isPrompt && (
+              <div className="mb-6">
+                <input 
+                  type="text" 
+                  value={promptInput}
+                  onChange={(e) => setPromptInput(e.target.value)}
+                  placeholder={`Type '${confirmDialog.promptExpected}' here...`}
+                  className="w-full text-center bg-slate-50 border border-slate-200 dark:bg-slate-900 dark:border-slate-700 rounded-2xl px-4 py-3 font-bold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500 transition-all font-mono uppercase"
+                />
+              </div>
+            )}
+            
+            <div className="flex gap-3">
+              <button 
+                onClick={() => { setConfirmDialog(null); setPromptInput(''); }}
+                className="flex-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 py-3.5 rounded-2xl font-black uppercase text-xs tracking-widest active:scale-95 transition-all"
+              >
+                Cancel
+              </button>
+              <button 
+                disabled={confirmDialog.isPrompt && promptInput !== confirmDialog.promptExpected}
+                onClick={() => {
+                  confirmDialog.onConfirm();
+                  setConfirmDialog(null);
+                  setPromptInput('');
+                }}
+                className={`flex-1 py-3.5 rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg active:scale-95 transition-all ${
+                  (confirmDialog.isPrompt && promptInput !== confirmDialog.promptExpected)
+                    ? 'bg-rose-300 text-white/50 cursor-not-allowed shadow-none'
+                    : 'bg-rose-600 hover:bg-rose-700 text-white shadow-rose-600/20'
+                }`}
+              >
+                Confirm
+              </button>
+            </div>
           </motion.div>
         </div>
       )}
