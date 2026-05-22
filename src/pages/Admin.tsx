@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthProvider';
-import { collection, query, onSnapshot, doc, writeBatch, serverTimestamp, setDoc, orderBy, deleteDoc, increment, updateDoc, getDocs } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, writeBatch, serverTimestamp, setDoc, orderBy, deleteDoc, increment, updateDoc, getDocs, deleteField } from 'firebase/firestore';
 import { processReferralCommission } from '../lib/referral';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { Trash2, CheckCircle, XCircle, Users, ShieldAlert, ShieldCheck, Wallet, ListChecks, Settings, User, Eye, Calculator, MessageSquare, Globe, Coins, Megaphone, Gamepad2, CreditCard, Lock, BellRing, RefreshCw, Smartphone, Mail, Camera, MessageCircle, Send, BookOpen, Layers } from 'lucide-react';
@@ -45,9 +45,12 @@ export function AdminPanel() {
     title: 'Welcome!',
     subtitle: 'Join our official channel for updates'
   });
-  const [siteSettings, setSiteSettings] = useState({ logoUrl: '', faviconUrl: '', telegramUrl: '', dailyTaskLimit: 0, driveOffersEnabled: true, coursesEnabled: true });
+  const [siteSettings, setSiteSettings] = useState({ logoUrl: '', faviconUrl: '', telegramUrl: '', dailyTaskLimit: 0, driveOffersEnabled: true, coursesEnabled: true, adsViewEnabled: false, adsViewLink: '', adsViewText: 'Watch Ads' });
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   
+  const [employeeConfigUser, setEmployeeConfigUser] = useState<any | null>(null);
+  const [employeePermissions, setEmployeePermissions] = useState<string[]>([]);
+
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
     title: string;
@@ -81,10 +84,30 @@ export function AdminPanel() {
   const [newDriveSalePrice, setNewDriveSalePrice] = useState('');
   const [adminOffers, setAdminOffers] = useState<any[]>([]);
 
-  const isAdmin = profile?.role === 'admin' || auth.currentUser?.email === 'mdekramhossain590@gmail.com';
+  const isFullAdmin = profile?.role === 'admin' || auth.currentUser?.email === 'mdekramhossain590@gmail.com';
+  const isEmployee = profile?.role === 'employee';
+  const isAdmin = isFullAdmin || isEmployee;
+  const userPermissions = profile?.permissions || [];
+
+  const ALL_TABS = [
+    { id: 'submissions', label: 'Review', icon: CheckCircle, color: 'text-orange-500' },
+    { id: 'requests', label: 'Payments', icon: Wallet, color: 'text-emerald-500' },
+    { id: 'drives', label: 'Drives', icon: Smartphone, color: 'text-sky-500' },
+    { id: 'jobs', label: 'Jobs', icon: ListChecks, color: 'text-blue-500' },
+    { id: 'courses', label: 'Courses', icon: BookOpen, color: 'text-purple-500' },
+    { id: 'users', label: 'Users', icon: Users, color: 'text-indigo-500' },
+    { id: 'settings', label: 'Configs', icon: Settings, color: 'text-rose-500' }
+  ];
+
+  const allowedTabs = ALL_TABS.filter(tab => isFullAdmin || userPermissions.includes(tab.id));
 
   useEffect(() => {
     if (!isAdmin) return;
+    
+    // Default to the first allowed tab if current activeTab is not allowed
+    if (!isFullAdmin && !userPermissions.includes(activeTab) && allowedTabs.length > 0) {
+      setActiveTab(allowedTabs[0].id as any);
+    }
     
     const jQ = query(collection(db, "jobs"), orderBy("createdAt", "desc"));
     const unsubJ = onSnapshot(jQ, (snap) => setJobs(snap.docs.map(d => ({id: d.id, ...d.data()}))), (err) => handleFirestoreError(err, OperationType.GET, 'jobs'));
@@ -207,7 +230,10 @@ export function AdminPanel() {
           telegramUrl: data.telegramUrl || '',
           dailyTaskLimit: data.dailyTaskLimit || 0,
           driveOffersEnabled: data.driveOffersEnabled !== false,
-          coursesEnabled: data.coursesEnabled !== false
+          coursesEnabled: data.coursesEnabled !== false,
+          adsViewEnabled: data.adsViewEnabled === true,
+          adsViewLink: data.adsViewLink || '',
+          adsViewText: data.adsViewText || 'Watch Ads'
         });
       }
     }, (err) => console.log(err));
@@ -683,19 +709,37 @@ export function AdminPanel() {
   });
 };
 
+  const handleSaveEmployeeConfig = async () => {
+    if (!employeeConfigUser) return;
+    try {
+      const userRef = doc(db, "users", employeeConfigUser.id);
+      if (employeePermissions.length > 0) {
+        await updateDoc(userRef, {
+          role: 'employee',
+          permissions: employeePermissions,
+          updatedAt: serverTimestamp()
+        });
+        toast.success(`User set as Employee Admin`);
+      } else {
+        await updateDoc(userRef, {
+          role: 'user',
+          permissions: deleteField(),
+          updatedAt: serverTimestamp()
+        });
+        toast.success(`Removed Employee privileges`);
+      }
+      setEmployeeConfigUser(null);
+    } catch (err: any) {
+      console.error("Employee Config Error:", err);
+      toast.error("Failed to update employee roles: " + (err.message || 'Unknown error'));
+    }
+  };
+
   return (
     <div className="pt-6 px-4 pb-20">
       <h2 className="text-2xl font-bold mb-4 text-[#0D47A1] dark:text-blue-400">Admin Panel</h2>
       <div className="flex bg-slate-100 dark:bg-slate-900/50 p-1.5 rounded-[20px] mb-8 flex-wrap gap-1.5 ring-1 ring-slate-200 dark:ring-slate-800">
-        {[
-          { id: 'submissions', label: 'Review', icon: CheckCircle, color: 'text-orange-500' },
-          { id: 'requests', label: 'Payments', icon: Wallet, color: 'text-emerald-500' },
-          { id: 'drives', label: 'Drives', icon: Smartphone, color: 'text-sky-500' },
-          { id: 'jobs', label: 'Jobs', icon: ListChecks, color: 'text-blue-500' },
-          { id: 'courses', label: 'Courses', icon: BookOpen, color: 'text-purple-500' },
-          { id: 'users', label: 'Users', icon: Users, color: 'text-indigo-500' },
-          { id: 'settings', label: 'Configs', icon: Settings, color: 'text-rose-500' }
-        ].map(tab => (
+        {allowedTabs.map(tab => (
           <button 
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)} 
@@ -1643,7 +1687,18 @@ export function AdminPanel() {
                   </div>
                 </div>
                 
-                <div className="flex items-center gap-2 self-end md:self-center">
+                <div className="flex items-center gap-2 self-end md:self-center flex-wrap">
+                  {isFullAdmin && user.role !== 'admin' && (
+                    <button 
+                      onClick={() => {
+                        setEmployeeConfigUser(user);
+                        setEmployeePermissions(user.permissions || []);
+                      }}
+                      className="flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-[0.1em] text-[10px] transition-all active:scale-95 bg-purple-100 text-purple-600 shadow-lg shadow-purple-500/10 hover:bg-purple-200"
+                    >
+                      <ShieldCheck className="w-4 h-4" /> Config Employee
+                    </button>
+                  )}
                   <button 
                     onClick={() => handleToggleBlock(user.id, user.isBlocked)}
                     disabled={user.role === 'admin'}
@@ -1748,6 +1803,16 @@ export function AdminPanel() {
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-emerald-500">Floating Telegram URL</label>
                 <input type="text" value={siteSettings.telegramUrl} onChange={(e) => setSiteSettings(prev => ({ ...prev, telegramUrl: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-[11px] font-bold ring-1 ring-slate-100 dark:ring-slate-800" placeholder="https://t.me/yourchannel" />
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="group">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-emerald-500">Ads View Button Text</label>
+                  <input type="text" value={siteSettings.adsViewText} onChange={(e) => setSiteSettings(prev => ({ ...prev, adsViewText: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-[11px] font-bold ring-1 ring-slate-100 dark:ring-slate-800" placeholder="Watch Ads" />
+                </div>
+                <div className="group">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-emerald-500">Ads View Link</label>
+                  <input type="text" value={siteSettings.adsViewLink} onChange={(e) => setSiteSettings(prev => ({ ...prev, adsViewLink: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-[11px] font-bold ring-1 ring-slate-100 dark:ring-slate-800" placeholder="https://..." />
+                </div>
+              </div>
               <div className="group">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-emerald-500">Daily Task Limit (Per User)</label>
                 <input type="number" value={siteSettings.dailyTaskLimit} onChange={(e) => setSiteSettings(prev => ({ ...prev, dailyTaskLimit: Number(e.target.value) }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-[11px] font-bold ring-1 ring-slate-100 dark:ring-slate-800" placeholder="0 for unlimited" />
@@ -1758,26 +1823,54 @@ export function AdminPanel() {
                   <h4 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tight">Drive Offer Option</h4>
                   <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Enable/Disable Drive Offer page access</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setSiteSettings(prev => ({ ...prev, driveOffersEnabled: !prev.driveOffersEnabled }))}
-                  className={`w-12 h-6 rounded-full transition-colors relative ${siteSettings.driveOffersEnabled ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-705'}`}
-                >
-                  <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${siteSettings.driveOffersEnabled ? 'translate-x-6' : ''}`} />
-                </button>
+                <div className="flex items-center gap-3">
+                  <span className={`text-[10px] font-black uppercase tracking-widest ${siteSettings.driveOffersEnabled ? 'text-emerald-500' : 'text-slate-400'}`}>
+                    {siteSettings.driveOffersEnabled ? 'ON' : 'OFF'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSiteSettings(prev => ({ ...prev, driveOffersEnabled: !prev.driveOffersEnabled }))}
+                    className={`w-12 h-6 rounded-full transition-colors relative ${siteSettings.driveOffersEnabled ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-705'}`}
+                  >
+                    <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${siteSettings.driveOffersEnabled ? 'translate-x-6' : ''}`} />
+                  </button>
+                </div>
               </div>
               <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
                 <div>
                   <h4 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tight">Course Feature Option</h4>
                   <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Enable/Disable Course action access</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setSiteSettings(prev => ({ ...prev, coursesEnabled: !prev.coursesEnabled }))}
-                  className={`w-12 h-6 rounded-full transition-colors relative ${siteSettings.coursesEnabled !== false ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-705'}`}
-                >
-                  <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${siteSettings.coursesEnabled !== false ? 'translate-x-6' : ''}`} />
-                </button>
+                <div className="flex items-center gap-3">
+                  <span className={`text-[10px] font-black uppercase tracking-widest ${siteSettings.coursesEnabled !== false ? 'text-emerald-500' : 'text-slate-400'}`}>
+                    {siteSettings.coursesEnabled !== false ? 'ON' : 'OFF'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSiteSettings(prev => ({ ...prev, coursesEnabled: !prev.coursesEnabled }))}
+                    className={`w-12 h-6 rounded-full transition-colors relative ${siteSettings.coursesEnabled !== false ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-705'}`}
+                  >
+                    <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${siteSettings.coursesEnabled !== false ? 'translate-x-6' : ''}`} />
+                  </button>
+                </div>
+              </div>
+              <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tight">Ads View Earnings</h4>
+                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Enable/Disable Ads View action access</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={`text-[10px] font-black uppercase tracking-widest ${siteSettings.adsViewEnabled ? 'text-emerald-500' : 'text-slate-400'}`}>
+                    {siteSettings.adsViewEnabled ? 'ON' : 'OFF'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSiteSettings(prev => ({ ...prev, adsViewEnabled: !prev.adsViewEnabled }))}
+                    className={`w-12 h-6 rounded-full transition-colors relative ${siteSettings.adsViewEnabled ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-705'}`}
+                  >
+                    <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${siteSettings.adsViewEnabled ? 'translate-x-6' : ''}`} />
+                  </button>
+                </div>
               </div>
             </div>
             
@@ -2146,6 +2239,57 @@ export function AdminPanel() {
           </motion.div>
         </div>
       )}
+
+      {/* Employee Admin Config Modal */}
+      {employeeConfigUser && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setEmployeeConfigUser(null)}></motion.div>
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="relative bg-white dark:bg-slate-800 rounded-[32px] p-6 max-w-sm w-full shadow-2xl border border-slate-100 dark:border-slate-700">
+            <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tight mb-1 text-center">Employee Admin Control</h3>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest text-center mb-6">Manage roles for {employeeConfigUser.fullName}</p>
+            
+            <div className="space-y-2 mb-6">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-2">Allowed Permissions:</p>
+              {ALL_TABS.map(tab => (
+                <label key={tab.id} className="flex items-center gap-3 p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={employeePermissions.includes(tab.id)}
+                    onChange={(e) => {
+                      if (e.target.checked) setEmployeePermissions(prev => [...prev, tab.id]);
+                      else setEmployeePermissions(prev => prev.filter(p => p !== tab.id));
+                    }}
+                    className="w-5 h-5 rounded-md border-slate-300 text-purple-600 focus:ring-purple-600"
+                  />
+                  <div className="flex items-center gap-2">
+                    <tab.icon className={`w-4 h-4 ${tab.color}`} />
+                    <span className="font-bold text-slate-700 dark:text-slate-200 text-xs">{tab.label} Access</span>
+                  </div>
+                </label>
+              ))}
+            </div>
+
+            <div className="space-y-3">
+              <button 
+                onClick={handleSaveEmployeeConfig}
+                className="w-full bg-purple-600 hover:bg-purple-700 text-white font-black uppercase tracking-[0.15em] py-3.5 rounded-2xl shadow-lg shadow-purple-600/20 active:scale-95 transition-all text-[11px]"
+              >
+                Save Roles & Permissions
+              </button>
+              <button 
+                onClick={() => setEmployeeConfigUser(null)}
+                className="w-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-700 dark:text-slate-200 font-black uppercase tracking-[0.15em] py-3.5 rounded-2xl active:scale-95 transition-all text-[11px]"
+              >
+                Close
+              </button>
+            </div>
+            {employeePermissions.length === 0 && (
+              <p className="text-[10px] text-center text-rose-500 font-bold uppercase mt-4 opacity-80">Saving with no permissions will revoke employee access</p>
+            )}
+          </motion.div>
+        </div>
+      )}
+
     </div>
   );
 }

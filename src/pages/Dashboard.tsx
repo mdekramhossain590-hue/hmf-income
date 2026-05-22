@@ -20,7 +20,7 @@ export function Dashboard() {
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [showBalance, setShowBalance] = useState(true);
-  const [comingSoonFeature, setComingSoonFeature] = useState<{ title: string; desc: string; icon: React.ReactNode; color: string } | null>(null);
+  const [comingSoonFeature, setComingSoonFeature] = useState<{ title: string; desc: string; icon: React.ReactNode; color: string; link?: string; linkText?: string } | null>(null);
   const { t } = useLanguage();
 
   const handleCopy = (text: string, type: 'code' | 'link') => {
@@ -159,7 +159,7 @@ export function Dashboard() {
                     <div className="bg-slate-800 p-1.5 rounded-full"><Award className="w-4 h-4 text-yellow-400" /></div> {t('rewards_badges')}
                   </button>
                   
-                  { (profile?.role === 'admin' || auth.currentUser?.email === 'mdekramhossain590@gmail.com') && (
+                  { (profile?.role === 'admin' || profile?.role === 'employee' || auth.currentUser?.email === 'mdekramhossain590@gmail.com') && (
                     <button onClick={() => { navigate('/admin'); setMenuOpen(false); }} className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-slate-200 hover:bg-slate-800 hover:text-indigo-400 rounded-lg transition font-medium">
                       <div className="bg-slate-800 p-1.5 rounded-full"><Target className="w-4 h-4 text-indigo-400" /></div> Admin Panel
                     </button>
@@ -393,7 +393,7 @@ export function Dashboard() {
             <div className="absolute inset-0 bg-white/20 dark:bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
             <BookOpen className="w-6 h-6 xl:w-7 xl:h-7" strokeWidth={1.5} />
             {siteSettings?.coursesEnabled === false ? (
-              <div className="absolute top-[3px] right-[3px] px-1 py-0.5 rounded-lg bg-orange-500 text-[6.5px] font-black tracking-widest text-white uppercase leading-none shadow shadow-orange-500/25">Soon</div>
+              <div className="absolute top-[3px] right-[3px] px-1 py-0.5 rounded-lg bg-rose-500 text-[6.5px] font-black tracking-widest text-white uppercase leading-none shadow shadow-rose-500/25 animate-pulse">Off</div>
             ) : (
               <div className="absolute top-[3px] right-[3px] px-1 py-0.5 rounded-lg bg-emerald-500 text-[6.5px] font-black tracking-widest text-white uppercase leading-none shadow shadow-emerald-500/25 animate-bounce">LIVE</div>
             )}
@@ -415,21 +415,33 @@ export function Dashboard() {
           whileTap={{ scale: 0.9 }} 
           onClick={() => { 
             playTapSound(); 
-            setComingSoonFeature({ 
-              title: 'Ads View Earnings', 
-              desc: 'ভিডিও ও বিজ্ঞাপন দেখে প্রতি ভিউতে অতিরিক্ত বোনাস টাকা ক্যাশব্যাক করার হাই-পেইড সেলফ ইনকাম ফিচারটি আমাদের পরবর্তী আপডেটে উন্নত এড-নেটওয়ার্ক ও ইনস্ট্যান্ট উইথড্র সুবিধা সহ চালু হচ্ছে। আমাদের সাথেই থাকুন!', 
-              icon: <MonitorPlay className="w-7 h-7" />, 
-              color: 'from-rose-500 to-pink-600' 
-            }); 
+            if (siteSettings?.adsViewEnabled) {
+              navigate('/ads');
+            } else {
+              setComingSoonFeature({ 
+                title: 'Ads View Earnings', 
+                desc: 'ভিডিও ও বিজ্ঞাপন দেখে প্রতি ভিউতে অতিরিক্ত বোনাস টাকা ক্যাশব্যাক করার হাই-পেইড সেলফ ইনকাম ফিচারটি আমাদের পরবর্তী আপডেটে উন্নত এড-নেটওয়ার্ক ও ইনস্ট্যান্ট উইথড্র সুবিধা সহ চালু হচ্ছে। আমাদের সাথেই থাকুন!', 
+                icon: <MonitorPlay className="w-7 h-7" />, 
+                color: 'from-rose-500 to-pink-600',
+                link: siteSettings?.adsViewLink || '',
+                linkText: siteSettings?.adsViewText || 'অফিসিয়াল চ্যানেল এ যুক্ত হন'
+              }); 
+            }
           }} 
           className="flex flex-col items-center gap-2 cursor-pointer group"
         >
-          <div className="w-full aspect-square max-w-[64px] rounded-2xl bg-slate-100 dark:bg-slate-800 border-slate-250/35 text-slate-400 dark:text-slate-500 opacity-60 saturate-50 flex items-center justify-center shadow-sm border group-hover:shadow-md transition-all relative overflow-hidden">
+          <div className="w-full aspect-square max-w-[64px] rounded-2xl bg-gradient-to-br from-rose-50 to-rose-100 dark:from-rose-900/40 dark:to-rose-800/20 text-rose-600 dark:text-rose-400 flex items-center justify-center shadow-sm border border-rose-200/50 dark:border-rose-700/30 group-hover:shadow-md transition-all relative overflow-hidden">
             <div className="absolute inset-0 bg-white/20 dark:bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
             <MonitorPlay className="w-6 h-6 xl:w-7 xl:h-7" strokeWidth={1.5} />
-            <div className="absolute top-[3px] right-[3px] px-1 py-0.5 rounded-lg bg-orange-500 text-[6.5px] font-black tracking-widest text-white uppercase leading-none shadow shadow-orange-500/25">Soon</div>
+            {siteSettings?.adsViewEnabled ? (
+              <div className="absolute top-[3px] right-[3px] px-1 py-0.5 rounded-lg bg-emerald-500 text-[6.5px] font-black tracking-widest text-white uppercase leading-none shadow shadow-emerald-500/25 animate-bounce">LIVE</div>
+            ) : (
+              <div className="absolute top-[3px] right-[3px] px-1 py-0.5 rounded-lg bg-rose-500 text-[6.5px] font-black tracking-widest text-white uppercase leading-none shadow shadow-rose-500/25 animate-pulse">Off</div>
+            )}
           </div>
-          <span className="text-[10px] sm:text-[11px] font-bold text-center leading-tight truncate w-full text-slate-450 dark:text-slate-500">Ads View</span>
+          <span className={`text-[10px] sm:text-[11px] font-bold text-center leading-tight truncate w-full ${
+            siteSettings?.adsViewEnabled ? "text-slate-700 dark:text-slate-300" : "text-slate-450 dark:text-slate-500"
+          }`}>Ads View</span>
         </motion.div>
       </div>
 
@@ -702,14 +714,14 @@ export function Dashboard() {
                 <div className="h-6"></div>
 
                 <div className="flex flex-col gap-2">
-                  {siteSettings?.telegramUrl && (
+                  {(comingSoonFeature.link || siteSettings?.telegramUrl) && (
                     <a
-                      href={siteSettings.telegramUrl}
+                      href={comingSoonFeature.link || siteSettings?.telegramUrl || '#'}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white font-black py-3 px-4 rounded-[18px] text-[11px] uppercase tracking-widest transition-transform hover:scale-[1.01] active:scale-[0.98] shadow-md shadow-blue-500/10 flex items-center justify-center gap-2"
                     >
-                      <Send className="w-4 h-4" /> অফিশিয়াল চ্যানেল এ যুক্ত হন
+                      <Send className="w-4 h-4" /> {comingSoonFeature.linkText || 'অফিসিয়াল চ্যানেল এ যুক্ত হন'}
                     </a>
                   )}
                   

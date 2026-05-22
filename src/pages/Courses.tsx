@@ -250,7 +250,7 @@ export function Courses() {
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4">
-            <AnimatePresence mode="popLayout">
+            <AnimatePresence mode="wait">
               {filteredCourses.map((course, idx) => (
                 <motion.div
                   key={course.id}

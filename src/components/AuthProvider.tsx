@@ -18,6 +18,7 @@ export interface UserProfile {
     tasks?: Record<string, number>;
   };
   role: string;
+  permissions?: string[];
   isActive?: boolean;
   totalReferrals?: number;
   totalTasksCompleted?: number;

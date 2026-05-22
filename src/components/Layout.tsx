@@ -32,35 +32,21 @@ export function Layout() {
     return location.pathname.startsWith(item.to);
   })?.to || '';
 
-  const pageVariants = {
-    initial: { opacity: 0, y: 10 },
-    in: { opacity: 1, y: 0 },
-    out: { opacity: 0, y: -10 }
-  };
-
-  const pageTransition = {
-    type: 'tween',
-    ease: 'easeInOut',
-    duration: 0.2
-  };
-
   return (
     <div className="max-w-[480px] mx-auto bg-slate-50 dark:bg-slate-950 min-h-screen relative shadow-2xl overflow-x-hidden pb-[90px] transition-colors">
       <NotificationListener />
       
-      <AnimatePresence mode="popLayout">
-        <motion.div
-          key={location.pathname}
-          initial="initial"
-          animate="in"
-          exit="out"
-          variants={pageVariants}
-          transition={pageTransition}
-          className="w-full h-full min-h-screen relative"
-        >
+      <div className="w-full h-full min-h-screen relative flex flex-col">
+        <div className="flex-grow">
           {currentOutlet}
-        </motion.div>
-      </AnimatePresence>
+        </div>
+        <div className="py-6 text-center text-[10px] text-slate-400 dark:text-slate-500 font-medium tracking-wide flex flex-col gap-1 items-center justify-center pb-8 border-t border-slate-100 dark:border-slate-800/60 mt-10">
+          <p>© 2026 hmf income. All Rights Reserved.</p>
+          <p>
+            Developed by: <a href="https://www.facebook.com/profile.php?id=61589359523258" target="_blank" rel="noopener noreferrer" className="text-sky-500 font-bold hover:underline">Hmf Ekram</a>
+          </p>
+        </div>
+      </div>
       
       {user && (
         <>
@@ -81,7 +67,7 @@ export function Layout() {
             }} 
             className="fixed bottom-0 left-0 right-0 mx-auto w-full max-w-[480px] bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl rounded-t-[28px] z-50 shadow-[0_-12px_44px_rgba(0,0,0,0.05)] dark:shadow-[0_-12px_44px_rgba(0,0,0,0.3)] border-t border-slate-150/45 dark:border-slate-800/40 transition-colors select-none"
           >
-            <Tabs.List className="flex justify-between items-center px-6 py-4" aria-label="Main navigation tabs">
+            <Tabs.List className="flex justify-between items-center px-4 py-2" aria-label="Main navigation tabs">
               {navItems.map((item) => {
                 const isActive = currentTabValue === item.to;
                 return (
@@ -89,21 +75,31 @@ export function Layout() {
                     key={item.to}
                     value={item.to}
                     className={cn(
-                      "flex flex-1 flex-col items-center justify-center cursor-pointer transition-all duration-300 relative py-1 px-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded-xl",
+                      "flex flex-1 flex-col items-center justify-center cursor-pointer transition-all duration-300 relative focus:outline-none rounded-xl h-16",
                       isActive 
-                        ? "text-indigo-600 dark:text-indigo-400 -translate-y-0.5" 
-                        : "text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
+                        ? "text-white" 
+                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
                     )}
                   >
                     {isActive && (
                       <motion.div
-                        layoutId="activeTabIndicator"
-                        className="absolute -top-[16px] w-2 h-2 bg-indigo-600 dark:bg-indigo-400 rounded-full shadow-[0_0_8px_rgba(79,70,229,0.8)]"
-                        transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                        layoutId="activeTabBackground"
+                        className="absolute -top-[26px] w-[64px] h-[64px] bg-[#00AEEF] rounded-full shadow-[0_4px_16px_rgba(0,174,239,0.4)] border-[6px] border-white dark:border-slate-900 z-0"
+                        transition={{ type: "spring", stiffness: 400, damping: 25 }}
                       />
                     )}
-                    <item.icon className={cn("w-5.5 h-5.5 mb-1 transition-transform duration-300", isActive && "scale-110")} />
-                    <span className="text-[10px] font-black tracking-wide leading-none">{item.label}</span>
+                    
+                    {isActive ? (
+                      <div className="relative z-10 flex flex-col items-center justify-center -mt-5">
+                        <item.icon className="w-6 h-6 mb-1 text-white" strokeWidth={2.5} />
+                        <span className="text-[10px] font-bold tracking-wide leading-none uppercase text-white">{item.label}</span>
+                      </div>
+                    ) : (
+                      <div className="relative z-10 flex flex-col items-center justify-center mt-2">
+                        <item.icon className="w-6 h-6 mb-1.5 opacity-70" strokeWidth={2.2} />
+                        <span className="text-[11px] font-medium tracking-wide leading-none">{item.label}</span>
+                      </div>
+                    )}
                   </Tabs.Trigger>
                 );
               })}

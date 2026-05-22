@@ -14,7 +14,7 @@ service cloud.firestore {
 
     function isAdmin() {
       return (isSignedIn() && request.auth.token.email == 'mdekramhossain590@gmail.com') ||
-             (isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+             (isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'employee'));
     }
 
     function isFreeActivationSettings() {
@@ -34,7 +34,7 @@ service cloud.firestore {
         data.balances.main is number &&
         data.balances.bonus is number &&
         data.balances.referral is number &&
-        data.role is string && (data.role == 'user' || data.role == 'admin') &&
+        data.role is string && (data.role == 'user' || data.role == 'admin' || data.role == 'employee') &&
         data.createdAt is timestamp &&
         (data.keys().hasAny(['photoURL']) ? (data.photoURL is string && data.photoURL.size() <= 600) : true) &&
         (data.keys().hasAny(['totalReferrals']) ? data.totalReferrals is number : true) &&
@@ -42,6 +42,7 @@ service cloud.firestore {
         (data.keys().hasAny(['isActive']) ? data.isActive is bool : true) &&
         (data.keys().hasAny(['deviceId']) ? (data.deviceId is string && data.deviceId.size() <= 100) : true) &&
         (data.keys().hasAny(['isBlocked']) ? data.isBlocked is bool : true) &&
+        (data.keys().hasAny(['permissions']) ? data.permissions is list : true) &&
         (data.keys().hasAny(['lastLoginAt']) ? data.lastLoginAt is timestamp : true);
     }
 
@@ -394,7 +395,7 @@ service cloud.firestore {
                          (isValidUser(incoming()) && request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['balances', 'photoURL', 'fullName', 'totalTasksCompleted', 'totalReferrals', 'deviceId', 'lastLoginAt'])) ||
                          (isValidUser(incoming()) && request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['balances', 'isActive', 'deviceId', 'lastLoginAt']) && (incoming().isActive == existing().isActive || (incoming().isActive == true && isFreeActivationSettings()))) ||
                          (isValidUser(incoming()) && request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['deviceId', 'lastLoginAt'])) ||
-                         (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['balances', 'totalTasksCompleted', 'totalReferrals', 'isActive', 'role', 'isBlocked', 'updatedAt'])) ||
+                         (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['balances', 'totalTasksCompleted', 'totalReferrals', 'isActive', 'role', 'permissions', 'isBlocked', 'updatedAt'])) ||
                          (incoming().diff(existing()).affectedKeys().hasOnly(['balances', 'totalReferrals']) && 
                           incoming().balances.main == existing().balances.main &&
                           incoming().balances.bonus == existing().balances.bonus &&
