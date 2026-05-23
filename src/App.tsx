@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './components/AuthProvider';
 import { Layout } from './components/Layout';
@@ -84,7 +84,7 @@ export default function App() {
   return (
     <AuthProvider>
       <Toaster position="top-center" />
-      <BrowserRouter>
+      <HashRouter>
           <Routes>
             <Route path="/login" element={<PublicRoute><Auth /></PublicRoute>} />
           <Route path="/register" element={<PublicRoute><Auth /></PublicRoute>} />
@@ -115,7 +115,7 @@ export default function App() {
           
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-        </BrowserRouter>
+        </HashRouter>
       </AuthProvider>
   );
 }
