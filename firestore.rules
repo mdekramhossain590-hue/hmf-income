@@ -404,7 +404,7 @@ service cloud.firestore {
       allow delete: if isAdmin();
                        
       match /tasks/{taskId} {
-        allow list, get: if isSignedIn() && request.auth.uid == userId;
+        allow list, get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
         allow create: if isSignedIn() && (request.auth.uid == userId || isAdmin()) && isValidId(taskId) &&
                          isValidTaskHistory(incoming()) &&
                          incoming().completedAt == request.time;
@@ -412,7 +412,7 @@ service cloud.firestore {
       }
       
       match /mathHistory/{mathId} {
-        allow list, get: if isSignedIn() && request.auth.uid == userId;
+        allow list, get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
         allow create: if isSignedIn() && request.auth.uid == userId && isValidId(mathId) &&
                          isValidMathHistory(incoming()) &&
                          incoming().completedAt == request.time;
@@ -420,7 +420,7 @@ service cloud.firestore {
       }
       
       match /transactions/{transactionId} {
-        allow list, get: if isSignedIn() && request.auth.uid == userId;
+        allow list, get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
         allow create: if isSignedIn() && isValidId(transactionId) &&
                          isValidTransactionHistory(incoming()) &&
                          incoming().createdAt == request.time &&
@@ -432,14 +432,14 @@ service cloud.firestore {
       }
       
       match /referrals/{referralId} {
-        allow list, get: if isSignedIn() && request.auth.uid == userId;
+        allow list, get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
         allow create: if isSignedIn() && isValidId(referralId) &&
                          isValidReferralHistory(incoming()) &&
                          incoming().createdAt == request.time;
         allow delete: if isAdmin();
       }
       match /notifications/{notificationId} {
-        allow list, get: if isSignedIn() && request.auth.uid == userId;
+        allow list, get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
         allow create: if isSignedIn() && (isAdmin() || request.auth.uid == userId) && isValidId(notificationId) &&
                          isValidNotification(incoming()) &&
                          incoming().createdAt == request.time;
