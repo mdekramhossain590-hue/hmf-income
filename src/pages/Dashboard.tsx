@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { User, Bell, Wallet, ListChecks, Target, Users, Send, MoreVertical, Settings, HelpCircle, LogOut, Award, Shield, FileText, Calculator, Megaphone, Trophy, Copy, Check, Link, Eye, EyeOff, Smartphone, BookOpen, Banknote, MonitorPlay, Wifi, Sun, Moon, X, Trash2, Activity, ArrowDownLeft, ArrowUpRight, CheckCircle } from 'lucide-react';
+import { User, Bell, Wallet, ListChecks, Target, Users, Send, MoreVertical, Settings, HelpCircle, LogOut, Award, Shield, FileText, Calculator, Megaphone, Trophy, Copy, Check, Link, Eye, EyeOff, Smartphone, BookOpen, Banknote, MonitorPlay, Wifi, Sun, Moon, X, Trash2, Activity, ArrowDownLeft, ArrowUpRight, CheckCircle, MessageCircle } from 'lucide-react';
 import { useAuth } from '../components/AuthProvider';
 import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../components/LanguageProvider';
@@ -299,7 +299,7 @@ export function Dashboard() {
                   
                   { (profile?.role === 'admin' || profile?.role === 'employee' || auth.currentUser?.email === 'mdekramhossain590@gmail.com') && (
                     <button onClick={() => { navigate('/admin'); setMenuOpen(false); }} className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-slate-200 hover:bg-slate-800 hover:text-indigo-400 rounded-lg transition font-medium">
-                      <div className="bg-slate-800 p-1.5 rounded-full"><Target className="w-4 h-4 text-indigo-400" /></div> Admin Panel
+                      <div className="bg-slate-800 p-1.5 rounded-full"><Target className="w-4 h-4 text-indigo-400" /></div> {t('admin_panel')}
                     </button>
                   )}
                   
@@ -309,7 +309,10 @@ export function Dashboard() {
                     <Settings className="w-4 h-4 text-slate-400" /> {t('settings')}
                   </button>
                   <button onClick={() => { navigate('/support'); setMenuOpen(false); }} className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition">
-                    <HelpCircle className="w-4 h-4 text-slate-400" /> {t('help_support')}
+                    <MessageCircle className="w-4 h-4 text-slate-400" /> {t('help_support')}
+                  </button>
+                  <button onClick={() => { navigate('/faq'); setMenuOpen(false); }} className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition">
+                    <HelpCircle className="w-4 h-4 text-slate-400" /> {t('faq')}
                   </button>
                   <button onClick={() => { navigate('/privacy'); setMenuOpen(false); }} className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition">
                     <Shield className="w-4 h-4 text-slate-400" /> {t('privacy_policy')}
@@ -404,7 +407,7 @@ export function Dashboard() {
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="w-full aspect-[1.58/1] bg-gradient-to-br from-[#1e293b] via-[#0f172a] to-[#1e1b4b] rounded-[24px] p-6 text-white shadow-2xl relative overflow-hidden border border-white/5 group"
+          className="w-full aspect-[1.58/1] bg-gradient-to-br from-[#1e293b] via-[#0f172a] to-[#1e1b4b] rounded-2xl sm:rounded-[24px] p-4 sm:p-6 text-white shadow-2xl relative overflow-hidden border border-white/5 group"
         >
           {/* Animated Background Orbs */}
           <div className="absolute top-0 right-0 w-48 h-48 bg-blue-600/20 blur-[60px] rounded-full -translate-y-12 translate-x-12"></div>
@@ -413,43 +416,43 @@ export function Dashboard() {
           <div className="relative z-10 h-full flex flex-col justify-between">
             {/* Card Top */}
             <div className="flex justify-between items-start">
-              <div>
-                <p className="text-[10px] uppercase tracking-[0.2em] font-black opacity-60 mb-1">Digital Wallet</p>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-2xl font-display font-black italic tracking-tighter drop-shadow-sm">HMF <span className="text-blue-400">INCOME</span></h2>
-                  <div className="w-px h-5 bg-white/20"></div>
-                  <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest px-2.5 py-1 bg-emerald-500/10 rounded-full border border-emerald-500/20 font-mono">Platinum</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-10 h-10 rounded-xl bg-white/5 backdrop-blur-md border border-white/10 flex items-center justify-center">
-                  <Calculator className="w-5 h-5 text-white/40" />
-                </div>
-              </div>
+               <div>
+                 <p className="text-[8px] sm:text-[10px] uppercase tracking-[0.2em] font-black opacity-60 mb-0.5 sm:mb-1">{t('digital_wallet')}</p>
+                 <div className="flex items-center gap-2">
+                   <h2 className="text-xl sm:text-2xl font-display font-black italic tracking-tighter drop-shadow-sm">HMF <span className="text-blue-400">INCOME</span></h2>
+                   <div className="w-px h-4 sm:h-5 bg-white/20"></div>
+                   <span className="text-[8px] sm:text-[10px] font-bold text-emerald-400 uppercase tracking-widest px-2 sm:px-2.5 py-0.5 sm:py-1 bg-emerald-500/10 rounded-full border border-emerald-500/20 font-mono">Platinum</span>
+                 </div>
+               </div>
+               <div className="flex items-center gap-2">
+                 <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-white/5 backdrop-blur-md border border-white/10 flex items-center justify-center">
+                   <Calculator className="w-4 h-4 sm:w-5 sm:h-5 text-white/40" />
+                 </div>
+               </div>
             </div>
 
             {/* Card Middle: Chip & Balance */}
-            <div className="mt-4">
+            <div className="mt-2 sm:mt-4">
               <div className="flex items-end justify-between">
                 <div>
-                  <div className="w-10 h-8 bg-gradient-to-br from-yellow-200 via-yellow-400 to-amber-500 rounded-md mb-3 flex flex-col gap-1 p-1.5 shadow-inner">
+                  <div className="w-8 h-6 sm:w-10 sm:h-8 bg-gradient-to-br from-yellow-200 via-yellow-400 to-amber-500 rounded-md mb-2 sm:mb-3 flex flex-col gap-0.5 sm:gap-1 p-1 sm:p-1.5 shadow-inner">
                     <div className="w-full h-px bg-black/10"></div>
                     <div className="w-full h-px bg-black/10"></div>
                     <div className="w-full h-px bg-black/10"></div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest">{t('total_balance')}</p>
-                    <button 
-                      onClick={() => setShowBalance(!showBalance)} 
-                      className="p-1.5 bg-white/5 hover:bg-white/10 rounded-lg transition-colors border border-white/5"
-                    >
-                      {showBalance ? <EyeOff className="w-3 h-3 text-white/60" /> : <Eye className="w-3 h-3 text-white/60" />}
-                    </button>
+                  <div className="flex items-center gap-2 sm:gap-3">
+                     <p className="text-[8px] sm:text-[10px] text-white/50 font-bold uppercase tracking-widest">{t('total_balance')}</p>
+                     <button 
+                       onClick={() => setShowBalance(!showBalance)} 
+                       className="p-1 sm:p-1.5 bg-white/5 hover:bg-white/10 rounded-lg transition-colors border border-white/5"
+                     >
+                       {showBalance ? <EyeOff className="w-3 h-3 text-white/60" /> : <Eye className="w-3 h-3 text-white/60" />}
+                     </button>
                   </div>
                   {loading ? (
-                    <div className="h-10 w-40 bg-white/10 rounded-lg animate-pulse mt-1"></div>
+                    <div className="h-8 sm:h-10 w-28 sm:w-40 bg-white/10 rounded-lg animate-pulse mt-1"></div>
                   ) : (
-                    <h1 className="text-4xl font-display font-black tracking-tight text-white mt-1">
+                    <h1 className="text-2xl sm:text-4xl font-display font-black tracking-tight text-white mt-1 leading-none">
                       {showBalance ? (
                         `৳ ${((profile?.balances?.main || 0) + (profile?.balances?.bonus || 0) + (profile?.balances?.referral || 0) + Object.values(profile?.balances?.tasks || {}).reduce((a, b) => (a as number) + (b as number), 0)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                       ) : (
@@ -461,23 +464,23 @@ export function Dashboard() {
                 
                 <button 
                   onClick={() => navigate('/wallet?tab=withdraw')} 
-                  className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-blue-600/30 active:scale-95 transition-all flex items-center gap-2"
+                  className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider shadow-lg shadow-blue-600/30 active:scale-95 transition-all flex items-center gap-1.5 sm:gap-2"
                 >
-                  <Wallet className="w-3.5 h-3.5" />
+                  <Wallet className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                   {t('withdraw')}
                 </button>
               </div>
             </div>
 
             {/* Card Bottom: User & ID */}
-            <div className="flex justify-between items-end border-t border-white/10 pt-4">
+            <div className="flex justify-between items-end border-t border-white/10 pt-2 sm:pt-4">
               <div>
-                <p className="text-[9px] text-white/40 font-bold mb-0.5 uppercase tracking-widest font-sans">Card Holder</p>
-                <p className="text-[14px] font-bold tracking-wide uppercase truncate max-w-[150px] font-display">{profile?.fullName}</p>
+                 <p className="text-[8px] sm:text-[9px] text-white/40 font-bold mb-0.5 uppercase tracking-widest font-sans">{t('card_holder')}</p>
+                 <p className="text-xs sm:text-[14px] font-bold tracking-wide uppercase truncate max-w-[120px] sm:max-w-[150px] font-display">{profile?.fullName}</p>
               </div>
               <div className="text-right">
-                <p className="text-[9px] text-white/40 font-bold mb-0.5 uppercase tracking-widest font-sans">Member ID</p>
-                <p className="text-[14px] font-mono font-bold tracking-[0.1em]">{profile?.myReferCode || '####'}</p>
+                 <p className="text-[8px] sm:text-[9px] text-white/40 font-bold mb-0.5 uppercase tracking-widest font-sans">{t('member_id')}</p>
+                 <p className="text-xs sm:text-[14px] font-mono font-bold tracking-[0.1em]">{profile?.myReferCode || '####'}</p>
               </div>
             </div>
           </div>
@@ -516,7 +519,7 @@ export function Dashboard() {
           </div>
           <span className={`text-[10px] sm:text-[11px] font-bold text-center leading-tight truncate w-full ${
             siteSettings?.driveOffersEnabled === false ? "text-slate-450 dark:text-slate-500" : "text-slate-700 dark:text-slate-300"
-          }`}>Drive Offer</span>
+          }`}>{t('drive_offer')}</span>
         </motion.div>
         
         <motion.div whileTap={{ scale: 0.9 }} onClick={() => { playTapSound(); navigate('/recharge'); }} className="flex flex-col items-center gap-2 cursor-pointer group">
@@ -524,7 +527,7 @@ export function Dashboard() {
             <div className="absolute inset-0 bg-white/20 dark:bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
             <Smartphone className="w-6 h-6 xl:w-7 xl:h-7" strokeWidth={1.5} />
           </div>
-          <span className="text-[10px] sm:text-[11px] font-bold text-center leading-tight truncate w-full text-slate-700 dark:text-slate-300">Recharge</span>
+          <span className="text-[10px] sm:text-[11px] font-bold text-center leading-tight truncate w-full text-slate-700 dark:text-slate-300">{t('recharge')}</span>
         </motion.div>
 
         <motion.div 
@@ -559,7 +562,7 @@ export function Dashboard() {
           </div>
           <span className={`text-[10px] sm:text-[11px] font-bold text-center leading-tight truncate w-full ${
             siteSettings?.coursesEnabled === false ? "text-slate-450 dark:text-slate-500" : "text-slate-700 dark:text-slate-300"
-          }`}>Course</span>
+          }`}>{t('courses')}</span>
         </motion.div>
 
         <motion.div whileTap={{ scale: 0.9 }} onClick={() => { playTapSound(); setComingSoonFeature({ title: 'Monthly Salary', desc: 'একটি নির্দিষ্ট সংখ্যক রেফার ও টাস্ক সম্পন্নকারী বিশ্বস্ত ইউজারদের জন্য মাসিক নিয়মিত "ফিক্সড স্যালারি" বা ফিক্সড বেতন ফিচার আসছে! কাজের ধারাবাহিকতা বজায় রাখুন।', icon: <Banknote className="w-7 h-7" />, color: 'from-amber-500 to-orange-600' }); }} className="flex flex-col items-center gap-2 cursor-pointer group">
@@ -567,7 +570,7 @@ export function Dashboard() {
             <div className="absolute inset-0 bg-white/20 dark:bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
             <Banknote className="w-6 h-6 xl:w-7 xl:h-7" strokeWidth={1.5} />
           </div>
-          <span className="text-[10px] sm:text-[11px] font-bold text-center leading-tight truncate w-full text-slate-700 dark:text-slate-300">Salary</span>
+          <span className="text-[10px] sm:text-[11px] font-bold text-center leading-tight truncate w-full text-slate-700 dark:text-slate-300">{t('salary')}</span>
         </motion.div>
         
         <motion.div 
@@ -600,7 +603,7 @@ export function Dashboard() {
           </div>
           <span className={`text-[10px] sm:text-[11px] font-bold text-center leading-tight truncate w-full ${
             siteSettings?.adsViewEnabled ? "text-slate-700 dark:text-slate-300" : "text-slate-450 dark:text-slate-500"
-          }`}>Ads View</span>
+          }`}>{t('ads_view')}</span>
         </motion.div>
       </div>
 
@@ -609,11 +612,11 @@ export function Dashboard() {
         <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/[0.03] dark:bg-indigo-500/[0.05] blur-2xl rounded-full"></div>
         <h3 className="font-display font-medium text-slate-800 dark:text-white mb-3 text-base flex items-center gap-2 relative z-10 tracking-tight">
           <Link className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
-          Share to Earn More
+          {t('share_to_earn')}
         </h3>
         <div className="flex flex-col gap-3 relative z-10">
           <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900/50 p-3 rounded-xl border border-slate-100 dark:border-slate-700/50 transition-colors hover:border-indigo-200 dark:hover:border-indigo-500/30">
-            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium whitespace-nowrap min-w-[50px]">Code:</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium whitespace-nowrap min-w-[50px]">{t('code')}:</span>
             <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400 flex-1 truncate">{profile?.myReferCode || 'Loading...'}</span>
             <button 
               onClick={() => handleCopy(profile?.myReferCode || '', 'code')} 
@@ -624,7 +627,7 @@ export function Dashboard() {
             </button>
           </div>
           <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900/50 p-3 rounded-xl border border-slate-100 dark:border-slate-700/50 transition-colors hover:border-indigo-200 dark:hover:border-indigo-500/30">
-            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium whitespace-nowrap min-w-[50px]">Link:</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium whitespace-nowrap min-w-[50px]">{t('link')}:</span>
             <span className="text-xs text-slate-600 dark:text-slate-300 flex-1 truncate opacity-90">{profile?.myReferCode ? `${window.location.origin}/register?ref=${profile.myReferCode}` : 'Loading...'}</span>
             <button 
               onClick={() => handleCopy(`${window.location.origin}/register?ref=${profile?.myReferCode}`, 'link')} 
@@ -643,7 +646,7 @@ export function Dashboard() {
           <summary className="flex justify-between items-center font-display font-semibold tracking-tight text-slate-800 dark:text-white text-base cursor-pointer list-none outline-none">
             <span className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
-              Earnings Breakdown
+              {t('earnings_breakdown')}
             </span>
             <div className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700/50 flex items-center justify-center transition-transform group-open:rotate-180 text-slate-500">
               <svg fill="none" height="16" shapeRendering="geometricPrecision" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" viewBox="0 0 24 24" w="16"><path d="M6 9l6 6 6-6"></path></svg>
@@ -651,7 +654,7 @@ export function Dashboard() {
           </summary>
           <div className="space-y-3 mt-4 animate-in fade-in slide-in-from-top-2 duration-300 ease-out">
             <div className="bg-white dark:bg-slate-900/50 p-3 rounded-xl flex justify-between items-center ring-1 ring-slate-100 dark:ring-slate-700/50">
-              <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">Main Wallet</span>
+              <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">{t('main_wallet')}</span>
               {loading ? (
                 <div className="h-6 w-20 bg-slate-200 dark:bg-slate-700 rounded animate-pulse"></div>
               ) : showBalance ? (
@@ -672,7 +675,7 @@ export function Dashboard() {
                 )}
               </div>
               <div className="flex-1 bg-white dark:bg-slate-900/50 p-3 rounded-xl flex flex-col ring-1 ring-slate-100 dark:ring-slate-700/50">
-                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Referral</span>
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">{t('referral')}</span>
                 {loading ? (
                   <div className="h-6 w-16 bg-slate-200 dark:bg-slate-700 rounded animate-pulse mt-1"></div>
                 ) : showBalance ? (

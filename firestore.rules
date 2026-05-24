@@ -391,6 +391,7 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.auth.uid == userId && isValidId(userId) &&
                        isValidUser(incoming()) &&
                        incoming().createdAt == request.time &&
+                       (incoming().isActive == false || (incoming().isActive == true && isFreeActivationSettings())) &&
                        (incoming().role == 'user' || (incoming().role == 'admin' && request.auth.token.email == 'mdekramhossain590@gmail.com'));
                        
       allow update: if isSignedIn() && isValidId(userId) &&

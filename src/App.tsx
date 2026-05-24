@@ -24,6 +24,7 @@ import { Terms } from './pages/Terms';
 import { AdminPanel } from './pages/Admin';
 import { Payment } from './pages/Payment';
 import { Courses } from './pages/Courses';
+import { FAQ } from './pages/FAQ';
 
 import { FullPageLoader } from './components/LoadingSpinner';
 
@@ -108,6 +109,7 @@ export default function App() {
             <Route path="/rewards" element={<ActiveGuard><Rewards /></ActiveGuard>} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/support" element={<Support />} />
+            <Route path="/faq" element={<FAQ />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/terms" element={<Terms />} />
             <Route path="/admin" element={<AdminPanel />} />
