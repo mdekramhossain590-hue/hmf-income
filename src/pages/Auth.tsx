@@ -115,8 +115,6 @@ export function Auth() {
       if (actSnap.exists()) {
         const actData = actSnap.data();
         initialIsActive = actData?.mode === 'free';
-      } else {
-        initialIsActive = true; // Default to active if configuration is missing
       }
     } catch (e) {
       console.warn("Could not fetch activation settings, defaulting to inactive:", e);
