@@ -173,10 +173,10 @@ export function TaskDetail() {
       const subData = {
         jobId: job.id,
         userId: auth.currentUser.uid,
-        userEmail: auth.currentUser.email || 'Unknown',
-        title: job.title,
-        jobType: job.type || 'Other',
-        reward: job.reward,
+        userEmail: (auth.currentUser.email || 'Unknown').slice(0, 150),
+        title: (job.title || 'Untitled Task').slice(0, 150),
+        jobType: (job.type || 'Other').slice(0, 50),
+        reward: Number(job.reward) || 0,
         proofs: proofs,
         status: 'pending',
         submittedAt: serverTimestamp()

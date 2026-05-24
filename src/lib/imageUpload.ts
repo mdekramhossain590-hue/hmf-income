@@ -50,7 +50,7 @@ export async function fileToBase64AndCompress(file: File, maxDim: number = 600):
 
 /**
  * Uploads an image file to Cloudinary if credentials are set up.
- * If credentials are not set up, automatically falls back to compressed base64.
+ * If credentials are not set up or an error occurs, automatically falls back to compressed base64.
  */
 export async function uploadImageOrFallback(
   file: File,
@@ -60,7 +60,14 @@ export async function uploadImageOrFallback(
   const cloudName = (import.meta as any).env.VITE_CLOUDINARY_CLOUD_NAME;
   const uploadPreset = (import.meta as any).env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
-  if (!cloudName || !uploadPreset) {
+  const isConfigured = cloudName && 
+                       uploadPreset && 
+                       cloudName !== "your_cloud_name_here" && 
+                       uploadPreset !== "your_upload_preset_here" &&
+                       cloudName.trim() !== "" &&
+                       uploadPreset.trim() !== "";
+
+  if (!isConfigured) {
     if (onProgress) onProgress(30);
     // Graceful fallback to compressed base64
     const base64Url = await fileToBase64AndCompress(file, fallbackMaxDim);
@@ -68,25 +75,33 @@ export async function uploadImageOrFallback(
     return base64Url;
   }
 
-  // Cloudinary Upload
-  if (onProgress) onProgress(20);
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('upload_preset', uploadPreset);
+  try {
+    // Cloudinary Upload
+    if (onProgress) onProgress(20);
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', uploadPreset);
 
-  if (onProgress) onProgress(50);
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-    method: 'POST',
-    body: formData,
-  });
+    if (onProgress) onProgress(50);
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+      method: 'POST',
+      body: formData,
+    });
 
-  if (onProgress) onProgress(80);
-  if (!res.ok) {
-    const errData = await res.json();
-    throw new Error(errData.error?.message || "Failed to upload image to Cloudinary");
+    if (onProgress) onProgress(80);
+    if (!res.ok) {
+      const errData = await res.json();
+      throw new Error(errData.error?.message || "Failed to upload image to Cloudinary");
+    }
+
+    const data = await res.json();
+    if (onProgress) onProgress(100);
+    return data.secure_url;
+  } catch (error) {
+    console.warn("Cloudinary upload failed, falling back to compressed base64:", error);
+    if (onProgress) onProgress(30);
+    const base64Url = await fileToBase64AndCompress(file, fallbackMaxDim);
+    if (onProgress) onProgress(100);
+    return base64Url;
   }
-
-  const data = await res.json();
-  if (onProgress) onProgress(100);
-  return data.secure_url;
 }

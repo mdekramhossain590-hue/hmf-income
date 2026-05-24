@@ -194,7 +194,7 @@ export function Profile() {
                 value={newName} 
                 onChange={(e) => setNewName(e.target.value)} 
                 disabled={savingName}
-                className="bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700/50 dark:text-white rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full max-w-[200px] text-center shadow-inner disabled:opacity-70 font-semibold backdrop-blur-sm"
+                className="bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700/50 dark:text-white rounded-2xl px-4 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full max-w-[200px] text-center shadow-inner disabled:opacity-70 font-semibold backdrop-blur-sm"
                 autoFocus
                 onKeyDown={(e) => e.key === 'Enter' && handleSaveName()}
               />

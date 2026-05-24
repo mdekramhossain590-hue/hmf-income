@@ -34,7 +34,7 @@ service cloud.firestore {
         (data.keys().hasAny(['myReferCode']) ? (data.myReferCode is string && data.myReferCode.size() <= 40) : true) &&
         (data.keys().hasAny(['usedReferCode']) ? (data.usedReferCode is string && data.usedReferCode.size() <= 40) : true) &&
         (data.keys().hasAny(['createdAt']) ? (data.createdAt is timestamp) : true) &&
-        (data.keys().hasAny(['photoURL']) ? (data.photoURL is string && data.photoURL.size() <= 2000) : true) &&
+        (data.keys().hasAny(['photoURL']) ? (data.photoURL is string && data.photoURL.size() <= 200000) : true) &&
         (data.keys().hasAny(['totalReferrals']) ? data.totalReferrals is number : true) &&
         (data.keys().hasAny(['totalTasksCompleted']) ? data.totalTasksCompleted is number : true) &&
         (data.keys().hasAny(['isActive']) ? data.isActive is bool : true) &&
@@ -111,7 +111,7 @@ service cloud.firestore {
         data.userId is string && data.userId.size() <= 128 &&
         data.userEmail is string && data.userEmail.size() <= 150 &&
         data.title is string && data.title.size() <= 150 &&
-        (data.keys().hasAny(['jobType']) ? data.jobType is string && data.jobType.size() <= 50 : true) &&
+        (data.keys().hasAny(['jobType']) ? data.jobType is string && data.jobType.size() <= 150 : true) &&
         data.reward is number &&
         data.proofs is map &&
         data.status is string && (data.status == 'pending' || data.status == 'approved' || data.status == 'rejected') &&

@@ -632,6 +632,23 @@ export function AdminPanel() {
     });
   };
 
+  const handleDeleteUser = (userId: string) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Delete User Document',
+      message: 'Are you sure you want to delete this user? This will permanently wipe their user document.',
+      onConfirm: async () => {
+        try {
+          await deleteDoc(doc(db, "users", userId));
+          await deleteDoc(doc(db, "leaderboard", userId)).catch(() => {});
+          toast.success('User deleted successfully');
+        } catch (err) {
+          handleFirestoreError(err, OperationType.DELETE, `users/${userId}`);
+        }
+      }
+    });
+  };
+
   const handleWipeData = () => {
     setConfirmDialog({
       isOpen: true,
@@ -1746,6 +1763,14 @@ export function AdminPanel() {
                       className="flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-[0.1em] text-[10px] transition-all active:scale-95 bg-purple-100 text-purple-600 shadow-lg shadow-purple-500/10 hover:bg-purple-200"
                     >
                       <ShieldCheck className="w-4 h-4" /> Config Employee
+                    </button>
+                  )}
+                  {isFullAdmin && user.role !== 'admin' && (
+                    <button 
+                      onClick={() => handleDeleteUser(user.id)}
+                      className="flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-[0.1em] text-[10px] transition-all active:scale-95 bg-rose-100 text-rose-600 hover:bg-rose-200 shadow-lg shadow-rose-500/10"
+                    >
+                      <Trash2 className="w-4 h-4" /> Delete User
                     </button>
                   )}
                   <button 
