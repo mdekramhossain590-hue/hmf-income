@@ -10,7 +10,7 @@ import toast from 'react-hot-toast';
 
 export function AdminPanel() {
   const { profile } = useAuth();
-  const [activeTab, setActiveTab] = useState<'jobs' | 'submissions' | 'settings' | 'requests' | 'users' | 'drives' | 'courses'>('submissions');
+  const [activeTab, setActiveTab] = useState<'jobs' | 'submissions' | 'settings' | 'requests' | 'users' | 'drives' | 'courses' | 'faqs'>('submissions');
   
   // Courses Administration States
   const [adminCourses, setAdminCourses] = useState<any[]>([]);
@@ -50,6 +50,10 @@ export function AdminPanel() {
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [settingsSubTab, setSettingsSubTab] = useState<'identity' | 'gateways' | 'rewards' | 'security' | 'danger'>('identity');
   
+  const [faqsList, setFaqsList] = useState<{question_en: string; answer_en: string; question_bn: string; answer_bn: string}[]>([]);
+  const [newFaq, setNewFaq] = useState({ question_en: '', answer_en: '', question_bn: '', answer_bn: '' });
+  const [editingFaqIndex, setEditingFaqIndex] = useState<number | null>(null);
+
   const [employeeConfigUser, setEmployeeConfigUser] = useState<any | null>(null);
   const [employeePermissions, setEmployeePermissions] = useState<string[]>([]);
 
@@ -64,6 +68,8 @@ export function AdminPanel() {
 
   const [promptInput, setPromptInput] = useState('');
   
+  const [editingJobId, setEditingJobId] = useState<string | null>(null);
+
   const [newJob, setNewJob] = useState({
     title: '',
     description: '',
@@ -78,6 +84,31 @@ export function AdminPanel() {
     userLimit: 1, // 0 for unlimited per user, 1 for once, 2 for twice etc
     deadline: '',
   });
+
+  const handleEditJobClick = (job: any) => {
+    setNewJob({
+      title: job.title || '',
+      description: job.description || '',
+      reward: job.reward || 0,
+      link: job.link || '',
+      type: job.type || 'Other',
+      icon: job.icon || 'MessageCircle',
+      color: job.color || 'text-blue-500',
+      bg: job.bg || 'bg-blue-100',
+      requiredProofs: job.requiredProofs || ['text'],
+      allowedCompletions: job.allowedCompletions || 1,
+      userLimit: job.userLimit || 1,
+      deadline: job.deadline || '',
+    });
+    setEditingJobId(job.id);
+  };
+
+  const handleCancelEditJob = () => {
+    setNewJob({
+      title: '', description: '', reward: 10, link: '', type: 'Facebook', icon: 'MessageCircle', color: 'text-blue-500', bg: 'bg-blue-100', requiredProofs: ['text'], allowedCompletions: 1, userLimit: 1, deadline: ''
+    });
+    setEditingJobId(null);
+  };
 
   const [newDriveTitle, setNewDriveTitle] = useState('');
   const [newDriveOperator, setNewDriveOperator] = useState('Grameenphone');
@@ -98,6 +129,7 @@ export function AdminPanel() {
     { id: 'jobs', label: 'Jobs', icon: ListChecks, color: 'text-blue-500' },
     { id: 'courses', label: 'Courses', icon: BookOpen, color: 'text-purple-500' },
     { id: 'users', label: 'Users', icon: Users, color: 'text-indigo-500' },
+    { id: 'faqs', label: 'FAQs', icon: HelpCircle, color: 'text-yellow-500' },
     { id: 'settings', label: 'Configs', icon: Settings, color: 'text-rose-500' }
   ];
 
@@ -241,6 +273,12 @@ export function AdminPanel() {
       }
     }, (err) => console.log(err));
 
+    const unsubFaqs = onSnapshot(doc(db, "settings", "faqs"), (docSnap) => {
+      if (docSnap.exists()) {
+        setFaqsList(docSnap.data().faqs || []);
+      }
+    }, (err) => console.log(err));
+
     const uQ = query(collection(db, "users"), orderBy("createdAt", "desc"));
     const unsubU = onSnapshot(uQ, (snap) => setUserList(snap.docs.map(d => ({id: d.id, ...d.data()}))), (err) => handleFirestoreError(err, OperationType.GET, 'users'));
 
@@ -252,10 +290,50 @@ export function AdminPanel() {
       setAdminCourses(snap.docs.map(d => ({id: d.id, ...d.data()})));
     }, (err) => console.log(err));
 
-    return () => { unsubJ(); unsubS(); unsubP(); unsubSpin(); unsubReferral(); unsubBanner(); unsubGameSettings(); unsubWithdrawSettings(); unsubDepositSettings(); unsubActivationSettings(); unsubPopupSettings(); unsubSupportSettings(); unsubSiteSettings(); unsubU(); unsubD(); unsubC(); };
+    return () => { unsubJ(); unsubS(); unsubP(); unsubSpin(); unsubReferral(); unsubBanner(); unsubGameSettings(); unsubWithdrawSettings(); unsubDepositSettings(); unsubActivationSettings(); unsubPopupSettings(); unsubSupportSettings(); unsubSiteSettings(); unsubFaqs(); unsubU(); unsubD(); unsubC(); };
   }, [isAdmin]);
 
   if (!isAdmin) return <div className="p-10 text-center">Access Denied</div>;
+
+  const handleSaveFaqs = async (updatedFaqs: any[]) => {
+    setIsSavingSettings(true);
+    try {
+      await setDoc(doc(db, "settings", "faqs"), {
+        faqs: updatedFaqs,
+        updatedAt: serverTimestamp()
+      });
+      toast.success('FAQs updated!');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, 'settings/faqs');
+    } finally {
+      setIsSavingSettings(false);
+      setNewFaq({ question_en: '', answer_en: '', question_bn: '', answer_bn: '' });
+      setEditingFaqIndex(null);
+    }
+  };
+
+  const handleAddFaq = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editingFaqIndex !== null) {
+      const updated = [...faqsList];
+      updated[editingFaqIndex] = newFaq;
+      handleSaveFaqs(updated);
+    } else {
+      handleSaveFaqs([...faqsList, newFaq]);
+    }
+  };
+
+  const handleDeleteFaq = (index: number) => {
+    if(window.confirm('Are you sure you want to delete this FAQ?')) {
+      const updated = faqsList.filter((_, i) => i !== index);
+      handleSaveFaqs(updated);
+    }
+  };
+
+  const handleCancelEditFaq = () => {
+    setEditingFaqIndex(null);
+    setNewFaq({ question_en: '', answer_en: '', question_bn: '', answer_bn: '' });
+  };
 
   const handleSaveActivationSettings = async () => {
     setIsSavingSettings(true);
@@ -334,17 +412,27 @@ export function AdminPanel() {
   const handleCreateJob = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const jobRef = doc(collection(db, "jobs"));
-      await setDoc(jobRef, {
-        ...newJob,
-        postedBy: profile?.fullName || 'Admin',
-        status: 'active',
-        createdAt: serverTimestamp()
-      });
-      toast.success('Job created.');
-      setNewJob({ ...newJob, title: '', description: '', link: '', allowedCompletions: 1, userLimit: 1, deadline: '' });
+      if (editingJobId) {
+        const jobRef = doc(db, "jobs", editingJobId);
+        await updateDoc(jobRef, {
+          ...newJob,
+          updatedAt: serverTimestamp()
+        });
+        toast.success('Job updated.');
+        setEditingJobId(null);
+      } else {
+        const jobRef = doc(collection(db, "jobs"));
+        await setDoc(jobRef, {
+          ...newJob,
+          postedBy: profile?.fullName || 'Admin',
+          status: 'active',
+          createdAt: serverTimestamp()
+        });
+        toast.success('Job created.');
+      }
+      setNewJob({ title: '', description: '', reward: 10, link: '', type: 'Facebook', icon: 'MessageCircle', color: 'text-blue-500', bg: 'bg-blue-100', requiredProofs: ['text'], allowedCompletions: 1, userLimit: 1, deadline: '' });
     } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, 'jobs');
+      handleFirestoreError(err, editingJobId ? OperationType.UPDATE : OperationType.CREATE, 'jobs');
     }
   };
   
@@ -919,7 +1007,12 @@ export function AdminPanel() {
       {activeTab === 'jobs' && (
         <div className="space-y-6">
           <form onSubmit={handleCreateJob} className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 space-y-4">
-            <h3 className="font-black text-lg dark:text-white uppercase tracking-tight italic">Create New Task</h3>
+            <div className="flex justify-between items-center">
+              <h3 className="font-black text-lg dark:text-white uppercase tracking-tight italic">{editingJobId ? 'Edit Task' : 'Create New Task'}</h3>
+              {editingJobId && (
+                <button type="button" onClick={handleCancelEditJob} className="text-xs font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">Cancel Edit</button>
+              )}
+            </div>
             <div className="grid gap-3">
               <input type="text" placeholder="Task Title" required value={newJob.title} onChange={e => setNewJob({...newJob, title: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold placeholder:text-slate-400" />
               <textarea placeholder="Job Description / Instructions" required value={newJob.description} onChange={e => setNewJob({...newJob, description: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold h-24 placeholder:text-slate-400" />
@@ -997,7 +1090,7 @@ export function AdminPanel() {
               </div>
             </div>
             
-            <button type="submit" className="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black uppercase tracking-[0.2em] py-4 rounded-2xl shadow-xl hover:scale-[1.02] active:scale-95 transition-all text-xs">Publish Job Now</button>
+            <button type="submit" className="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black uppercase tracking-[0.2em] py-4 rounded-2xl shadow-xl hover:scale-[1.02] active:scale-95 transition-all text-xs">{editingJobId ? 'Update Job Now' : 'Publish Job Now'}</button>
           </form>
 
           <div className="grid gap-3">
@@ -1008,9 +1101,14 @@ export function AdminPanel() {
                   <h4 className="font-bold dark:text-white truncate uppercase tracking-tight text-sm">{job.title}</h4>
                   <p className="text-[10px] font-black text-blue-500/80 uppercase tracking-widest">৳{job.reward} &bull; {job.type}</p>
                 </div>
-                <button onClick={() => handleDeleteJob(job.id)} className="p-3 text-rose-500 bg-rose-50 dark:bg-rose-900/30 rounded-2xl hover:scale-105 active:scale-90 transition-all ml-4">
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-2 ml-4">
+                  <button onClick={() => handleEditJobClick(job)} className="p-3 text-blue-500 bg-blue-50 dark:bg-blue-900/30 rounded-2xl hover:scale-105 active:scale-90 transition-all">
+                    <Settings className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => handleDeleteJob(job.id)} className="p-3 text-rose-500 bg-rose-50 dark:bg-rose-900/30 rounded-2xl hover:scale-105 active:scale-90 transition-all">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -1154,6 +1252,63 @@ export function AdminPanel() {
                   <div className={`text-[9px] px-3 py-1 rounded-full font-black uppercase tracking-widest border ${req.status === 'approved' ? 'bg-emerald-100 text-emerald-600 border-emerald-200' : 'bg-rose-100 text-rose-600 border-rose-200'}`}>
                     {req.status}
                   </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'faqs' && (
+        <div className="space-y-6">
+          <form onSubmit={handleAddFaq} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] border border-slate-100 dark:border-slate-700 shadow-sm space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight text-sm">{editingFaqIndex !== null ? 'Edit FAQ' : 'Add New FAQ'}</h3>
+              {editingFaqIndex !== null && (
+                <button type="button" onClick={handleCancelEditFaq} className="text-xs font-bold text-slate-500 hover:text-slate-700">Cancel</button>
+              )}
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <input type="text" placeholder="Question (English)" value={newFaq.question_en} onChange={(e) => setNewFaq({...newFaq, question_en: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" required />
+                <textarea placeholder="Answer (English)" value={newFaq.answer_en} onChange={(e) => setNewFaq({...newFaq, answer_en: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 h-24" required />
+              </div>
+              <div className="space-y-2">
+                <input type="text" placeholder="Question (Bengali)" value={newFaq.question_bn} onChange={(e) => setNewFaq({...newFaq, question_bn: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" required />
+                <textarea placeholder="Answer (Bengali)" value={newFaq.answer_bn} onChange={(e) => setNewFaq({...newFaq, answer_bn: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 h-24" required />
+              </div>
+            </div>
+
+            <button type="submit" disabled={isSavingSettings} className="w-full bg-[#0D47A1] hover:bg-blue-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg transition-all text-xs disabled:opacity-50">
+              {editingFaqIndex !== null ? 'Update FAQ' : 'Create FAQ'}
+            </button>
+          </form>
+
+          <div className="space-y-3">
+            <h3 className="font-black dark:text-white uppercase tracking-tight text-xs pl-1">Live FAQs ({faqsList.length})</h3>
+            
+            {faqsList.length === 0 && (
+              <div className="text-center py-12 bg-white dark:bg-slate-800/45 rounded-[32px] border-2 border-dashed border-slate-100 dark:border-slate-800">
+                <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">No FAQs registered yet.</p>
+              </div>
+            )}
+
+            <div className="grid gap-3">
+              {faqsList.map((faq, index) => (
+                <div key={index} className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-100 dark:border-slate-700 flex flex-col gap-2 shadow-sm">
+                  <div className="flex justify-between items-start">
+                    <h4 className="font-bold text-slate-900 dark:text-white text-sm">{faq.question_en}</h4>
+                    <div className="flex gap-2">
+                      <button onClick={() => { setEditingFaqIndex(index); setNewFaq(faq); }} className="p-2 text-blue-500 bg-blue-50 dark:bg-blue-900/30 rounded-lg hover:scale-105 active:scale-90 transition-all">
+                        <Settings className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => handleDeleteFaq(index)} className="p-2 text-rose-500 bg-rose-50 dark:bg-rose-900/30 rounded-lg hover:scale-105 active:scale-90 transition-all">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-500">{faq.answer_en}</p>
                 </div>
               ))}
             </div>

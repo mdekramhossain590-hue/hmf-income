@@ -7,7 +7,7 @@ import { useAuth } from '../components/AuthProvider';
 
 export function FAQ() {
   const navigate = useNavigate();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { siteSettings } = useAuth();
   const [openIndex, setOpenIndex] = useState<number | null>(0);
 
@@ -24,6 +24,26 @@ export function FAQ() {
     { question: t('faq_q6'), answer: t('faq_a6') },
     { question: t('faq_q7'), answer: t('faq_a7') }
   ];
+
+  const [dynamicFaqs, setDynamicFaqs] = useState<any[]>([]);
+
+  useEffect(() => {
+    import('firebase/firestore').then(({ doc, onSnapshot }) => {
+      import('../lib/firebase').then(({ db }) => {
+        const unsub = onSnapshot(doc(db, "settings", "faqs"), (docSnap) => {
+          if (docSnap.exists()) {
+            setDynamicFaqs(docSnap.data().faqs || []);
+          }
+        });
+        return () => unsub();
+      });
+    });
+  }, []);
+
+  const displayFaqs = dynamicFaqs.length > 0 ? dynamicFaqs.map(f => ({
+    question: language === 'Bengali' ? f.question_bn : f.question_en,
+    answer: language === 'Bengali' ? f.answer_bn : f.answer_en
+  })) : fAQs;
 
   return (
     <div className="flex flex-col h-screen bg-slate-50 dark:bg-slate-900 border-x border-gray-100 dark:border-slate-800 relative shadow-2xl mx-auto w-full">
@@ -51,7 +71,7 @@ export function FAQ() {
 
         {/* FAQ List */}
         <div className="space-y-3">
-          {fAQs.map((faq, index) => {
+          {displayFaqs.map((faq, index) => {
             const isOpen = openIndex === index;
             return (
               <div 
