@@ -1,17 +1,19 @@
 import { useNavigate } from 'react-router-dom';
-import { User, Bell, Wallet, ListChecks, Target, Users, Send, MoreVertical, Settings, HelpCircle, LogOut, Award, Shield, FileText, Calculator, Megaphone, Trophy, Copy, Check, Link, Eye, EyeOff, Smartphone, BookOpen, Banknote, MonitorPlay, Wifi } from 'lucide-react';
+import { User, Bell, Wallet, ListChecks, Target, Users, Send, MoreVertical, Settings, HelpCircle, LogOut, Award, Shield, FileText, Calculator, Megaphone, Trophy, Copy, Check, Link, Eye, EyeOff, Smartphone, BookOpen, Banknote, MonitorPlay, Wifi, Sun, Moon, X, Trash2, Activity, ArrowDownLeft, ArrowUpRight, CheckCircle } from 'lucide-react';
 import { useAuth } from '../components/AuthProvider';
 import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../components/LanguageProvider';
 import { auth, db } from '../lib/firebase';
-import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, onSnapshot, collection, query, orderBy, limit, writeBatch, deleteDoc } from 'firebase/firestore';
 import { ActivationPopup } from '../components/ActivationPopup';
 import { motion, AnimatePresence } from 'motion/react';
 import { playTapSound, playSuccessSound } from '../lib/sound';
+import { useTheme } from '../components/ThemeProvider';
 import toast from 'react-hot-toast';
 
 export function Dashboard() {
   const { profile, loading, logOut, refreshProfile, siteSettings } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [menuOpen, setMenuOpen] = useState(false);
@@ -21,7 +23,143 @@ export function Dashboard() {
   const [copiedLink, setCopiedLink] = useState(false);
   const [showBalance, setShowBalance] = useState(true);
   const [comingSoonFeature, setComingSoonFeature] = useState<{ title: string; desc: string; icon: React.ReactNode; color: string; link?: string; linkText?: string } | null>(null);
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+
+  const [dbNotifications, setDbNotifications] = useState<any[]>([]);
+  const [showNotificationCenter, setShowNotificationCenter] = useState(false);
+
+  useEffect(() => {
+    if (!auth.currentUser) return;
+    
+    const notificationsRef = collection(db, 'users', auth.currentUser.uid, 'notifications');
+    const q = query(notificationsRef, orderBy('createdAt', 'desc'), limit(20));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const items: any[] = [];
+      snapshot.forEach((docSnap) => {
+        items.push({ id: docSnap.id, ...docSnap.data() });
+      });
+      setDbNotifications(items);
+    }, (error) => {
+      console.warn("Error listening to db notifications:", error);
+    });
+    
+    return () => unsubscribe();
+  }, []);
+
+  const [userTx, setUserTx] = useState<any[]>([]);
+  const [userTasks, setUserTasks] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!auth.currentUser) return;
+
+    // Sub to transactions, last 5 items
+    const txRef = collection(db, 'users', auth.currentUser.uid, 'transactions');
+    const txQuery = query(txRef, orderBy('createdAt', 'desc'), limit(5));
+    const unsubTx = onSnapshot(txQuery, (snapshot) => {
+      const items: any[] = [];
+      snapshot.forEach((docSnap) => {
+        items.push({ id: docSnap.id, type: 'transaction', ...docSnap.data() });
+      });
+      setUserTx(items);
+    }, (error) => {
+      console.warn("Error listening to tx inside dashboard:", error);
+    });
+
+    // Sub to completed tasks, last 5 items
+    const tasksRef = collection(db, 'users', auth.currentUser.uid, 'tasks');
+    const tasksQuery = query(tasksRef, orderBy('completedAt', 'desc'), limit(5));
+    const unsubTasks = onSnapshot(tasksQuery, (snapshot) => {
+      const items: any[] = [];
+      snapshot.forEach((docSnap) => {
+        items.push({ id: docSnap.id, type: 'task', ...docSnap.data() });
+      });
+      setUserTasks(items);
+    }, (error) => {
+      console.warn("Error listening to tasks inside dashboard:", error);
+    });
+
+    return () => {
+      unsubTx();
+      unsubTasks();
+    };
+  }, []);
+
+  const getCombinedActivity = () => {
+    const combined = [
+      ...userTx.map(t => {
+        const d = t.createdAt?.toDate ? t.createdAt.toDate() : (t.createdAt ? new Date(t.createdAt) : new Date(0));
+        return { ...t, date: d };
+      }),
+      ...userTasks.map(t => {
+        const d = t.completedAt?.toDate ? t.completedAt.toDate() : (t.completedAt ? new Date(t.completedAt) : new Date(0));
+        return { ...t, date: d };
+      })
+    ];
+    combined.sort((a, b) => b.date.getTime() - a.date.getTime());
+    return combined.slice(0, 5);
+  };
+
+  const unreadCount = dbNotifications.filter(n => !n.read).length;
+
+  const handleMarkAsRead = async (id: string) => {
+    if (!auth.currentUser) return;
+    try {
+      await updateDoc(doc(db, 'users', auth.currentUser.uid, 'notifications', id), { read: true });
+    } catch (e) {
+      console.error("Failed to mark notification as read:", e);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    if (!auth.currentUser || dbNotifications.length === 0) return;
+    try {
+      const unreadNotifications = dbNotifications.filter(n => !n.read);
+      if (unreadNotifications.length === 0) return;
+      
+      const batch = writeBatch(db);
+      unreadNotifications.forEach((n) => {
+        const docRef = doc(db, 'users', auth.currentUser!.uid, 'notifications', n.id);
+        batch.update(docRef, { read: true });
+      });
+      await batch.commit();
+      toast.success(t('mark_all_read') || 'All marked as read');
+    } catch (e) {
+      console.error("Failed to mark all as read:", e);
+    }
+  };
+
+  const handleDeleteNotification = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!auth.currentUser) return;
+    try {
+      await deleteDoc(doc(db, 'users', auth.currentUser.uid, 'notifications', id));
+      toast.success(language === 'Bengali' ? 'নোটিফিকেশনটি মুছে ফেলা হয়েছে' : 'Notification deleted');
+    } catch (err) {
+      console.error("Failed to delete notification:", err);
+      toast.error(language === 'Bengali' ? 'মুছে ফেলতে ব্যর্থ হয়েছে' : 'Failed to delete');
+    }
+  };
+
+  const handleDeleteAllNotifications = async () => {
+    if (!auth.currentUser || dbNotifications.length === 0) return;
+
+    const confirmMessage = t('delete_all_confirm') || 'Are you sure you want to delete all notifications?';
+    if (!window.confirm(confirmMessage)) return;
+
+    try {
+      const batch = writeBatch(db);
+      dbNotifications.forEach((n) => {
+        const docRef = doc(db, 'users', auth.currentUser!.uid, 'notifications', n.id);
+        batch.delete(docRef);
+      });
+      await batch.commit();
+      toast.success(language === 'Bengali' ? 'সব নোটিফিকেশন মুছে ফেলা হয়েছে' : 'All notifications cleared');
+    } catch (err) {
+      console.error("Failed to delete all notifications:", err);
+      toast.error(language === 'Bengali' ? 'সব মুছতে ব্যর্থ হয়েছে' : 'Failed to clear all');
+    }
+  };
 
   const handleCopy = (text: string, type: 'code' | 'link') => {
     navigator.clipboard.writeText(text);
@@ -220,10 +358,31 @@ export function Dashboard() {
           </div>
         </div>
 
-        <button onClick={() => toast('No new notifications', { icon: '📭', style: { borderRadius: '10px', background: '#1e293b', color: '#fff' }})} className="w-10 h-10 rounded-full bg-white/70 dark:bg-slate-800/70 backdrop-blur-md border border-white/30 dark:border-slate-700 flex items-center justify-center text-[#0D47A1] dark:text-blue-400 relative shadow-sm hover:scale-105 active:scale-95 transition-transform">
-          <Bell className="w-5 h-5" />
-          <span className="absolute top-2 right-2 w-2 h-2 bg-[#ff4d8d] rounded-full"></span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={toggleTheme} 
+            className="w-10 h-10 rounded-full bg-white/70 dark:bg-slate-800/70 backdrop-blur-md border border-white/30 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-blue-400 shadow-sm hover:scale-105 active:scale-95 transition-transform"
+            aria-label="Toggle theme"
+          >
+            {theme === 'dark' ? <Sun className="w-5 h-5 text-amber-400" /> : <Moon className="w-5 h-5 text-[#0D47A1]" />}
+          </button>
+
+          <button 
+            onClick={() => {
+              playTapSound();
+              setShowNotificationCenter(true);
+            }} 
+            className="w-10 h-10 rounded-full bg-white/70 dark:bg-slate-800/70 backdrop-blur-md border border-white/30 dark:border-slate-700 flex items-center justify-center text-[#0D47A1] dark:text-blue-400 relative shadow-sm hover:scale-105 active:scale-95 transition-transform"
+            aria-label="Notifications"
+          >
+            <Bell className="w-5 h-5" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-[#ff4d8d] text-white font-black text-[9px] min-w-4 h-4 rounded-full flex items-center justify-center px-1 border border-white dark:border-slate-800 animate-pulse">
+                {unreadCount}
+              </span>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Scrolling Banner */}
@@ -662,10 +821,293 @@ export function Dashboard() {
           </div>
         </motion.div>
       </div>
+
+      {/* Recent Activity Feed */}
+      <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 shadow-sm ring-1 ring-slate-100 dark:ring-slate-700/50 mb-6 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/[0.03] dark:bg-indigo-500/[0.05] blur-2xl rounded-full"></div>
+        <div className="flex justify-between items-center mb-4 relative z-10">
+          <h3 className="font-display font-medium text-slate-800 dark:text-white text-base flex items-center gap-2 tracking-tight">
+            <Activity className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
+            {t('recent_activity')}
+          </h3>
+          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+            {language === 'Bengali' ? 'রিয়েল-টাইম আপডেট' : 'Real-time Updates'}
+          </span>
+        </div>
+
+        <div className="space-y-3 relative z-10">
+          {getCombinedActivity().length === 0 ? (
+            <div className="text-center py-8 text-slate-400 dark:text-slate-500 font-medium">
+              <Activity className="w-10 h-10 mx-auto mb-2 opacity-20 text-slate-500" />
+              <p className="text-xs">{t('no_recent_activity')}</p>
+            </div>
+          ) : (
+            getCombinedActivity().map((activity) => {
+              const isTask = activity.type === 'task';
+              const isWithdraw = !isTask && activity.type === 'withdraw';
+              const isDeposit = !isTask && activity.type === 'deposit';
+
+              let title = '';
+              let rewardStr = '';
+              let badgeColor = '';
+              let IconComponent = CheckCircle;
+              let statusLabel = '';
+              let statusColor = '';
+
+              if (isTask) {
+                title = activity.title || t('completed_task_activity');
+                rewardStr = `+৳${parseFloat(activity.reward || 0).toFixed(2)}`;
+                badgeColor = 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20 dark:text-emerald-400';
+                IconComponent = CheckCircle;
+                statusLabel = language === 'Bengali' ? 'অনুমোদিত' : 'Approved';
+                statusColor = 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30';
+              } else {
+                // Transaction
+                if (isWithdraw) {
+                  title = language === 'Bengali' ? 'টাকা উত্তোলন' : 'Withdrawals';
+                  rewardStr = `-৳${parseFloat(activity.amount || 0).toFixed(2)}`;
+                  badgeColor = 'bg-rose-50 text-rose-600 dark:bg-rose-950/20 dark:text-rose-400';
+                  IconComponent = ArrowUpRight;
+                } else if (isDeposit) {
+                  title = language === 'Bengali' ? 'টাকা ডিপোজিট' : 'Deposits';
+                  rewardStr = `+৳${parseFloat(activity.amount || 0).toFixed(2)}`;
+                  badgeColor = 'bg-blue-50 text-blue-600 dark:bg-blue-950/20 dark:text-blue-400';
+                  IconComponent = ArrowDownLeft;
+                } else {
+                  title = activity.type ? activity.type.toUpperCase() : (language === 'Bengali' ? 'লেনদেন' : 'Transaction');
+                  rewardStr = `+৳${parseFloat(activity.amount || 0).toFixed(2)}`;
+                  badgeColor = 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/20 dark:text-indigo-400';
+                  IconComponent = ArrowDownLeft;
+                }
+
+                if (activity.status === 'pending') {
+                  statusLabel = language === 'Bengali' ? 'পেন্ডিং' : 'Pending';
+                  statusColor = 'text-amber-500 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30';
+                } else if (activity.status === 'approved') {
+                  statusLabel = language === 'Bengali' ? 'অনুমোদিত' : 'Approved';
+                  statusColor = 'text-emerald-500 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30';
+                } else if (activity.status === 'rejected') {
+                  statusLabel = language === 'Bengali' ? 'বাতিল' : 'Rejected';
+                  statusColor = 'text-rose-400 dark:text-rose-450 bg-rose-50 dark:bg-rose-950/30';
+                } else {
+                  statusLabel = language === 'Bengali' ? 'সম্পন্ন' : 'Completed';
+                  statusColor = 'text-emerald-500 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30';
+                }
+              }
+
+              const formattedDate = activity.date instanceof Date && !isNaN(activity.date.getTime())
+                ? activity.date.toLocaleDateString(language === 'Bengali' ? 'bn-BD' : 'en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })
+                : 'Just now';
+
+              return (
+                <div 
+                  key={activity.id}
+                  className="bg-slate-50/70 dark:bg-slate-900/40 p-3 rounded-xl border border-slate-100/50 dark:border-slate-800/50 flex justify-between items-center transition-all hover:bg-slate-100/70 dark:hover:bg-slate-900/65"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 flex items-center justify-center rounded-xl shadow-inner shrink-0 ${badgeColor}`}>
+                      <IconComponent className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-800 dark:text-white tracking-tight line-clamp-1">{title}</h4>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">{formattedDate}</span>
+                        {statusLabel && (
+                          <span className={`text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full ${statusColor}`}>
+                            {statusLabel}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0 pl-1">
+                    <span className={`text-sm font-black tracking-tight ${
+                      isWithdraw || activity.status === 'rejected' ? 'text-rose-650 dark:text-rose-450' : 'text-emerald-600 dark:text-emerald-400'
+                    }`}>
+                      {rewardStr}
+                    </span>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
       
       {showActivationPopup && (
         <ActivationPopup onClose={() => setShowActivationPopup(false)} />
       )}
+
+      {/* Notification Center Popover / Modal */}
+      <AnimatePresence>
+        {showNotificationCenter && (
+          <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+            {/* Background Blur Overlay */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowNotificationCenter(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              id="notifications-overlay-backdrop"
+            />
+            
+            {/* Modal Body */}
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ type: "spring", damping: 25, stiffness: 350 }}
+              className="bg-white dark:bg-slate-900 w-full max-w-md rounded-3xl p-5 shadow-2xl border border-slate-100 dark:border-slate-800 relative z-10 flex flex-col max-h-[80vh] overflow-hidden"
+              id="notifications-modal-container"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 dark:border-slate-800 mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-indigo-50 dark:bg-indigo-950 rounded-lg text-indigo-500 shrink-0">
+                    <Bell className="w-4 h-4" />
+                  </div>
+                  <h4 className="font-bold text-slate-800 dark:text-white text-base">
+                    {t('notification_center')}
+                  </h4>
+                </div>
+                <button 
+                  onClick={() => setShowNotificationCenter(false)}
+                  className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 rounded-full transition"
+                  id="notifications-close-header-btn"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Actions & Summary */}
+              {dbNotifications.length > 0 && (
+                <div className="flex justify-between items-center mb-3.5 px-1">
+                  <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                    {t('recent_notifications')} ({unreadCount} {language === 'Bengali' ? 'টি অপঠিত' : 'unread'})
+                  </span>
+                  <div className="flex items-center gap-3">
+                    {unreadCount > 0 && (
+                      <button 
+                        onClick={handleMarkAllAsRead}
+                        className="text-[11px] font-black text-[#0D47A1] dark:text-blue-400 hover:underline transition-all flex items-center gap-1"
+                        id="notifications-mark-read-all-action-btn"
+                      >
+                        {t('mark_all_read')}
+                      </button>
+                    )}
+                    <button 
+                      onClick={handleDeleteAllNotifications}
+                      className="text-[11px] font-black text-rose-500 hover:text-rose-600 hover:underline transition-all flex items-center gap-1 shrink-0"
+                      id="notifications-delete-all-action-btn"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      {t('clear_all')}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Notifications Scrollable List */}
+              <div className="flex-1 overflow-y-auto pr-1 space-y-2.5 custom-scrollbar min-h-[220px]">
+                {loading ? (
+                  <div className="flex flex-col gap-2 py-8 items-center justify-center">
+                    <div className="w-8 h-8 rounded-full border-4 border-indigo-600 border-t-transparent animate-spin"></div>
+                  </div>
+                ) : dbNotifications.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <div className="w-12 h-12 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center text-slate-400 mb-3 border border-dashed border-slate-200 dark:border-slate-700">
+                      <Bell className="w-5 h-5 opacity-60" />
+                    </div>
+                    <p className="text-sm font-bold text-slate-500 dark:text-slate-400">
+                      {t('no_new_notifications')}
+                    </p>
+                  </div>
+                ) : (
+                  dbNotifications.map((notif) => {
+                    const createdDate = notif.createdAt 
+                      ? (notif.createdAt.toDate ? notif.createdAt.toDate() : new Date(notif.createdAt)) 
+                      : null;
+                    const dateString = createdDate 
+                      ? createdDate.toLocaleString(language === 'Bengali' ? 'bn-BD' : 'en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })
+                      : '';
+                    
+                    return (
+                      <div 
+                        key={notif.id}
+                        onClick={() => {
+                          if (!notif.read) {
+                            handleMarkAsRead(notif.id);
+                          }
+                        }}
+                        className={`group p-3.5 rounded-2xl border transition-all text-left relative cursor-pointer flex gap-3 ${
+                          notif.read 
+                            ? 'bg-slate-50/50 dark:bg-slate-900/40 border-slate-100 dark:border-slate-800/50' 
+                            : 'bg-indigo-50/15 dark:bg-indigo-950/10 border-indigo-500/20 shadow-sm shadow-indigo-500/5 hover:border-indigo-500/40'
+                        }`}
+                        id={`notification-card-item-${notif.id}`}
+                      >
+                        {/* Status Icon */}
+                        <div className="mt-1 shrink-0 relative">
+                          <div className={`p-1.5 rounded-xl ${
+                            notif.read 
+                              ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500' 
+                              : 'bg-indigo-600/10 dark:bg-indigo-400/10 text-indigo-500 dark:text-indigo-400'
+                          }`}>
+                            <Bell className="w-3.5 h-3.5" />
+                          </div>
+                          {!notif.read && (
+                            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-indigo-600 rounded-full" />
+                          )}
+                        </div>
+
+                        {/* Title and Body */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex justify-between items-start gap-2">
+                            <h5 className={`font-bold text-xs truncate leading-snug ${
+                              notif.read ? 'text-slate-600 dark:text-slate-300' : 'text-slate-805 dark:text-white'
+                            }`}>
+                              {notif.title || 'Update'}
+                            </h5>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {dateString && (
+                                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium whitespace-nowrap">
+                                  {dateString}
+                                </span>
+                              )}
+                              <button 
+                                onClick={(e) => handleDeleteNotification(notif.id, e)}
+                                className="opacity-0 group-hover:opacity-100 p-1 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-slate-400 hover:text-rose-500 rounded-lg transition-all"
+                                title="Delete"
+                                id={`notification-delete-individual-btn-${notif.id}`}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed break-words pr-4">
+                            {notif.message}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Polish and Upgraded Coming Soon Modal Dialog */}
       <AnimatePresence>

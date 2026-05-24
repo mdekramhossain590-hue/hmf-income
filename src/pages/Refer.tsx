@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
-import { Copy, Link as LinkIcon, MessageCircle, Send, Users, History } from 'lucide-react';
+import { Copy, Link as LinkIcon, MessageCircle, Send, Users, History, BarChart3, TrendingUp, Coins, Calendar, DollarSign } from 'lucide-react';
 import { useAuth } from '../components/AuthProvider';
 import { useLanguage } from '../components/LanguageProvider';
 import { collection, query, orderBy, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import toast from 'react-hot-toast';
 
 export function Refer() {
   const { profile } = useAuth();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [referrals, setReferrals] = useState<any[]>([]);
   const [referralBonus, setReferralBonus] = useState(10);
 
@@ -76,6 +77,94 @@ export function Refer() {
       const text = encodeURIComponent(`Join HMF Income today and start earning! Use my referral link: ${referLink}`);
       window.open(`https://t.me/share/url?url=${encodeURIComponent(referLink)}&text=${text}`, '_blank');
     }
+  };
+
+  const [analyticsSubTab, setAnalyticsSubTab] = useState<'earnings' | 'count'>('earnings');
+
+  // Calculate key performance statistics
+  const totalReferralsCount = referrals.length;
+  const totalReferralEarnings = referrals.reduce((sum, r) => sum + (Number(r.bonusEarned) || 0), 0);
+  const averageEarnedPerReferral = totalReferralsCount > 0 ? (totalReferralEarnings / totalReferralsCount) : 0;
+
+  const getMonthlyData = () => {
+    // Generate the last 6 months to guarantee clean visual display
+    const monthsData: Record<string, { monthName: string; count: number; earnings: number }> = {};
+    const now = new Date();
+    
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const monthKey = `${year}-${month}`;
+      const monthLabel = d.toLocaleDateString(language === 'Bengali' ? 'bn-BD' : 'en-US', {
+        month: 'short',
+        year: '2-digit',
+      });
+      monthsData[monthKey] = {
+        monthName: monthLabel,
+        count: 0,
+        earnings: 0,
+      };
+    }
+
+    // Accumulate real refer bonus entries
+    referrals.forEach((ref) => {
+      if (!ref.createdAt) return;
+      const date = ref.createdAt.toDate ? ref.createdAt.toDate() : new Date(ref.createdAt);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const monthKey = `${year}-${month}`;
+      const bonus = Number(ref.bonusEarned) || 0;
+
+      if (monthsData[monthKey]) {
+        monthsData[monthKey].count += 1;
+        monthsData[monthKey].earnings += bonus;
+      } else {
+        const monthLabel = date.toLocaleDateString(language === 'Bengali' ? 'bn-BD' : 'en-US', {
+          month: 'short',
+          year: '2-digit',
+        });
+        monthsData[monthKey] = {
+          monthName: monthLabel,
+          count: 1,
+          earnings: bonus,
+        };
+      }
+    });
+
+    return Object.keys(monthsData)
+      .sort()
+      .map((key) => ({
+        month: monthsData[key].monthName,
+        count: monthsData[key].count,
+        earnings: Number(monthsData[key].earnings.toFixed(2)),
+      }));
+  };
+
+  const chartData = getMonthlyData();
+
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md px-3 py-2.5 rounded-xl border border-slate-700/60 shadow-xl text-left scale-95 origin-left">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">{label}</p>
+          <p className="text-xs font-black text-white mt-1.5 flex items-center gap-1.5">
+            {analyticsSubTab === 'earnings' ? (
+              <>
+                <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+                <span>৳ {payload[0].value}</span>
+              </>
+            ) : (
+              <>
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                <span>{payload[0].value} {language === 'Bengali' ? 'জন' : 'Users'}</span>
+              </>
+            )}
+          </p>
+        </div>
+      );
+    }
+    return null;
   };
 
   return (
@@ -162,6 +251,132 @@ export function Refer() {
           <li>{t('step2')}</li>
           <li>{t('step3').replace('bonus', `৳${referralBonus}`)}</li>
         </ol>
+      </div>
+
+      {/* Referral Analytics Section */}
+      <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm ring-1 ring-slate-100 dark:ring-slate-700/50 text-left mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <h4 className="font-bold text-slate-800 dark:text-white flex items-center gap-2 tracking-tight">
+            <div className="p-1.5 bg-indigo-50 dark:bg-indigo-950 rounded-lg text-indigo-500">
+              <BarChart3 className="w-4 h-4" />
+            </div>
+            {t('referral_analytics')}
+          </h4>
+          
+          {/* Quick tab toggle */}
+          <div className="flex bg-slate-100 dark:bg-slate-900/80 p-0.5 rounded-lg border border-slate-200/20">
+            <button
+              onClick={() => setAnalyticsSubTab('earnings')}
+              className={`px-3 py-1 text-[11px] font-bold rounded-md transition-all ${
+                analyticsSubTab === 'earnings'
+                  ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+              }`}
+            >
+              {t('earnings_chart_tab')}
+            </button>
+            <button
+              onClick={() => setAnalyticsSubTab('count')}
+              className={`px-3 py-1 text-[11px] font-bold rounded-md transition-all ${
+                analyticsSubTab === 'count'
+                  ? 'bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-sm'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+              }`}
+            >
+              {t('counts_chart_tab')}
+            </button>
+          </div>
+        </div>
+
+        {/* Bento stats grid */}
+        <div className="grid grid-cols-3 gap-2.5 mb-5">
+          <div className="bg-slate-50 dark:bg-slate-900/40 p-3 rounded-xl border border-slate-100 dark:border-slate-800/40">
+            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none truncate mb-1">
+              {t('total_referrals')}
+            </p>
+            <h5 className="text-sm font-black text-slate-700 dark:text-slate-200 tracking-tight">
+              {totalReferralsCount}
+            </h5>
+          </div>
+          <div className="bg-slate-50 dark:bg-slate-900/40 p-3 rounded-xl border border-slate-100 dark:border-slate-800/40">
+            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none truncate mb-1">
+              {t('cumulative_overview')}
+            </p>
+            <h5 className="text-sm font-black text-green-600 dark:text-green-400 tracking-tight truncate">
+              ৳{totalReferralEarnings.toFixed(1)}
+            </h5>
+          </div>
+          <div className="bg-slate-50 dark:bg-slate-900/40 p-3 rounded-xl border border-slate-100 dark:border-slate-800/40">
+            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none truncate mb-1">
+              {t('average_per_referral')}
+            </p>
+            <h5 className="text-sm font-black text-indigo-500 dark:text-indigo-400 tracking-tight truncate">
+              ৳{averageEarnedPerReferral.toFixed(1)}
+            </h5>
+          </div>
+        </div>
+
+        {/* Main interactive chart */}
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3.5 pl-1">
+          {analyticsSubTab === 'earnings' ? t('monthly_earnings_chart') : t('monthly_counts_chart')}
+        </p>
+        <div className="h-52 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            {analyticsSubTab === 'earnings' ? (
+              <AreaChart data={chartData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorEarnings" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#4338ca" stopOpacity={0.25}/>
+                    <stop offset="95%" stopColor="#4338ca" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" className="dark:stroke-slate-700/30" />
+                <XAxis 
+                  dataKey="month" 
+                  tickLine={false} 
+                  axisLine={false}
+                  dy={8}
+                  tick={{ fill: '#64748b', fontSize: 9, fontWeight: 600 }}
+                />
+                <YAxis 
+                  tickLine={false} 
+                  axisLine={false}
+                  dx={-2}
+                  tick={{ fill: '#64748b', fontSize: 9, fontWeight: 600 }}
+                  tickFormatter={(v) => `৳${v}`}
+                />
+                <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#6366f1', strokeWidth: 1.2, strokeDasharray: '4 4' }} />
+                <Area type="monotone" dataKey="earnings" stroke="#4f46e5" strokeWidth={2.5} fillOpacity={1} fill="url(#colorEarnings)" />
+              </AreaChart>
+            ) : (
+              <AreaChart data={chartData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#d97706" stopOpacity={0.25}/>
+                    <stop offset="95%" stopColor="#d97706" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" className="dark:stroke-slate-700/30" />
+                <XAxis 
+                  dataKey="month" 
+                  tickLine={false} 
+                  axisLine={false}
+                  dy={8}
+                  tick={{ fill: '#64748b', fontSize: 9, fontWeight: 600 }}
+                />
+                <YAxis 
+                  tickLine={false} 
+                  axisLine={false}
+                  dx={-2}
+                  tick={{ fill: '#64748b', fontSize: 9, fontWeight: 600 }}
+                  allowDecimals={false}
+                />
+                <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#f59e0b', strokeWidth: 1.2, strokeDasharray: '4 4' }} />
+                <Area type="monotone" dataKey="count" stroke="#f59e0b" strokeWidth={2.5} fillOpacity={1} fill="url(#colorCount)" />
+              </AreaChart>
+            )}
+          </ResponsiveContainer>
+        </div>
       </div>
 
       {/* Referral History */}

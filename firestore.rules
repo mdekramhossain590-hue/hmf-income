@@ -23,24 +23,22 @@ service cloud.firestore {
     }
 
     function isValidUser(data) {
-      return data.keys().hasAll(['fullName', 'email', 'myReferCode', 'usedReferCode', 'balances', 'role', 'createdAt']) &&
-        data.fullName is string && data.fullName.size() <= 100 &&
+      return data.keys().hasAll(['fullName', 'email', 'balances']) &&
+        data.fullName is string && data.fullName.size() <= 200 &&
         data.email is string && data.email.size() <= 150 &&
-        data.myReferCode is string && data.myReferCode.size() <= 20 &&
-        data.usedReferCode is string && data.usedReferCode.size() <= 20 &&
         data.balances is map &&
-        data.balances.keys().hasAll(['main', 'bonus', 'referral']) &&
-        (data.balances.keys().size() == 3 || (data.balances.keys().hasAll(['tasks']) && data.balances.keys().size() == 4 && data.balances.tasks is map)) &&
         data.balances.main is number &&
         data.balances.bonus is number &&
         data.balances.referral is number &&
-        data.role is string && (data.role == 'user' || data.role == 'admin' || data.role == 'employee') &&
-        data.createdAt is timestamp &&
-        (data.keys().hasAny(['photoURL']) ? (data.photoURL is string && data.photoURL.size() <= 600) : true) &&
+        (data.keys().hasAny(['role']) ? (data.role is string && (data.role == 'user' || data.role == 'admin' || data.role == 'employee')) : true) &&
+        (data.keys().hasAny(['myReferCode']) ? (data.myReferCode is string && data.myReferCode.size() <= 40) : true) &&
+        (data.keys().hasAny(['usedReferCode']) ? (data.usedReferCode is string && data.usedReferCode.size() <= 40) : true) &&
+        (data.keys().hasAny(['createdAt']) ? (data.createdAt is timestamp) : true) &&
+        (data.keys().hasAny(['photoURL']) ? (data.photoURL is string && data.photoURL.size() <= 2000) : true) &&
         (data.keys().hasAny(['totalReferrals']) ? data.totalReferrals is number : true) &&
         (data.keys().hasAny(['totalTasksCompleted']) ? data.totalTasksCompleted is number : true) &&
         (data.keys().hasAny(['isActive']) ? data.isActive is bool : true) &&
-        (data.keys().hasAny(['deviceId']) ? (data.deviceId is string && data.deviceId.size() <= 100) : true) &&
+        (data.keys().hasAny(['deviceId']) ? (data.deviceId is string && data.deviceId.size() <= 200) : true) &&
         (data.keys().hasAny(['isBlocked']) ? data.isBlocked is bool : true) &&
         (data.keys().hasAny(['permissions']) ? data.permissions is list : true) &&
         (data.keys().hasAny(['lastLoginAt']) ? data.lastLoginAt is timestamp : true);
@@ -238,10 +236,15 @@ service cloud.firestore {
     function isValidSettingsSite(data) {
       return data.keys().hasAll(['updatedAt']) &&
         data.updatedAt is timestamp &&
-        (data.keys().hasAny(['logoUrl']) ? data.logoUrl is string && data.logoUrl.size() <= 500 : true) &&
-        (data.keys().hasAny(['faviconUrl']) ? data.faviconUrl is string && data.faviconUrl.size() <= 500 : true) &&
-        (data.keys().hasAny(['telegramUrl']) ? data.telegramUrl is string && data.telegramUrl.size() <= 500 : true) &&
-        (data.keys().hasAny(['dailyTaskLimit']) ? data.dailyTaskLimit is number : true);
+        (data.keys().hasAny(['logoUrl']) ? data.logoUrl is string && data.logoUrl.size() <= 2000 : true) &&
+        (data.keys().hasAny(['faviconUrl']) ? data.faviconUrl is string && data.faviconUrl.size() <= 2000 : true) &&
+        (data.keys().hasAny(['telegramUrl']) ? data.telegramUrl is string && data.telegramUrl.size() <= 1000 : true) &&
+        (data.keys().hasAny(['dailyTaskLimit']) ? data.dailyTaskLimit is number : true) &&
+        (data.keys().hasAny(['driveOffersEnabled']) ? data.driveOffersEnabled is bool : true) &&
+        (data.keys().hasAny(['coursesEnabled']) ? data.coursesEnabled is bool : true) &&
+        (data.keys().hasAny(['adsViewEnabled']) ? data.adsViewEnabled is bool : true) &&
+        (data.keys().hasAny(['adsViewLink']) ? data.adsViewLink is string && data.adsViewLink.size() <= 1000 : true) &&
+        (data.keys().hasAny(['adsViewText']) ? data.adsViewText is string && data.adsViewText.size() <= 500 : true);
     }
 
     function isValidLeaderboardEntry(data) {

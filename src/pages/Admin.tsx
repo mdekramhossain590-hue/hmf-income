@@ -267,7 +267,7 @@ export function AdminPanel() {
       }, { merge: true });
       toast.success("Activation settings saved!");
     } catch (e) {
-      toast.error("Failed to save activation settings.");
+      handleFirestoreError(e, OperationType.WRITE, 'settings/activation');
     } finally {
       setIsSavingSettings(false);
     }
@@ -316,7 +316,7 @@ export function AdminPanel() {
         link.href = siteSettings.faviconUrl;
       }
     } catch (e) {
-      toast.error("Failed to save site settings.");
+      handleFirestoreError(e, OperationType.WRITE, 'settings/site');
     } finally {
       setIsSavingSettings(false);
     }

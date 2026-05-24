@@ -4,17 +4,36 @@ import { ArrowLeft, Settings as SettingsIcon, Bell, Moon, User, Lock, Globe, Inf
 import { useTheme } from '../components/ThemeProvider';
 import { useAuth } from '../components/AuthProvider';
 import { useLanguage } from '../components/LanguageProvider';
+import { db } from '../lib/firebase';
+import { doc, updateDoc } from 'firebase/firestore';
+import { toast } from 'react-hot-toast';
 
 export function Settings() {
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
-  const { logOut } = useAuth();
+  const { logOut, user } = useAuth();
   const { language, setLanguage, t } = useLanguage();
   
   const isDark = theme === 'dark';
   
   // App Preferences State
-  const [notifications, setNotifications] = useState(true);
+  const [notifications, setNotifications] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('app_notifications_enabled') !== 'false';
+    }
+    return true;
+  });
+
+  const [browserSubscribed, setBrowserSubscribed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('payment_status_notifications_subscribed');
+      const systemPerm = ('Notification' in window) && Notification.permission === 'granted';
+      return stored === 'true' && systemPerm;
+    }
+    return false;
+  });
+
+  const [notificationSupportError, setNotificationSupportError] = useState<string | null>(null);
   
   // Modals & Flows State
   const [languageModalOpen, setLanguageModalOpen] = useState(false);
@@ -22,6 +41,79 @@ export function Settings() {
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
+
+  const handleToggleNotifications = () => {
+    const nextVal = !notifications;
+    setNotifications(nextVal);
+    localStorage.setItem('app_notifications_enabled', String(nextVal));
+    toast.success(nextVal ? "Notifications enabled" : "Notifications muted");
+  };
+
+  const togglePaymentNotificationSubscription = async () => {
+    if (typeof window === 'undefined') return;
+
+    if (!('Notification' in window)) {
+      setNotificationSupportError("Push notifications are not supported on this device.");
+      toast.error("Push notifications are not supported on this device.");
+      return;
+    }
+
+    if (browserSubscribed) {
+      localStorage.setItem('payment_status_notifications_subscribed', 'false');
+      setBrowserSubscribed(false);
+      setNotificationSupportError(null);
+      toast.success("Unsubscribed from payment push alerts.");
+      
+      if (user) {
+        try {
+          await updateDoc(doc(db, 'users', user.uid), {
+            paymentNotificationSubscribed: false
+          });
+        } catch (e) {
+          console.error("Failed to update profile subscription", e);
+        }
+      }
+      return;
+    }
+
+    try {
+      const perm = await Notification.requestPermission();
+      if (perm === 'granted') {
+        localStorage.setItem('payment_status_notifications_subscribed', 'true');
+        setBrowserSubscribed(true);
+        setNotificationSupportError(null);
+        toast.success("Subscribed to Payment Status Push Notifications!");
+        
+        try {
+          new window.Notification("Subscription Active! 🔔", {
+            body: "You will now receive desktop popup alerts when admins approve or reject your payments.",
+            icon: '/favicon.svg'
+          });
+        } catch (err) {
+          console.warn("Attempt to trigger preview notification failed:", err);
+        }
+
+        if (user) {
+          try {
+            await updateDoc(doc(db, 'users', user.uid), {
+              paymentNotificationSubscribed: true
+            });
+          } catch (e) {
+            console.error("Failed to update profile subscription", e);
+          }
+        }
+      } else {
+        setNotificationSupportError("Notification permission denied. Please allow notifications in site settings.");
+        toast.error("Notification permission denied.");
+        localStorage.setItem('payment_status_notifications_subscribed', 'false');
+        setBrowserSubscribed(false);
+      }
+    } catch (e) {
+      setNotificationSupportError("Push notifications are limited within the preview iframe. Try opening the app in a new tab!");
+      toast.error("Failed to enable browser notifications.");
+      console.error(e);
+    }
+  };
 
   return (
     <div className="pt-6 px-4 pb-20">
@@ -44,7 +136,7 @@ export function Settings() {
         </div>
         
         <div className="space-y-4">
-          <div className="flex justify-between items-center cursor-pointer" onClick={() => setNotifications(!notifications)}>
+          <div className="flex justify-between items-center cursor-pointer" onClick={handleToggleNotifications}>
             <div className="flex items-center gap-3">
               <Bell className="w-5 h-5 text-gray-400 dark:text-gray-500" />
               <span className="text-gray-700 dark:text-gray-200 font-medium">{t('notifications')}</span>
@@ -53,8 +145,26 @@ export function Settings() {
               <div className={`w-4 h-4 bg-white rounded-full absolute top-1 shadow-sm transition-transform duration-200 ease-in-out ${notifications ? 'translate-x-7' : 'translate-x-1'}`}></div>
             </div>
           </div>
+
+          <div className="flex flex-col gap-1 border-t border-gray-100 dark:border-slate-700 pt-3">
+            <div className="flex justify-between items-center cursor-pointer" onClick={togglePaymentNotificationSubscription}>
+              <div className="flex items-center gap-3">
+                <Bell className={`w-5 h-5 ${browserSubscribed ? 'text-blue-500 animate-pulse' : 'text-gray-400 dark:text-gray-500'}`} />
+                <div className="flex flex-col">
+                  <span className="text-gray-700 dark:text-gray-200 font-medium text-sm">{t('payment_status_notifications')}</span>
+                  <p className="text-[10px] text-gray-400 dark:text-gray-500 max-w-[240px] leading-snug">{t('payment_status_notifications_desc')}</p>
+                </div>
+              </div>
+              <div className={`w-12 h-6 rounded-full relative transition-colors duration-200 ease-in-out ${browserSubscribed ? 'bg-blue-600' : 'bg-gray-200 dark:bg-slate-600'}`}>
+                <div className={`w-4 h-4 bg-white rounded-full absolute top-1 shadow-sm transition-transform duration-200 ease-in-out ${browserSubscribed ? 'translate-x-7' : 'translate-x-1'}`}></div>
+              </div>
+            </div>
+            {notificationSupportError && (
+              <p className="text-[10px] text-amber-500 font-medium mt-1 leading-snug">{notificationSupportError}</p>
+            )}
+          </div>
           
-          <div className="flex justify-between items-center cursor-pointer" onClick={toggleTheme}>
+          <div className="flex justify-between items-center cursor-pointer pt-2 border-t border-gray-100 dark:border-slate-700" onClick={toggleTheme}>
             <div className="flex items-center gap-3">
               <Moon className="w-5 h-5 text-gray-400 dark:text-gray-500" />
               <span className="text-gray-700 dark:text-gray-200 font-medium">{t('dark_mode')}</span>
