@@ -3,6 +3,7 @@ import { Check, ChevronRight, HeadphonesIcon, LineChart, ShieldHalf, LogOut, Moo
 import { signOut } from 'firebase/auth';
 import { doc, updateDoc } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { uploadImageOrFallback } from '../lib/imageUpload';
 import { useAuth } from '../components/AuthProvider';
 import { useLanguage } from '../components/LanguageProvider';
 import { useTheme } from '../components/ThemeProvider';
@@ -82,28 +83,7 @@ export function Profile() {
 
     setUploading(true);
     try {
-      const cloudName = (import.meta as any).env.VITE_CLOUDINARY_CLOUD_NAME;
-      const uploadPreset = (import.meta as any).env.VITE_CLOUDINARY_UPLOAD_PRESET;
-      
-      if (!cloudName || !uploadPreset) {
-        throw new Error("Cloudinary configuration missing. Please add VITE_CLOUDINARY_CLOUD_NAME and VITE_CLOUDINARY_UPLOAD_PRESET to your .env file.");
-      }
-
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('upload_preset', uploadPreset);
-      
-      const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-        method: 'POST',
-        body: formData,
-      });
-      
-      if (!res.ok) {
-        throw new Error("Failed to upload image to Cloudinary");
-      }
-      
-      const data = await res.json();
-      const imageUrl = data.secure_url;
+      const imageUrl = await uploadImageOrFallback(file, 200);
 
       const userRef = doc(db, "users", auth.currentUser.uid);
       await updateDoc(userRef, { photoURL: imageUrl });

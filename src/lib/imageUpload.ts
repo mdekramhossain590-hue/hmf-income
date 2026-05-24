@@ -1,0 +1,92 @@
+import { toast } from "react-hot-toast";
+
+export async function fileToBase64AndCompress(file: File, maxDim: number = 600): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxDim) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          }
+        } else {
+          if (height > maxDim) {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(event.target?.result as string); // fallback to original size Base64
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+        // Compress as jpeg with 0.7 quality to keep size tiny
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        resolve(dataUrl);
+      };
+      img.onerror = (err) => {
+        reject(err);
+      };
+    };
+    reader.onerror = (err) => {
+      reject(err);
+    };
+  });
+}
+
+/**
+ * Uploads an image file to Cloudinary if credentials are set up.
+ * If credentials are not set up, automatically falls back to compressed base64.
+ */
+export async function uploadImageOrFallback(
+  file: File,
+  fallbackMaxDim: number = 600,
+  onProgress?: (progress: number) => void
+): Promise<string> {
+  const cloudName = (import.meta as any).env.VITE_CLOUDINARY_CLOUD_NAME;
+  const uploadPreset = (import.meta as any).env.VITE_CLOUDINARY_UPLOAD_PRESET;
+
+  if (!cloudName || !uploadPreset) {
+    if (onProgress) onProgress(30);
+    // Graceful fallback to compressed base64
+    const base64Url = await fileToBase64AndCompress(file, fallbackMaxDim);
+    if (onProgress) onProgress(100);
+    return base64Url;
+  }
+
+  // Cloudinary Upload
+  if (onProgress) onProgress(20);
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_preset', uploadPreset);
+
+  if (onProgress) onProgress(50);
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (onProgress) onProgress(80);
+  if (!res.ok) {
+    const errData = await res.json();
+    throw new Error(errData.error?.message || "Failed to upload image to Cloudinary");
+  }
+
+  const data = await res.json();
+  if (onProgress) onProgress(100);
+  return data.secure_url;
+}

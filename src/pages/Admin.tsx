@@ -3,6 +3,7 @@ import { useAuth } from '../components/AuthProvider';
 import { collection, query, onSnapshot, doc, writeBatch, serverTimestamp, setDoc, orderBy, deleteDoc, increment, updateDoc, getDocs, deleteField } from 'firebase/firestore';
 import { processReferralCommission } from '../lib/referral';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
+import { uploadImageOrFallback } from '../lib/imageUpload';
 import { Trash2, CheckCircle, XCircle, Users, ShieldAlert, ShieldCheck, Wallet, ListChecks, Settings, User, Eye, Calculator, MessageSquare, Globe, Coins, Megaphone, Gamepad2, CreditCard, Lock, BellRing, RefreshCw, Smartphone, Mail, Camera, MessageCircle, Send, BookOpen, Layers } from 'lucide-react';
 import { motion } from 'motion/react';
 import toast from 'react-hot-toast';
@@ -281,29 +282,7 @@ export function AdminPanel() {
 
     const toastId = toast.loading(`Uploading ${type}...`);
     try {
-      const cloudName = (import.meta as any).env.VITE_CLOUDINARY_CLOUD_NAME;
-      const uploadPreset = (import.meta as any).env.VITE_CLOUDINARY_UPLOAD_PRESET;
-
-      if (!cloudName || !uploadPreset) {
-        throw new Error("Cloudinary configuration missing in .env.");
-      }
-
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('upload_preset', uploadPreset);
-
-      const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error?.message || "Failed to upload image");
-      }
-
-      const data = await res.json();
-      const imageUrl = data.secure_url;
+      const imageUrl = await uploadImageOrFallback(file, 400);
 
       setSiteSettings(prev => ({
         ...prev,

@@ -5,6 +5,7 @@ import { useAuth } from '../components/AuthProvider';
 import { doc, getDoc, setDoc, collection, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { FullPageLoader } from '../components/LoadingSpinner';
+import { uploadImageOrFallback } from '../lib/imageUpload';
 import toast from 'react-hot-toast';
 
 export function TaskDetail() {
@@ -156,33 +157,7 @@ export function TaskDetail() {
 
       // Handle Image Upload if file is selected
       if (job.requiredProofs?.includes('screenshot') && proofFile) {
-        const cloudName = (import.meta as any).env.VITE_CLOUDINARY_CLOUD_NAME;
-        const uploadPreset = (import.meta as any).env.VITE_CLOUDINARY_UPLOAD_PRESET;
-        
-        if (!cloudName || !uploadPreset) {
-          throw new Error("Cloudinary configuration missing. Please add VITE_CLOUDINARY_CLOUD_NAME and VITE_CLOUDINARY_UPLOAD_PRESET to your .env file.");
-        }
-
-        setUploadProgress(10);
-        const formData = new FormData();
-        formData.append('file', proofFile);
-        formData.append('upload_preset', uploadPreset);
-        
-        setUploadProgress(40);
-        const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-          method: 'POST',
-          body: formData,
-        });
-        
-        setUploadProgress(80);
-        if (!res.ok) {
-          const errData = await res.json();
-          throw new Error(errData.error?.message || "Failed to upload image");
-        }
-        
-        const data = await res.json();
-        finalImageUrl = data.secure_url;
-        setUploadProgress(100);
+        finalImageUrl = await uploadImageOrFallback(proofFile, 600, (p) => setUploadProgress(p));
       }
 
       const proofs: any = {};
