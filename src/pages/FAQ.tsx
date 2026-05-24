@@ -3,10 +3,12 @@ import { motion, AnimatePresence } from 'motion/react';
 import { HelpCircle, ChevronDown, ChevronUp, MessageCircle, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../components/LanguageProvider';
+import { useAuth } from '../components/AuthProvider';
 
 export function FAQ() {
   const navigate = useNavigate();
   const { t } = useLanguage();
+  const { siteSettings } = useAuth();
   const [openIndex, setOpenIndex] = useState<number | null>(0);
 
   const toggleSection = (index: number) => {
@@ -92,7 +94,7 @@ export function FAQ() {
           <MessageCircle className="w-8 h-8 text-indigo-500 dark:text-indigo-400 mx-auto mb-3" />
           <h3 className="font-bold text-slate-800 dark:text-white mb-2">{t('faq_still_need_help')}</h3>
           <p className="text-[13px] text-slate-500 dark:text-slate-400 mb-4">{t('faq_we_are_here')}</p>
-          <a href="https://t.me" target="_blank" rel="noopener noreferrer" className="inline-block px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 active:scale-95 transition-all text-white font-bold text-xs rounded-xl uppercase tracking-wider shadow-lg shadow-indigo-600/30">
+          <a href={siteSettings?.telegramUrl || "https://t.me"} target="_blank" rel="noopener noreferrer" className="inline-block px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 active:scale-95 transition-all text-white font-bold text-xs rounded-xl uppercase tracking-wider shadow-lg shadow-indigo-600/30">
             {t('faq_contact_support')}
           </a>
         </div>

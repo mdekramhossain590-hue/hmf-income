@@ -84,20 +84,22 @@ export function Layout() {
                     {isActive && (
                       <motion.div
                         layoutId="activeTabBackground"
-                        className="absolute -top-[26px] w-[64px] h-[64px] bg-[#00AEEF] rounded-full shadow-[0_4px_16px_rgba(0,174,239,0.4)] border-[6px] border-white dark:border-slate-900 z-0"
+                        className="absolute -top-[20px] w-[56px] h-[56px] bg-[#00AEEF] rounded-full shadow-[0_4px_16px_rgba(0,174,239,0.4)] border-[6px] border-white dark:border-slate-900 z-0"
                         transition={{ type: "spring", stiffness: 400, damping: 25 }}
                       />
                     )}
                     
                     {isActive ? (
-                      <div className="relative z-10 flex flex-col items-center justify-center -mt-5">
-                        <item.icon className="w-6 h-6 mb-1 text-white" strokeWidth={2.5} />
-                        <span className="text-[10px] font-bold tracking-wide leading-none uppercase text-white">{item.label}</span>
+                      <div className="relative z-10 flex flex-col items-center w-full h-full pb-1">
+                        <div className="absolute top-[-4px]">
+                          <item.icon className="w-6 h-6 text-white" strokeWidth={2.5} />
+                        </div>
+                        <span className="text-[11px] font-bold tracking-wide leading-none text-[#00AEEF] dark:text-[#39abef] absolute bottom-1.5">{item.label}</span>
                       </div>
                     ) : (
-                      <div className="relative z-10 flex flex-col items-center justify-center mt-2">
-                        <item.icon className="w-6 h-6 mb-1.5 opacity-70" strokeWidth={2.2} />
-                        <span className="text-[11px] font-medium tracking-wide leading-none">{item.label}</span>
+                      <div className="relative z-10 flex flex-col items-center justify-end h-full pb-0.5">
+                        <item.icon className="w-6 h-6 mb-1.5 opacity-60" strokeWidth={2.2} />
+                        <span className="text-[11px] font-medium tracking-wide leading-none text-slate-500 dark:text-slate-400">{item.label}</span>
                       </div>
                     )}
                   </Tabs.Trigger>
