@@ -27,7 +27,7 @@ export function Wallet() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const { t } = useLanguage();
 
-  const [withdrawSettings, setWithdrawSettings] = useState({ mainMin: 50, mainFee: 0, bonusMin: 50, bonusFee: 0, referralMin: 50, referralFee: 0, tasksMin: 50, tasksFee: 0 });
+  const [withdrawSettings, setWithdrawSettings] = useState({ mainMin: 50, mainFee: 0, bonusMin: 50, bonusFee: 0, referralMin: 50, referralFee: 0, tasksMin: 50, tasksFee: 0, customAmounts: "110, 210, 310, 410, 510" });
   const [depositSettings, setDepositSettings] = useState({ bkashNumber: '017XX-XXXXXX', nagadNumber: '017XX-XXXXXX', minDeposit: 100, maxDeposit: 25000 });
 
   useEffect(() => {
@@ -56,7 +56,8 @@ export function Wallet() {
           referralMin: data.referralMin || 50,
           referralFee: data.referralFee || 0,
           tasksMin: data.tasksMin || 50,
-          tasksFee: data.tasksFee || 0
+          tasksFee: data.tasksFee || 0,
+          customAmounts: data.customAmounts || "110, 210, 310, 410, 510"
         });
       }
     });
@@ -471,15 +472,91 @@ export function Wallet() {
               />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest pl-1 mb-1.5">{t('amount')} (৳)</label>
-              <input 
-                type="number" 
-                placeholder="0.00" 
-                required 
-                value={withdrawAmount}
-                onChange={(e) => setWithdrawAmount(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 dark:bg-slate-900/50 dark:border-slate-700 dark:text-white rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-display font-medium text-lg transition-all"
-              />
+              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest pl-1 mb-2">উইথড্র পরিমাণ (Withdraw Amount)</label>
+              
+              {/* Select amount options configured by admin */}
+              {(() => {
+                const amountOptions = (withdrawSettings.customAmounts || "110, 210, 310, 410, 510")
+                  .split(',')
+                  .map(s => s.trim())
+                  .filter(Boolean);
+
+                return (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                      {amountOptions.map((opt) => {
+                        const isSelected = withdrawAmount === opt;
+                        return (
+                          <button
+                            key={opt}
+                            type="button"
+                            onClick={() => setWithdrawAmount(opt)}
+                            className={`py-3 px-4 rounded-2xl border text-sm font-black transition-all duration-200 flex items-center justify-center gap-1.5 shadow-sm active:scale-95 ${
+                              isSelected 
+                                ? 'bg-indigo-600 border-indigo-600 text-white font-black shadow-md shadow-indigo-500/10' 
+                                : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-indigo-400 dark:hover:border-indigo-500'
+                            }`}
+                          >
+                            <span className="text-sm font-extrabold">{opt}</span>
+                            <span className="text-xs font-normal">৳</span>
+                          </button>
+                        );
+                      })}
+                      
+                      {/* Custom Amount option button */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const customInput = prompt("Enter custom amount (৳):");
+                          if (customInput && !isNaN(parseFloat(customInput))) {
+                            setWithdrawAmount(parseFloat(customInput).toString());
+                          }
+                        }}
+                        className={`py-3 px-4 rounded-2xl border text-xs font-black transition-all duration-205 flex items-center justify-center gap-1 shadow-sm active:scale-95 ${
+                          withdrawAmount && !amountOptions.includes(withdrawAmount)
+                            ? 'bg-indigo-600 border-indigo-600 text-white font-black shadow-md' 
+                            : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:border-indigo-400'
+                        }`}
+                      >
+                        {withdrawAmount && !amountOptions.includes(withdrawAmount) ? (
+                          <span className="font-extrabold">{withdrawAmount} ৳</span>
+                        ) : (
+                          <span>অন্যান্য পরিমাণ</span>
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Green box showing dynamic charging and net payout */}
+                    {withdrawAmount && (
+                      (() => {
+                        const amt = parseFloat(withdrawAmount) || 0;
+                        let currentFeePercent = 0;
+                        if (selectedWallet === 'main') currentFeePercent = withdrawSettings.mainFee;
+                        else if (selectedWallet === 'bonus') currentFeePercent = withdrawSettings.bonusFee;
+                        else if (selectedWallet === 'referral') currentFeePercent = withdrawSettings.referralFee;
+                        else currentFeePercent = withdrawSettings.tasksFee;
+
+                        const fee = (amt * currentFeePercent) / 100;
+                        const netAmount = Math.max(0, amt - fee);
+
+                        return (
+                          <div className="bg-emerald-500/10 dark:bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-4 flex items-center justify-around text-center text-sm font-bold text-emerald-600 dark:text-emerald-400 transition-all duration-300">
+                            <div>
+                              <p className="text-[10px] uppercase font-black text-slate-400 dark:text-slate-500 tracking-wider mb-0.5">চার্জ (Charge)</p>
+                              <p className="text-sm font-black text-rose-500 dark:text-rose-400">{fee.toFixed(2)} ৳</p>
+                            </div>
+                            <div className="w-px h-8 bg-emerald-500/20"></div>
+                            <div>
+                              <p className="text-[10px] uppercase font-black text-slate-400 dark:text-slate-500 tracking-wider mb-0.5">পাবেন (Will Receive)</p>
+                              <p className="text-sm font-black text-emerald-600 dark:text-emerald-400">{netAmount.toFixed(2)} ৳</p>
+                            </div>
+                          </div>
+                        );
+                      })()
+                    )}
+                  </div>
+                );
+              })()}
             </div>
             <button type="submit" className="w-full bg-indigo-600 dark:bg-indigo-500 text-white font-bold py-4 rounded-xl shadow-lg mt-4 hover:bg-indigo-700 dark:hover:bg-indigo-600 transition active:scale-[0.98] text-base">
               {t('request_withdraw')}

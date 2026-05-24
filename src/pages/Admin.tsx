@@ -4,7 +4,7 @@ import { collection, query, onSnapshot, doc, writeBatch, serverTimestamp, setDoc
 import { processReferralCommission } from '../lib/referral';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { uploadImageOrFallback } from '../lib/imageUpload';
-import { Trash2, CheckCircle, XCircle, Users, ShieldAlert, ShieldCheck, Wallet, ListChecks, Settings, User, Eye, Calculator, MessageSquare, Globe, Coins, Megaphone, Gamepad2, CreditCard, Lock, BellRing, RefreshCw, Smartphone, Mail, Camera, MessageCircle, Send, BookOpen, Layers } from 'lucide-react';
+import { Trash2, CheckCircle, XCircle, Users, ShieldAlert, ShieldCheck, Wallet, ListChecks, Settings, User, Eye, Calculator, MessageSquare, Globe, Coins, Megaphone, Gamepad2, CreditCard, Lock, BellRing, RefreshCw, Smartphone, Mail, Camera, MessageCircle, Send, BookOpen, Layers, Copy } from 'lucide-react';
 import { motion } from 'motion/react';
 import toast from 'react-hot-toast';
 
@@ -34,7 +34,7 @@ export function AdminPanel() {
   const [referralSettings, setReferralSettings] = useState({ fixedBonus: 10, gen2FixedBonus: 0, gen3FixedBonus: 0, gen1Percent: 0, gen2Percent: 0, gen3Percent: 0 });
   const [bannerSettings, setBannerSettings] = useState({ text: 'Welcome to HMF Income! Complete tasks and earn money daily.', link: '#' });
   const [gameSettings, setGameSettings] = useState({ spinTaskReq: 0, spinReferReq: 0, mathTaskReq: 0, mathReferReq: 0 });
-  const [withdrawSettings, setWithdrawSettings] = useState({ mainMin: 50, mainFee: 0, bonusMin: 50, bonusFee: 0, referralMin: 50, referralFee: 0, tasksMin: 50, tasksFee: 0 });
+  const [withdrawSettings, setWithdrawSettings] = useState({ mainMin: 50, mainFee: 0, bonusMin: 50, bonusFee: 0, referralMin: 50, referralFee: 0, tasksMin: 50, tasksFee: 0, customAmounts: "110, 210, 310, 410, 510" });
   const [depositSettings, setDepositSettings] = useState({ bkashNumber: '017XX-XXXXXX', nagadNumber: '017XX-XXXXXX', minDeposit: 100, maxDeposit: 25000 });
   const [activationSettings, setActivationSettings] = useState({ mode: 'free', fee: 50 });
   const [supportSettings, setSupportSettings] = useState({ email: 'support@example.com', whatsapp: '', telegram: '', facebook: '' });
@@ -48,6 +48,7 @@ export function AdminPanel() {
   });
   const [siteSettings, setSiteSettings] = useState({ logoUrl: '', faviconUrl: '', telegramUrl: '', dailyTaskLimit: 0, driveOffersEnabled: true, coursesEnabled: true, adsViewEnabled: false, adsViewLink: '', adsViewText: 'Watch Ads' });
   const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [settingsSubTab, setSettingsSubTab] = useState<'identity' | 'gateways' | 'rewards' | 'security' | 'danger'>('identity');
   
   const [employeeConfigUser, setEmployeeConfigUser] = useState<any | null>(null);
   const [employeePermissions, setEmployeePermissions] = useState<string[]>([]);
@@ -169,7 +170,8 @@ export function AdminPanel() {
           referralMin: data.referralMin || 50,
           referralFee: data.referralFee || 0,
           tasksMin: data.tasksMin || 50,
-          tasksFee: data.tasksFee || 0
+          tasksFee: data.tasksFee || 0,
+          customAmounts: data.customAmounts || "110, 210, 310, 410, 510"
         });
       }
     }, (err) => console.log(err));
@@ -779,10 +781,78 @@ export function AdminPanel() {
               <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-700/50 mb-5">
                 <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 border-b border-slate-200 dark:border-slate-700 pb-2">Proof Submission</p>
                 <div className="space-y-2">
-                  {sub.proofs.text && <div className="flex flex-col"><span className="text-[10px] font-bold text-slate-400 uppercase">Comment:</span><p className="text-sm font-medium dark:text-slate-200">{sub.proofs.text}</p></div>}
-                  {sub.proofs.username && <div className="flex flex-col"><span className="text-[10px] font-bold text-slate-400 uppercase">Username:</span><p className="text-sm font-mono font-bold text-indigo-500">{sub.proofs.username}</p></div>}
-                  {sub.proofs.password && <div className="flex flex-col"><span className="text-[10px] font-bold text-slate-400 uppercase">Password:</span><p className="text-sm font-mono font-bold text-rose-500">{sub.proofs.password}</p></div>}
-                  {sub.proofs.videoUrl && <div className="flex flex-col"><span className="text-[10px] font-bold text-slate-400 uppercase">Video URL:</span><a href={sub.proofs.videoUrl} target="_blank" rel="noreferrer" className="text-sm font-bold text-blue-500 underline truncate">{sub.proofs.videoUrl}</a></div>}
+                  {sub.proofs.text && (
+                    <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50">
+                      <div className="flex-1 min-w-0">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Comment:</span>
+                        <p className="text-sm font-medium dark:text-slate-200 break-all">{sub.proofs.text}</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(sub.proofs.text);
+                          toast.success("Comment copied!");
+                        }}
+                        className="p-1 px-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors shrink-0 self-center"
+                        title="Copy Comment"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+                  {sub.proofs.username && (
+                    <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50">
+                      <div className="flex-1 min-w-0">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Username:</span>
+                        <p className="text-sm font-mono font-bold text-indigo-500 break-all">{sub.proofs.username}</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(sub.proofs.username);
+                          toast.success("Username copied!");
+                        }}
+                        className="p-1 px-1.5 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors shrink-0 self-center"
+                        title="Copy Username"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+                  {sub.proofs.password && (
+                    <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50">
+                      <div className="flex-1 min-w-0">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Password:</span>
+                        <p className="text-sm font-mono font-bold text-rose-500 break-all">{sub.proofs.password}</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(sub.proofs.password);
+                          toast.success("Password copied!");
+                        }}
+                        className="p-1 px-1.5 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors shrink-0 self-center"
+                        title="Copy Password"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+                  {sub.proofs.videoUrl && (
+                    <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50">
+                      <div className="flex-1 min-w-0">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Video URL:</span>
+                        <a href={sub.proofs.videoUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-blue-500 underline truncate block">{sub.proofs.videoUrl}</a>
+                      </div>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(sub.proofs.videoUrl);
+                          toast.success("Video URL copied!");
+                        }}
+                        className="p-1 px-1.5 rounded-lg text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors shrink-0 self-center"
+                        title="Copy Video URL"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
                   {sub.proofs.screenshot && (
                     <div className="pt-2">
                       <a href={sub.proofs.screenshot} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-xs font-black text-white bg-slate-900 dark:bg-slate-700 px-4 py-2 rounded-xl hover:scale-[1.02] active:scale-95 transition-all w-fit shadow-md">
@@ -1705,46 +1775,81 @@ export function AdminPanel() {
       )}
 
       {activeTab === 'settings' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Popup Settings */}
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-500">
-                <BellRing className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Popup System</h3>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Global Announcements</p>
-              </div>
-            </div>
-            
-            <div className="space-y-4 flex-1">
-              <div className="group">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-indigo-500 transition-colors">Announcement Title</label>
-                <input type="text" value={popupSettings.title} onChange={(e) => setPopupSettings(prev => ({ ...prev, title: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold placeholder:text-slate-400 ring-1 ring-slate-100 dark:ring-slate-800 focus:ring-2 focus:ring-indigo-500 transition-all" />
-              </div>
-              <div className="group">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-indigo-500 transition-colors">Subtitle / Body</label>
-                <input type="text" value={popupSettings.subtitle} onChange={(e) => setPopupSettings(prev => ({ ...prev, subtitle: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold placeholder:text-slate-400 ring-1 ring-slate-100 dark:ring-slate-800 focus:ring-2 focus:ring-indigo-500 transition-all" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="group">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Telegram Link</label>
-                  <input type="text" value={popupSettings.telegramLink} onChange={(e) => setPopupSettings(prev => ({ ...prev, telegramLink: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-xs font-bold ring-1 ring-slate-100 dark:ring-slate-800" />
+        <div className="space-y-6">
+          {/* Settings Sub Tabs Menu */}
+          <div className="flex bg-slate-100 dark:bg-slate-900/50 p-1.5 rounded-[24px] overflow-x-auto gap-2 no-scrollbar ring-1 ring-slate-200 dark:ring-slate-800/60">
+            {[
+              { id: 'identity', label: 'আইডেন্টিটি ও সাধারণ', sub: 'Identity & Info', icon: Globe, color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-950/20' },
+              { id: 'gateways', label: 'গেটওয়ে ও উইথড্র', sub: 'Deposit & Cashout', icon: Wallet, color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-950/20' },
+              { id: 'rewards', label: 'বোনাস ও রিওয়ার্ড', sub: 'Referrals & Spins', icon: Coins, color: 'text-orange-500', bg: 'bg-orange-50 dark:bg-orange-950/20' },
+              { id: 'security', label: 'নিরাপত্তা ও সিস্টেম', sub: 'Gates & Popups', icon: Lock, color: 'text-indigo-500', bg: 'bg-indigo-50 dark:bg-indigo-950/20' },
+              { id: 'danger', label: 'ফ্যাক্টরি রিসেট', sub: 'System Reset', icon: Trash2, color: 'text-rose-500', bg: 'bg-rose-50 dark:bg-rose-950/20' }
+            ].map(st => (
+              <button
+                key={st.id}
+                type="button"
+                onClick={() => setSettingsSubTab(st.id as any)}
+                className={`flex-1 min-w-[170px] md:min-w-0 py-3 px-4 rounded-[18px] text-[11px] font-black transition-all duration-200 flex items-center gap-2.5 whitespace-nowrap active:scale-95 ${
+                  settingsSubTab === st.id
+                    ? 'bg-white dark:bg-slate-800 shadow-md text-slate-900 dark:text-white ring-1 ring-slate-200 dark:ring-slate-700'
+                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                }`}
+              >
+                <div className={`w-8 h-8 rounded-xl ${st.bg} flex items-center justify-center ${st.color}`}>
+                  <st.icon className="w-4 h-4" />
                 </div>
-                <div className="group">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Skip Link</label>
-                  <input type="text" value={popupSettings.skipLink} onChange={(e) => setPopupSettings(prev => ({ ...prev, skipLink: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-xs font-bold ring-1 ring-slate-100 dark:ring-slate-800" />
+                <div className="text-left flex flex-col">
+                  <span className="font-extrabold text-[12px] tracking-tight">{st.label}</span>
+                  <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider leading-none">{st.sub}</span>
                 </div>
-              </div>
-            </div>
-            
-            <button onClick={handleSavePopupSettings} disabled={isSavingSettings} className="mt-6 w-full bg-indigo-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-indigo-600/20 active:scale-95 transition-all text-xs flex items-center justify-center gap-2">
-              {isSavingSettings ? <><RefreshCw className="w-4 h-4 animate-spin" /> Updating...</> : 'Save Popup'}
-            </button>
-          </motion.div>
+              </button>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Popup Settings */}
+            {settingsSubTab === 'security' && (
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-500">
+                    <BellRing className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Popup System</h3>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Global Announcements</p>
+                  </div>
+                </div>
+                
+                <div className="space-y-4 flex-1">
+                  <div className="group">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-indigo-500 transition-colors">Announcement Title</label>
+                    <input type="text" value={popupSettings.title} onChange={(e) => setPopupSettings(prev => ({ ...prev, title: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold placeholder:text-slate-400 ring-1 ring-slate-100 dark:ring-slate-800 focus:ring-2 focus:ring-indigo-500 transition-all" />
+                  </div>
+                  <div className="group">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-indigo-500 transition-colors">Subtitle / Body</label>
+                    <input type="text" value={popupSettings.subtitle} onChange={(e) => setPopupSettings(prev => ({ ...prev, subtitle: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold placeholder:text-slate-400 ring-1 ring-slate-100 dark:ring-slate-800 focus:ring-2 focus:ring-indigo-500 transition-all" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="group">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Telegram Link</label>
+                      <input type="text" value={popupSettings.telegramLink} onChange={(e) => setPopupSettings(prev => ({ ...prev, telegramLink: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-xs font-bold ring-1 ring-slate-100 dark:ring-slate-800" />
+                    </div>
+                    <div className="group">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Skip Link</label>
+                      <input type="text" value={popupSettings.skipLink} onChange={(e) => setPopupSettings(prev => ({ ...prev, skipLink: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-xs font-bold ring-1 ring-slate-100 dark:ring-slate-800" />
+                    </div>
+                  </div>
+                </div>
+                
+                <button type="button" onClick={handleSavePopupSettings} disabled={isSavingSettings} className="mt-6 w-full bg-indigo-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-indigo-600/20 active:scale-95 transition-all text-xs flex items-center justify-center gap-2">
+                  {isSavingSettings ? <><RefreshCw className="w-4 h-4 animate-spin" /> Updating...</> : 'Save Popup'}
+                </button>
+              </motion.div>
+            )}
 
           {/* Site Identity */}
+          {settingsSubTab === 'identity' && (
+            <>
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-500">
@@ -1889,8 +1994,11 @@ export function AdminPanel() {
             
             <button onClick={handleSaveSupportSettings} disabled={isSavingSettings} className="mt-6 w-full bg-blue-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-blue-600/20 active:scale-95 transition-all text-xs">Save Channels</button>
           </motion.div>
+          </>)}
 
           {/* Spin Wheel Settings */}
+          {settingsSubTab === 'rewards' && (
+            <>
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center text-amber-500">
@@ -1966,8 +2074,10 @@ export function AdminPanel() {
             
             <button onClick={handleSaveReferralSettings} disabled={isSavingSettings} className="mt-6 w-full bg-orange-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-orange-600/20 active:scale-95 transition-all text-xs">Reload Engine</button>
           </motion.div>
+          </>)}
 
           {/* Announcement Scroller */}
+          {settingsSubTab === 'identity' && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 rounded-2xl bg-purple-50 dark:bg-purple-900/30 flex items-center justify-center text-purple-500">
@@ -1986,8 +2096,11 @@ export function AdminPanel() {
             
             <button onClick={handleSaveBannerSettings} disabled={isSavingSettings} className="mt-6 w-full bg-purple-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-purple-600/20 active:scale-95 transition-all text-xs">Update Marquee</button>
           </motion.div>
+          )}
 
           {/* Game Gates */}
+          {settingsSubTab === 'security' && (
+            <>
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-500">
@@ -2064,8 +2177,11 @@ export function AdminPanel() {
             
             <button onClick={handleSaveActivationSettings} disabled={isSavingSettings} className="mt-6 w-full bg-cyan-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-cyan-600/20 active:scale-95 transition-all text-xs">Lock Configuration</button>
           </motion.div>
+          </>)}
 
           {/* Withdrawal Protocol */}
+          {settingsSubTab === 'gateways' && (
+            <>
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 rounded-2xl bg-orange-50 dark:bg-orange-900/30 flex items-center justify-center text-orange-500">
@@ -2098,6 +2214,18 @@ export function AdminPanel() {
                   </div>
                 </div>
               ))}
+            </div>
+
+            <div className="mt-4 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-3xl space-y-2 ring-1 ring-slate-100 dark:ring-slate-800">
+              <span className="text-[10px] font-black uppercase tracking-widest text-indigo-500 block">Withdraw Option Amounts (৳)</span>
+              <p className="text-[9px] text-slate-400 font-bold uppercase leading-tight">Enter comma-separated withdraw amounts that users can select from</p>
+              <input 
+                type="text" 
+                value={withdrawSettings.customAmounts || ""} 
+                onChange={(e) => setWithdrawSettings(prev => ({ ...prev, customAmounts: e.target.value }))} 
+                className="w-full bg-white dark:bg-slate-800 border-none rounded-xl px-3.5 py-2.5 text-xs font-black tracking-widest text-slate-700 dark:text-white ring-1 ring-slate-100 dark:ring-slate-700" 
+                placeholder="110, 210, 310, 410, 510" 
+              />
             </div>
             
             <button onClick={handleSaveWithdrawSettings} disabled={isSavingSettings} className="mt-6 w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-xl active:scale-95 transition-all text-xs">Execute Protocol</button>
@@ -2140,29 +2268,33 @@ export function AdminPanel() {
             
             <button onClick={handleSaveDepositSettings} disabled={isSavingSettings} className="mt-6 w-full bg-emerald-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-emerald-600/20 active:scale-95 transition-all text-xs">Update Gateways</button>
           </motion.div>
+          </>)}
 
           {/* DANGER ZONE: Wipe Data */}
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.9 }} className="bg-rose-50 dark:bg-rose-900/10 p-6 rounded-[32px] shadow-sm border border-rose-200 dark:border-rose-900/30 md:col-span-2 mt-4">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-2xl bg-rose-100 dark:bg-rose-900/50 flex items-center justify-center text-rose-600">
-                <Trash2 className="w-5 h-5" />
+          {settingsSubTab === 'danger' && (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.9 }} className="bg-rose-50 dark:bg-rose-900/10 p-6 rounded-[32px] shadow-sm border border-rose-200 dark:border-rose-900/30 md:col-span-2 mt-4">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-2xl bg-rose-100 dark:bg-rose-900/50 flex items-center justify-center text-rose-600">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-rose-700 dark:text-rose-400 uppercase tracking-tight">Danger Zone: Factory Reset</h3>
+                  <p className="text-[10px] font-bold text-rose-500/80 uppercase tracking-widest leading-none">Irreversible Database Wipe</p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-black text-rose-700 dark:text-rose-400 uppercase tracking-tight">Danger Zone: Factory Reset</h3>
-                <p className="text-[10px] font-bold text-rose-500/80 uppercase tracking-widest leading-none">Irreversible Database Wipe</p>
-              </div>
-            </div>
-            <p className="text-sm font-semibold text-rose-600 dark:text-rose-400 mb-6">
-              This action will completely wipe all user accounts (except admins), tasks, courses, requests, and transactions from Firestore. This cannot be undone. Ensure you have backed up the data if needed.
-            </p>
-            <button 
-              onClick={handleWipeData} 
-              disabled={isSavingSettings} 
-              className="w-full bg-rose-600 hover:bg-rose-700 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-rose-600/20 active:scale-95 transition-all text-xs"
-            >
-              Understand & Wipe Everything
-            </button>
-          </motion.div>
+              <p className="text-sm font-semibold text-rose-600 dark:text-rose-400 mb-6">
+                This action will completely wipe all user accounts (except admins), tasks, courses, requests, and transactions from Firestore. This cannot be undone. Ensure you have backed up the data if needed.
+              </p>
+              <button 
+                onClick={handleWipeData} 
+                disabled={isSavingSettings} 
+                className="w-full bg-rose-600 hover:bg-rose-700 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-rose-600/20 active:scale-95 transition-all text-xs"
+              >
+                Understand & Wipe Everything
+              </button>
+            </motion.div>
+          )}
+          </div>
         </div>
       )}
 
