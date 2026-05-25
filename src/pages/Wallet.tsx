@@ -1,13 +1,39 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthProvider';
-import { useLanguage } from '../components/LanguageProvider';
-import { useSearchParams } from 'react-router-dom';
-import { History, ArrowUpRight, ArrowDownLeft, Copy, Wallet as WalletIcon } from 'lucide-react';
 import { collection, query, orderBy, onSnapshot, doc, writeBatch, increment, serverTimestamp } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { BarChart, Bar, ReferenceLine, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { useLanguage } from '../components/LanguageProvider';
+import { useSearchParams } from 'react-router-dom';
+import { History, ArrowUpRight, ArrowDownLeft, Copy, Wallet as WalletIcon, TrendingUp, ArrowRightLeft, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'motion/react';
+
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    const validLoads = payload.filter((p: any) => p.value !== 0);
+    if (!validLoads.length) return null;
+
+    return (
+      <div className="bg-[#0f172a]/95 border border-slate-700 p-3 rounded-xl shadow-2xl backdrop-blur-md min-w-[140px] z-50">
+        <p className="text-slate-400 text-[10px] uppercase font-black tracking-widest mb-2 border-b border-slate-700/50 pb-2">{label}</p>
+        <div className="space-y-1.5">
+          {validLoads.map((entry: any, index: number) => (
+            <div key={`item-${index}`} className="flex items-center justify-between gap-4">
+              <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: entry.color }}>
+                {entry.name}
+              </span>
+              <span className={`text-[12px] font-black font-mono ${entry.name === 'Withdrawal' ? 'text-rose-500' : 'text-emerald-400'}`}>
+                {entry.name === 'Withdrawal' ? '-' : '+'}{entry.value}৳
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  return null;
+};
 
 export function Wallet() {
   const { profile, refreshProfile } = useAuth();
@@ -261,13 +287,47 @@ export function Wallet() {
   };
 
   // Process data for the chart from transactions
-  const barChartData = [...transactions].reverse().map((t) => {
-    return {
-      name: t.createdAt ? t.createdAt.toDate().toLocaleDateString() : 'Now',
-      Deposit: t.type !== 'withdraw' ? t.amount : 0,
-      Withdrawal: t.type === 'withdraw' ? -t.amount : 0
-    };
+  const groupedTransactions: Record<string, any> = {};
+  
+  [...transactions].reverse().forEach((t) => {
+    const dateKey = t.createdAt ? t.createdAt.toDate().toLocaleDateString() : 'Now';
+    if (!groupedTransactions[dateKey]) {
+      groupedTransactions[dateKey] = {
+        name: dateKey,
+        Withdrawal: 0,
+        Deposit: 0,
+        Task: 0,
+        Math: 0,
+        Spin: 0,
+        Referral: 0,
+        Bonus: 0,
+        Other: 0
+      };
+    }
+    
+    const amt = t.amount || 0;
+    const typeStr = (t.type || '').toLowerCase();
+    
+    if (typeStr === 'withdraw') {
+      groupedTransactions[dateKey].Withdrawal += amt;
+    } else if (typeStr === 'deposit') {
+      groupedTransactions[dateKey].Deposit += amt;
+    } else if (typeStr.includes('task') || typeStr.includes('job')) {
+      groupedTransactions[dateKey].Task += amt;
+    } else if (typeStr === 'math' || typeStr.includes('math')) {
+      groupedTransactions[dateKey].Math += amt;
+    } else if (typeStr === 'spin') {
+      groupedTransactions[dateKey].Spin += amt;
+    } else if (typeStr.includes('referral')) {
+      groupedTransactions[dateKey].Referral += amt;
+    } else if (typeStr.includes('bonus') || typeStr.includes('reward')) {
+      groupedTransactions[dateKey].Bonus += amt;
+    } else {
+      groupedTransactions[dateKey].Other += amt;
+    }
   });
+
+  const barChartData = Object.values(groupedTransactions);
 
   return (
     <div className="pt-6 px-4 pb-24">
@@ -583,16 +643,29 @@ export function Wallet() {
             {barChartData.length > 0 ? (
               <div className="h-48 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={barChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} tick={{fill: '#94a3b8'}} />
-                    <YAxis fontSize={10} tickLine={false} axisLine={false} tick={{fill: '#94a3b8'}} />
-                    <Tooltip 
-                      contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 4px 20px -2px rgb(0 0 0 / 0.15)', fontSize: '12px', fontWeight: 'bold' }}
-                      cursor={{ fill: 'rgba(148, 163, 184, 0.1)' }}
+                  <BarChart data={barChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                    <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} tick={{fill: '#64748b', fontWeight: 600}} dy={10} />
+                    <YAxis 
+                      fontSize={10} 
+                      tickLine={false} 
+                      axisLine={false} 
+                      tick={{fill: '#64748b', fontWeight: 600}} 
+                      width={35}
+                      tickFormatter={(val) => val >= 1000 ? `${(val/1000).toFixed(1)}k` : val}
                     />
-                    <ReferenceLine y={0} stroke="#cbd5e1" strokeDasharray="3 3"/>
-                    <Bar dataKey="Deposit" fill="#10b981" radius={[4, 4, 0, 0]} barSize={20} />
-                    <Bar dataKey="Withdrawal" fill="#ef4444" radius={[0, 0, 4, 4]} barSize={20} />
+                    <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
+                    <ReferenceLine y={0} stroke="#334155" strokeWidth={2} strokeDasharray="3 3"/>
+                    
+                    {/* Glowing binary trading style colors */}
+                    <Bar dataKey="Deposit" stackId="income" fill="#10b981" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="Task" stackId="income" fill="#34d399" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="Math" stackId="income" fill="#6ee7b7" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="Spin" stackId="income" fill="#059669" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="Referral" stackId="income" fill="#047857" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="Bonus" stackId="income" fill="#a7f3d0" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="Other" stackId="income" fill="#4ade80" radius={[4, 4, 0, 0]} />
+                    
+                    <Bar dataKey="Withdrawal" fill="#f43f5e" radius={[0, 0, 4, 4]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
