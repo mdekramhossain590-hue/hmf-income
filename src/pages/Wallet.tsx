@@ -28,7 +28,7 @@ export function Wallet() {
   const { t } = useLanguage();
 
   const [withdrawSettings, setWithdrawSettings] = useState({ mainMin: 50, mainFee: 0, bonusMin: 50, bonusFee: 0, referralMin: 50, referralFee: 0, tasksMin: 50, tasksFee: 0, customAmounts: "110, 210, 310, 410, 510" });
-  const [depositSettings, setDepositSettings] = useState({ bkashNumber: '017XX-XXXXXX', nagadNumber: '017XX-XXXXXX', minDeposit: 100, maxDeposit: 25000 });
+  const [depositSettings, setDepositSettings] = useState({ bkashNumber: '017XX-XXXXXX', nagadNumber: '017XX-XXXXXX', minDeposit: 100, maxDeposit: 25000, bkashEnabled: true, nagadEnabled: true, bkashQrUrl: '', nagadQrUrl: '' });
 
   useEffect(() => {
     if (!auth.currentUser) return;
@@ -69,7 +69,11 @@ export function Wallet() {
           bkashNumber: data.bkashNumber || '017XX-XXXXXX',
           nagadNumber: data.nagadNumber || '017XX-XXXXXX',
           minDeposit: data.minDeposit !== undefined ? data.minDeposit : 100,
-          maxDeposit: data.maxDeposit !== undefined ? data.maxDeposit : 25000
+          maxDeposit: data.maxDeposit !== undefined ? data.maxDeposit : 25000,
+          bkashEnabled: data.bkashEnabled !== false,
+          nagadEnabled: data.nagadEnabled !== false,
+          bkashQrUrl: data.bkashQrUrl || '',
+          nagadQrUrl: data.nagadQrUrl || ''
         });
       }
     });
@@ -358,6 +362,7 @@ export function Wallet() {
                 </button>
               )}
             </div>
+            
             <p className="text-[10px] text-red-500 dark:text-red-400 font-bold mt-3 z-10 bg-red-50 dark:bg-red-900/30 px-3 py-1 rounded-full">{t('send_money_only')}</p>
           </div>
           <form onSubmit={handleDeposit} className="space-y-4">
@@ -369,8 +374,8 @@ export function Wallet() {
                 className="w-full bg-slate-50 border border-slate-200 dark:bg-slate-900/50 dark:border-slate-700 dark:text-white rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium transition-all"
               >
                 <option value="">Choose Method</option>
-                <option value="bKash">bKash</option>
-                <option value="Nagad">Nagad</option>
+                {depositSettings.bkashEnabled && <option value="bKash">bKash</option>}
+                {depositSettings.nagadEnabled && <option value="Nagad">Nagad</option>}
               </select>
             </div>
             <div>

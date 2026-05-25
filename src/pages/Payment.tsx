@@ -14,7 +14,7 @@ export function Payment() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [settings, setSettings] = useState({ mode: 'free', fee: 50 });
-  const [depositSettings, setDepositSettings] = useState({ bkashNumber: '', nagadNumber: '' });
+  const [depositSettings, setDepositSettings] = useState({ bkashNumber: '', nagadNumber: '', bkashEnabled: true, nagadEnabled: true, bkashQrUrl: '', nagadQrUrl: '' });
   
   const [paymentMethod, setPaymentMethod] = useState('');
   const [paymentTrx, setPaymentTrx] = useState('');
@@ -35,7 +35,15 @@ export function Payment() {
         
         const depSnap = await getDoc(doc(db, 'settings', 'deposit'));
         if (depSnap.exists()) {
-          setDepositSettings(depSnap.data() as any);
+          const data = depSnap.data();
+          setDepositSettings({
+            bkashNumber: data.bkashNumber || '017XX-XXXXXX',
+            nagadNumber: data.nagadNumber || '017XX-XXXXXX',
+            bkashEnabled: data.bkashEnabled !== false,
+            nagadEnabled: data.nagadEnabled !== false,
+            bkashQrUrl: data.bkashQrUrl || '',
+            nagadQrUrl: data.nagadQrUrl || ''
+          });
         }
       } catch (e) {
         console.error(e);
@@ -157,6 +165,7 @@ export function Payment() {
               <h3 className="text-xl font-bold text-[#0D47A1] dark:text-blue-400 tracking-wider my-2">
                  {paymentMethod === 'bKash' ? depositSettings.bkashNumber : paymentMethod === 'Nagad' ? depositSettings.nagadNumber : 'Select a method below'}
               </h3>
+              
               <p className="text-[10px] text-red-500 font-medium">Use SEND MONEY option only</p>
             </div>
 
@@ -170,8 +179,8 @@ export function Payment() {
                   required
                 >
                   <option value="">Select Method</option>
-                  <option value="bKash">bKash</option>
-                  <option value="Nagad">Nagad</option>
+                  {depositSettings.bkashEnabled !== false && <option value="bKash">bKash</option>}
+                  {depositSettings.nagadEnabled !== false && <option value="Nagad">Nagad</option>}
                 </select>
               </div>
 

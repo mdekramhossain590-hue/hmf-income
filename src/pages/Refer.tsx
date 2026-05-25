@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Copy, Link as LinkIcon, MessageCircle, Send, Users, History, BarChart3, TrendingUp, Coins, Calendar, DollarSign } from 'lucide-react';
+import { Copy, Link as LinkIcon, MessageCircle, Send, Users, History, BarChart3, TrendingUp, Coins, Calendar, DollarSign, Layers } from 'lucide-react';
 import { useAuth } from '../components/AuthProvider';
 import { useLanguage } from '../components/LanguageProvider';
 import { collection, query, orderBy, onSnapshot, doc, getDoc } from 'firebase/firestore';
@@ -244,30 +244,44 @@ export function Refer() {
         </button>
       </div>
 
-      <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm ring-1 ring-slate-100 dark:ring-slate-700/50 text-left mb-6">
-        <h4 className="font-bold text-slate-800 dark:text-white mb-3 tracking-tight">{t('how_it_works')}</h4>
-        <ol className="text-[13px] text-slate-600 dark:text-slate-400 space-y-3 list-decimal list-inside font-medium leading-relaxed">
-          <li>{t('step1')}</li>
-          <li>{t('step2')}</li>
-          <li>{t('step3').replace('bonus', `৳${referralBonus}`)}</li>
-        </ol>
+      <div className="bg-white dark:bg-slate-800 p-6 rounded-[24px] shadow-sm ring-1 ring-slate-100 dark:ring-slate-700/50 text-left mb-6">
+        <h4 className="font-black text-slate-800 dark:text-white mb-5 tracking-tight flex items-center gap-2 text-base">
+           <div className="p-1.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 rounded-lg">
+             <Layers className="w-4 h-4" />
+           </div>
+           {t('how_it_works')}
+        </h4>
+        <div className="space-y-4">
+          <div className="flex gap-4 items-start">
+             <div className="shrink-0 w-8 h-8 rounded-full bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-black text-sm">1</div>
+             <p className="text-[13px] text-slate-600 dark:text-slate-300 font-medium leading-relaxed pt-1.5">{t('step1')}</p>
+          </div>
+          <div className="flex gap-4 items-start">
+             <div className="shrink-0 w-8 h-8 rounded-full bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-black text-sm">2</div>
+             <p className="text-[13px] text-slate-600 dark:text-slate-300 font-medium leading-relaxed pt-1.5">{t('step2')}</p>
+          </div>
+          <div className="flex gap-4 items-start">
+             <div className="shrink-0 w-8 h-8 rounded-full bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-black text-sm">3</div>
+             <p className="text-[13px] text-slate-600 dark:text-slate-300 font-medium leading-relaxed pt-1.5">{t('step3').replace('bonus', `৳${referralBonus}`)}</p>
+          </div>
+        </div>
       </div>
 
       {/* Referral Analytics Section */}
-      <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm ring-1 ring-slate-100 dark:ring-slate-700/50 text-left mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <h4 className="font-bold text-slate-800 dark:text-white flex items-center gap-2 tracking-tight">
-            <div className="p-1.5 bg-indigo-50 dark:bg-indigo-950 rounded-lg text-indigo-500">
+      <div className="bg-white dark:bg-slate-800 p-6 rounded-[24px] shadow-sm ring-1 ring-slate-100 dark:ring-slate-700/50 text-left mb-6">
+        <div className="flex items-center justify-between mb-6">
+          <h4 className="font-black text-slate-800 dark:text-white flex items-center gap-2 tracking-tight text-base">
+            <div className="p-1.5 bg-green-50 dark:bg-green-900/30 rounded-lg text-green-600">
               <BarChart3 className="w-4 h-4" />
             </div>
             {t('referral_analytics')}
           </h4>
           
           {/* Quick tab toggle */}
-          <div className="flex bg-slate-100 dark:bg-slate-900/80 p-0.5 rounded-lg border border-slate-200/20">
+          <div className="flex bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-1 rounded-xl">
             <button
               onClick={() => setAnalyticsSubTab('earnings')}
-              className={`px-3 py-1 text-[11px] font-bold rounded-md transition-all ${
+              className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all ${
                 analyticsSubTab === 'earnings'
                   ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm'
                   : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
@@ -277,7 +291,7 @@ export function Refer() {
             </button>
             <button
               onClick={() => setAnalyticsSubTab('count')}
-              className={`px-3 py-1 text-[11px] font-bold rounded-md transition-all ${
+              className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all ${
                 analyticsSubTab === 'count'
                   ? 'bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-sm'
                   : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
@@ -289,90 +303,97 @@ export function Refer() {
         </div>
 
         {/* Bento stats grid */}
-        <div className="grid grid-cols-3 gap-2.5 mb-5">
-          <div className="bg-slate-50 dark:bg-slate-900/40 p-3 rounded-xl border border-slate-100 dark:border-slate-800/40">
-            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none truncate mb-1">
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none mb-2 pl-0.5">
               {t('total_referrals')}
             </p>
-            <h5 className="text-sm font-black text-slate-700 dark:text-slate-200 tracking-tight">
+            <h5 className="text-xl font-black text-slate-800 dark:text-white tracking-tight">
               {totalReferralsCount}
             </h5>
           </div>
-          <div className="bg-slate-50 dark:bg-slate-900/40 p-3 rounded-xl border border-slate-100 dark:border-slate-800/40">
-            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none truncate mb-1">
-              {t('cumulative_overview')}
+          <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none mb-2 pl-0.5">
+              Avg. Per Ref
             </p>
-            <h5 className="text-sm font-black text-green-600 dark:text-green-400 tracking-tight truncate">
-              ৳{totalReferralEarnings.toFixed(1)}
-            </h5>
-          </div>
-          <div className="bg-slate-50 dark:bg-slate-900/40 p-3 rounded-xl border border-slate-100 dark:border-slate-800/40">
-            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none truncate mb-1">
-              {t('average_per_referral')}
-            </p>
-            <h5 className="text-sm font-black text-indigo-500 dark:text-indigo-400 tracking-tight truncate">
+            <h5 className="text-xl font-black text-indigo-500 dark:text-indigo-400 tracking-tight">
               ৳{averageEarnedPerReferral.toFixed(1)}
             </h5>
+          </div>
+          <div className="col-span-2 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/10 p-5 rounded-2xl border border-green-100 dark:border-green-900/30 flex items-center justify-between">
+            <div>
+              <p className="text-[10px] font-bold text-green-700/70 dark:text-green-400/70 uppercase tracking-widest leading-none mb-2 drop-shadow-sm">
+                {t('cumulative_overview')}
+              </p>
+              <h5 className="text-3xl font-black text-green-600 dark:text-green-400 tracking-tight drop-shadow-sm">
+                ৳{totalReferralEarnings.toFixed(2)}
+              </h5>
+            </div>
+            <div className="w-12 h-12 rounded-full bg-white/50 dark:bg-black/20 flex items-center justify-center text-green-600 dark:text-green-400 backdrop-blur-sm mt-3 border border-green-200/50 dark:border-green-800/50">
+              <BarChart3 className="w-6 h-6" />
+            </div>
           </div>
         </div>
 
         {/* Main interactive chart */}
-        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3.5 pl-1">
+        <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-4 pl-1">
           {analyticsSubTab === 'earnings' ? t('monthly_earnings_chart') : t('monthly_counts_chart')}
         </p>
-        <div className="h-52 w-full">
+        <div className="h-56 w-full -ml-4">
           <ResponsiveContainer width="100%" height="100%">
             {analyticsSubTab === 'earnings' ? (
-              <AreaChart data={chartData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
+              <AreaChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorEarnings" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#4338ca" stopOpacity={0.25}/>
+                    <stop offset="5%" stopColor="#4338ca" stopOpacity={0.3}/>
                     <stop offset="95%" stopColor="#4338ca" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" className="dark:stroke-slate-700/30" />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" strokeOpacity={0.5} className="dark:stroke-slate-700/30" />
                 <XAxis 
                   dataKey="month" 
                   tickLine={false} 
                   axisLine={false}
-                  dy={8}
-                  tick={{ fill: '#64748b', fontSize: 9, fontWeight: 600 }}
+                  dy={10}
+                  tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }}
                 />
                 <YAxis 
                   tickLine={false} 
                   axisLine={false}
-                  dx={-2}
-                  tick={{ fill: '#64748b', fontSize: 9, fontWeight: 600 }}
+                  dx={10}
+                  tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }}
                   tickFormatter={(v) => `৳${v}`}
+                  width={40}
                 />
-                <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#6366f1', strokeWidth: 1.2, strokeDasharray: '4 4' }} />
-                <Area type="monotone" dataKey="earnings" stroke="#4f46e5" strokeWidth={2.5} fillOpacity={1} fill="url(#colorEarnings)" />
+                <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#6366f1', strokeWidth: 1.5, strokeDasharray: '4 4' }} />
+                <Area type="monotone" dataKey="earnings" stroke="#4f46e5" strokeWidth={3} fillOpacity={1} fill="url(#colorEarnings)" />
               </AreaChart>
             ) : (
-              <AreaChart data={chartData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
+              <AreaChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#d97706" stopOpacity={0.25}/>
+                    <stop offset="5%" stopColor="#d97706" stopOpacity={0.3}/>
                     <stop offset="95%" stopColor="#d97706" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" className="dark:stroke-slate-700/30" />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" strokeOpacity={0.5} className="dark:stroke-slate-700/30" />
                 <XAxis 
                   dataKey="month" 
                   tickLine={false} 
                   axisLine={false}
-                  dy={8}
-                  tick={{ fill: '#64748b', fontSize: 9, fontWeight: 600 }}
+                  dy={10}
+                  tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }}
                 />
                 <YAxis 
                   tickLine={false} 
                   axisLine={false}
-                  dx={-2}
-                  tick={{ fill: '#64748b', fontSize: 9, fontWeight: 600 }}
+                  dx={10}
+                  tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }}
                   allowDecimals={false}
+                  width={40}
                 />
-                <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#f59e0b', strokeWidth: 1.2, strokeDasharray: '4 4' }} />
-                <Area type="monotone" dataKey="count" stroke="#f59e0b" strokeWidth={2.5} fillOpacity={1} fill="url(#colorCount)" />
+                <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#f59e0b', strokeWidth: 1.5, strokeDasharray: '4 4' }} />
+                <Area type="monotone" dataKey="count" stroke="#f59e0b" strokeWidth={3} fillOpacity={1} fill="url(#colorCount)" />
               </AreaChart>
             )}
           </ResponsiveContainer>

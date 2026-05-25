@@ -5,45 +5,60 @@ export async function fileToBase64AndCompress(file: File, maxDim: number = 600):
     const reader = new FileReader();
     reader.readAsDataURL(file);
     reader.onload = (event) => {
+      const result = event.target?.result as string;
+
+      // Determine size of the base64 string
+      const sizeMb = (result.length * (3/4)) / (1024 * 1024);
+      // If image is already smaller than 0.5MB, just return it directly to avoid Canvas issues
+      if (sizeMb < 0.5) {
+        resolve(result);
+        return;
+      }
+
       const img = new Image();
-      img.src = event.target?.result as string;
+      img.src = result;
       img.onload = () => {
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
+        try {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
 
-        if (width > height) {
-          if (width > maxDim) {
-            height = Math.round((height * maxDim) / width);
-            width = maxDim;
+          if (width > height) {
+            if (width > maxDim) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            }
+          } else {
+            if (height > maxDim) {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
           }
-        } else {
-          if (height > maxDim) {
-            width = Math.round((width * maxDim) / height);
-            height = maxDim;
+
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(result); // fallback to original size Base64
+            return;
           }
+
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+          resolve(dataUrl);
+        } catch (e) {
+          console.error("Canvas compression failed, falling back to original", e);
+          resolve(result);
         }
-
-        canvas.width = width;
-        canvas.height = height;
-
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          resolve(event.target?.result as string); // fallback to original size Base64
-          return;
-        }
-
-        ctx.drawImage(img, 0, 0, width, height);
-        // Compress as jpeg with 0.7 quality to keep size tiny
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-        resolve(dataUrl);
       };
       img.onerror = (err) => {
-        reject(err);
+        console.error("Image loading failed in compressor, falling back to original base64", err);
+        resolve(result); // Return the raw base64 instead of rejecting to avoid failures!
       };
     };
     reader.onerror = (err) => {
-      reject(err);
+      reject(new Error("FileReader failed"));
     };
   });
 }

@@ -203,7 +203,11 @@ service cloud.firestore {
         data.nagadNumber is string && data.nagadNumber.size() <= 20 &&
         data.updatedAt is timestamp &&
         (data.keys().hasAny(['minDeposit']) ? data.minDeposit is number : true) &&
-        (data.keys().hasAny(['maxDeposit']) ? data.maxDeposit is number : true);
+        (data.keys().hasAny(['maxDeposit']) ? data.maxDeposit is number : true) &&
+        (data.keys().hasAny(['bkashEnabled']) ? data.bkashEnabled is bool : true) &&
+        (data.keys().hasAny(['nagadEnabled']) ? data.nagadEnabled is bool : true) &&
+        (data.keys().hasAny(['bkashQrUrl']) ? data.bkashQrUrl is string : true) &&
+        (data.keys().hasAny(['nagadQrUrl']) ? data.nagadQrUrl is string : true);
     }
 
     function isValidSettingsActivation(data) {
@@ -274,6 +278,12 @@ service cloud.firestore {
         data.link is string && data.link.size() <= 500;
     }
 
+    function isValidSettingsFaqs(data) {
+      return data.keys().hasAll(['updatedAt']) &&
+        data.updatedAt is timestamp &&
+        (data.keys().hasAny(['faqs']) ? data.faqs is list : true);
+    }
+
     match /settings/adsView {
       allow read: if isSignedIn();
       allow write: if isAdmin() && isValidSettingsAdsView(incoming());
@@ -327,6 +337,11 @@ service cloud.firestore {
     match /settings/site {
       allow read: if true;
       allow write: if isAdmin() && isValidSettingsSite(incoming()) && incoming().updatedAt == request.time;
+    }
+
+    match /settings/faqs {
+      allow read: if true;
+      allow write: if isAdmin() && isValidSettingsFaqs(incoming()) && incoming().updatedAt == request.time;
     }
 
     match /leaderboard/{userId} {
