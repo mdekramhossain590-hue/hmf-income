@@ -41,6 +41,7 @@ service cloud.firestore {
         (data.keys().hasAny(['deviceId']) ? (data.deviceId is string && data.deviceId.size() <= 200) : true) &&
         (data.keys().hasAny(['isBlocked']) ? data.isBlocked is bool : true) &&
         (data.keys().hasAny(['permissions']) ? data.permissions is list : true) &&
+        (data.keys().hasAny(['referralBonusPaid']) ? data.referralBonusPaid is bool : true) &&
         (data.keys().hasAny(['lastLoginAt']) ? data.lastLoginAt is timestamp : true);
     }
 
@@ -82,6 +83,7 @@ service cloud.firestore {
         data.referredEmail is string && data.referredEmail.size() <= 150 &&
         data.bonusEarned is number &&
         (data.keys().hasAny(['level']) ? data.level is number : true) &&
+        (data.keys().hasAny(['referredName']) ? data.referredName is string && data.referredName.size() <= 150 : true) &&
         data.createdAt is timestamp;
     }
 
@@ -411,10 +413,10 @@ service cloud.firestore {
                        
       allow update: if isSignedIn() && isValidId(userId) &&
                        (
-                         (isValidUser(incoming()) && request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['balances', 'photoURL', 'fullName', 'totalTasksCompleted', 'totalReferrals', 'deviceId', 'lastLoginAt'])) ||
-                         (isValidUser(incoming()) && request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['balances', 'isActive', 'deviceId', 'lastLoginAt']) && (incoming().isActive == existing().isActive || (incoming().isActive == true && isFreeActivationSettings()))) ||
+                         (isValidUser(incoming()) && request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['balances', 'photoURL', 'fullName', 'totalTasksCompleted', 'totalReferrals', 'deviceId', 'lastLoginAt', 'referralBonusPaid'])) ||
+                         (isValidUser(incoming()) && request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['balances', 'isActive', 'deviceId', 'lastLoginAt', 'referralBonusPaid']) && (incoming().isActive == existing().isActive || (incoming().isActive == true && isFreeActivationSettings()))) ||
                          (isValidUser(incoming()) && request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['deviceId', 'lastLoginAt'])) ||
-                         (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['balances', 'totalTasksCompleted', 'totalReferrals', 'isActive', 'role', 'permissions', 'isBlocked', 'updatedAt'])) ||
+                         (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['balances', 'totalTasksCompleted', 'totalReferrals', 'isActive', 'role', 'permissions', 'isBlocked', 'updatedAt', 'referralBonusPaid'])) ||
                          (incoming().diff(existing()).affectedKeys().hasOnly(['balances', 'totalReferrals']) && 
                           incoming().balances.main == existing().balances.main &&
                           incoming().balances.bonus == existing().balances.bonus &&

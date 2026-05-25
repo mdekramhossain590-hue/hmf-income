@@ -729,6 +729,31 @@ export function AdminPanel() {
     });
   };
 
+  const handleToggleActive = (userId: string, currentStatus: boolean) => {
+    const action = currentStatus ? 'DEACTIVATE' : 'ACTIVATE';
+    setConfirmDialog({
+      isOpen: true,
+      title: `${action} User`,
+      message: `Are you sure you want to ${action} this user's account?`,
+      onConfirm: async () => {
+        try {
+          await updateDoc(doc(db, "users", userId), {
+            isActive: !currentStatus,
+            updatedAt: serverTimestamp()
+          });
+          
+          if (!currentStatus) {
+            await processRegistrationReferral(userId);
+          }
+          
+          toast.success(currentStatus ? 'User Deactivated' : 'User Activated');
+        } catch (err) {
+          handleFirestoreError(err, OperationType.UPDATE, `users/${userId}`);
+        }
+      }
+    });
+  };
+
   const handleDeleteUser = (userId: string) => {
     setConfirmDialog({
       isOpen: true,
@@ -1940,6 +1965,26 @@ export function AdminPanel() {
                       className="flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-[0.1em] text-[10px] transition-all active:scale-95 bg-rose-100 text-rose-600 hover:bg-rose-200 shadow-lg shadow-rose-500/10"
                     >
                       <Trash2 className="w-4 h-4" /> Delete User
+                    </button>
+                  )}
+                  {user.role !== 'admin' && (
+                    <button 
+                      onClick={() => handleToggleActive(user.id, user.isActive || false)}
+                      className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-[0.1em] text-[10px] transition-all active:scale-95 disabled:opacity-30 ${
+                        !user.isActive 
+                          ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/20' 
+                          : 'bg-amber-500 text-white shadow-lg shadow-amber-500/20'
+                      }`}
+                    >
+                      {!user.isActive ? (
+                        <>
+                          <CheckCircle className="w-4 h-4" /> Activate
+                        </>
+                      ) : (
+                        <>
+                          <XCircle className="w-4 h-4" /> Deactivate
+                        </>
+                      )}
                     </button>
                   )}
                   <button 
