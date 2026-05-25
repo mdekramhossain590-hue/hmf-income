@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthProvider';
 import { collection, query, onSnapshot, doc, writeBatch, serverTimestamp, setDoc, orderBy, deleteDoc, increment, updateDoc, getDocs, deleteField } from 'firebase/firestore';
-import { processReferralCommission } from '../lib/referral';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { uploadImageOrFallback } from '../lib/imageUpload';
+import { processReferralCommission, processRegistrationReferral } from '../lib/referral';
 import { Trash2, CheckCircle, XCircle, Users, ShieldAlert, ShieldCheck, Wallet, ListChecks, Settings, User, Eye, Calculator, MessageSquare, Globe, Coins, Megaphone, Gamepad2, CreditCard, Lock, BellRing, RefreshCw, Smartphone, Mail, Camera, MessageCircle, Send, BookOpen, Layers, Copy, HelpCircle } from 'lucide-react';
 import { motion } from 'motion/react';
 import toast from 'react-hot-toast';
@@ -695,6 +695,11 @@ export function AdminPanel() {
           });
           
           await batch.commit();
+
+          if (reqType === 'activation' && status === 'approved') {
+            await processRegistrationReferral(reqUserId);
+          }
+
           toast.success(`${reqType} request ${status}`);
         } catch (err) {
           handleFirestoreError(err, OperationType.UPDATE, `payment_requests/${reqId}`);
@@ -1881,8 +1886,13 @@ export function AdminPanel() {
                     <h4 className="font-black text-slate-900 dark:text-white uppercase tracking-tight text-base italic">{user.fullName || 'Anonymous'}</h4>
                     <div className="flex gap-1">
                       <span className={`text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-widest border ${user.isBlocked ? 'bg-rose-100 text-rose-600 border-rose-200' : 'bg-emerald-100 text-emerald-600 border-emerald-200'}`}>
-                        {user.isBlocked ? 'Blocked' : 'Active'}
+                        {user.isBlocked ? 'Blocked' : 'Normal Access'}
                       </span>
+                      {user.role !== 'admin' && (
+                        <span className={`text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-widest border ${user.isActive ? 'bg-blue-100 text-blue-600 border-blue-200' : 'bg-amber-100 text-amber-600 border-amber-200'}`}>
+                          {user.isActive ? 'Activated' : 'Inactive'}
+                        </span>
+                      )}
                       {user.role === 'admin' && (
                         <span className="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-widest bg-indigo-100 text-indigo-600 border border-indigo-200">System Admin</span>
                       )}

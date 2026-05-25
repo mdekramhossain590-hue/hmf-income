@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, AuthProvider as FirebaseAuthProvider } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp, collection, query, where, getDocs, updateDoc, increment, addDoc, getDoc } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { processRegistrationReferral } from '../lib/referral';
 import { useAuth } from '../components/AuthProvider';
 import { useLanguage } from '../components/LanguageProvider';
 import { getDeviceId } from '../lib/device';
@@ -130,6 +131,7 @@ export function Auth() {
         balances: { main: 0, bonus: 10, referral: 0 },
         role: userRole,
         isActive: initialIsActive,
+        referralBonusPaid: false,
         deviceId: deviceId, // Store device ID
         isBlocked: false, // Default not blocked
         createdAt: serverTimestamp()
@@ -143,69 +145,11 @@ export function Auth() {
         updatedAt: serverTimestamp()
       }, { merge: true });
 
-      if (referCode) {
-        try {
-          let currentReferCode = referCode;
-          let gen1 = 10, gen2 = 0, gen3 = 0;
-          
-          try {
-            const refDoc = await getDoc(doc(db, "settings", "referral"));
-            if (refDoc && refDoc.exists()) {
-              const data = refDoc.data();
-              gen1 = data.fixedBonus || 0;
-              gen2 = data.gen2FixedBonus || 0;
-              gen3 = data.gen3FixedBonus || 0;
-            }
-          } catch (e) {
-            console.error("Could not fetch referral settings", e);
-          }
-          
-          const bonuses = [gen1, gen2, gen3];
-          
-          for (let level = 0; level < 3; level++) {
-            if (!currentReferCode || currentReferCode === 'none') break;
-            const fixedBonus = bonuses[level];
-            
-            const q = query(collection(db, "users"), where("myReferCode", "==", currentReferCode));
-            const querySnapshot = await getDocs(q);
-            
-            if (querySnapshot.empty) break;
-            
-            const referrerDoc = querySnapshot.docs[0];
-            const referrerId = referrerDoc.id;
-            const referrerData = referrerDoc.data();
-            
-            if (fixedBonus > 0) {
-              await addDoc(collection(db, `users/${referrerId}/referrals`), {
-                referredEmail: userEmail,
-                referredName: displayName || 'Anonymous',
-                bonusEarned: fixedBonus,
-                level: level + 1,
-                createdAt: serverTimestamp()
-              });
-
-              await updateDoc(doc(db, "users", referrerId), {
-                "balances.referral": increment(fixedBonus),
-                totalReferrals: increment(level === 0 ? 1 : 0)
-              });
-              
-              const leaderboardRef = doc(db, 'leaderboard', referrerId);
-              await setDoc(leaderboardRef, {
-                fullName: referrerData.fullName || 'User',
-                referrals: increment(level === 0 ? 1 : 0),
-                bonus: increment(0),
-                totalIncome: increment(fixedBonus),
-                updatedAt: serverTimestamp()
-              }, { merge: true });
-            }
-            
-            currentReferCode = referrerData.usedReferCode;
-          }
-        } catch (err) {
-          console.error("Referral process error:", err);
-        }
+      if (referCode && initialIsActive) {
+        await processRegistrationReferral(user.uid);
       }
     } catch (dbError) {
+
       handleFirestoreError(dbError, OperationType.CREATE, `users/${user.uid}`);
     }
   };

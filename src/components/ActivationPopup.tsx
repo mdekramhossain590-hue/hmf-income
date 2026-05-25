@@ -3,6 +3,7 @@ import { useAuth } from './AuthProvider';
 import { useNavigate } from 'react-router-dom';
 import { doc, getDoc, updateDoc, increment } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
+import { processRegistrationReferral } from '../lib/referral';
 import { Lock, CreditCard, ShieldCheck, CheckCircle2, ChevronRight, XCircle } from 'lucide-react';
 import { motion } from 'motion/react';
 import toast from 'react-hot-toast';
@@ -48,6 +49,7 @@ export function ActivationPopup({ onClose }: { onClose: () => void }) {
           'balances.main': increment(-settings.fee),
           isActive: true
         });
+        await processRegistrationReferral(auth.currentUser.uid);
         await refreshProfile();
         toast.success("Account activated successfully!");
       } catch (error) {
@@ -59,6 +61,7 @@ export function ActivationPopup({ onClose }: { onClose: () => void }) {
         await updateDoc(doc(db, 'users', auth.currentUser.uid), {
           isActive: true
         });
+        await processRegistrationReferral(auth.currentUser.uid);
         await refreshProfile();
         toast.success("Account activated successfully!");
       } catch (error) {
