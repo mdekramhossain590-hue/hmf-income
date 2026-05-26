@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { User, Bell, Wallet, ListChecks, Target, Users, Send, MoreVertical, Settings, HelpCircle, LogOut, Award, Shield, FileText, Calculator, Megaphone, Trophy, Copy, Check, Link, Eye, EyeOff, Smartphone, BookOpen, Banknote, MonitorPlay, Wifi, Sun, Moon, X, Trash2, Activity, ArrowDownLeft, ArrowUpRight, CheckCircle, MessageCircle } from 'lucide-react';
+import { User, Bell, Wallet, ListChecks, Target, Users, Send, MoreVertical, Settings, HelpCircle, LogOut, Award, Shield, FileText, Calculator, Megaphone, Trophy, Copy, Check, Link, Eye, EyeOff, Smartphone, BookOpen, Banknote, MonitorPlay, Wifi, Sun, Moon, X, Trash2, Activity, ArrowDownLeft, ArrowUpRight, CheckCircle, MessageCircle, Star } from 'lucide-react';
 import { useAuth } from '../components/AuthProvider';
 import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../components/LanguageProvider';
@@ -488,8 +488,9 @@ export function Dashboard() {
       </div>
       
       {/* Quick Actions Grid */}
-      <div className="grid grid-cols-5 gap-2 mb-8 select-none">
-        <motion.div 
+      <div className="bg-white dark:bg-slate-800 p-4 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 mb-8 select-none">
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+          <motion.div 
           whileTap={{ scale: 0.9 }} 
           onClick={() => {
             playTapSound();
@@ -513,8 +514,10 @@ export function Dashboard() {
           }`}>
             <div className="absolute inset-0 bg-white/20 dark:bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
             <Wifi className="w-6 h-6 xl:w-7 xl:h-7" strokeWidth={1.5} />
-            {siteSettings?.driveOffersEnabled === false && (
+            {siteSettings?.driveOffersEnabled === false ? (
               <div className="absolute top-[3px] right-[3px] px-1 py-0.5 rounded-lg bg-rose-500 text-[6.5px] font-black tracking-widest text-white uppercase leading-none shadow shadow-rose-500/25 animate-pulse">Off</div>
+            ) : (
+              <div className="absolute top-[3px] right-[3px] px-1 py-0.5 rounded-lg bg-emerald-500 text-[6.5px] font-black tracking-widest text-white uppercase leading-none shadow shadow-emerald-500/25 animate-bounce">LIVE</div>
             )}
           </div>
           <span className={`text-[10px] sm:text-[11px] font-bold text-center leading-tight truncate w-full ${
@@ -526,6 +529,11 @@ export function Dashboard() {
           <div className="w-full aspect-square max-w-[64px] rounded-2xl bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-900/40 dark:to-emerald-800/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shadow-sm border border-emerald-200/50 dark:border-emerald-700/30 group-hover:shadow-md transition-all relative overflow-hidden">
             <div className="absolute inset-0 bg-white/20 dark:bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
             <Smartphone className="w-6 h-6 xl:w-7 xl:h-7" strokeWidth={1.5} />
+            {siteSettings?.rechargeEnabled === false ? (
+              <div className="absolute top-[3px] right-[3px] px-1 py-0.5 rounded-lg bg-rose-500 text-[6.5px] font-black tracking-widest text-white uppercase leading-none shadow shadow-rose-500/25 animate-pulse">Off</div>
+            ) : (
+              <div className="absolute top-[3px] right-[3px] px-1 py-0.5 rounded-lg bg-emerald-500 text-[6.5px] font-black tracking-widest text-white uppercase leading-none shadow shadow-emerald-500/25 animate-bounce">LIVE</div>
+            )}
           </div>
           <span className="text-[10px] sm:text-[11px] font-bold text-center leading-tight truncate w-full text-slate-700 dark:text-slate-300">{t('recharge')}</span>
         </motion.div>
@@ -566,11 +574,12 @@ export function Dashboard() {
         </motion.div>
 
         <motion.div whileTap={{ scale: 0.9 }} onClick={() => { playTapSound(); setComingSoonFeature({ title: 'Monthly Salary', desc: 'একটি নির্দিষ্ট সংখ্যক রেফার ও টাস্ক সম্পন্নকারী বিশ্বস্ত ইউজারদের জন্য মাসিক নিয়মিত "ফিক্সড স্যালারি" বা ফিক্সড বেতন ফিচার আসছে! কাজের ধারাবাহিকতা বজায় রাখুন।', icon: <Banknote className="w-7 h-7" />, color: 'from-amber-500 to-orange-600' }); }} className="flex flex-col items-center gap-2 cursor-pointer group">
-          <div className="w-full aspect-square max-w-[64px] rounded-2xl bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/40 dark:to-amber-800/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shadow-sm border border-amber-200/50 dark:border-amber-700/30 group-hover:shadow-md transition-all relative overflow-hidden">
+          <div className="w-full aspect-square max-w-[64px] rounded-2xl bg-slate-100 dark:bg-slate-800 border-[1px] border-slate-200/30 text-slate-400 dark:text-slate-500 opacity-60 saturate-50 flex items-center justify-center shadow-sm relative overflow-hidden">
             <div className="absolute inset-0 bg-white/20 dark:bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
             <Banknote className="w-6 h-6 xl:w-7 xl:h-7" strokeWidth={1.5} />
+            <div className="absolute top-[3px] right-[3px] px-1 py-0.5 rounded-lg bg-rose-500 text-[6.5px] font-black tracking-widest text-white uppercase leading-none shadow shadow-rose-500/25 animate-pulse">Off</div>
           </div>
-          <span className="text-[10px] sm:text-[11px] font-bold text-center leading-tight truncate w-full text-slate-700 dark:text-slate-300">{t('salary')}</span>
+          <span className="text-[10px] sm:text-[11px] font-bold text-center leading-tight truncate w-full text-slate-450 dark:text-slate-500">{t('salary')}</span>
         </motion.div>
         
         <motion.div 
@@ -605,6 +614,27 @@ export function Dashboard() {
             siteSettings?.adsViewEnabled ? "text-slate-700 dark:text-slate-300" : "text-slate-450 dark:text-slate-500"
           }`}>{t('ads_view')}</span>
         </motion.div>
+
+        <motion.div 
+          whileTap={{ scale: 0.9 }} 
+          onClick={() => { 
+            playTapSound(); 
+            navigate('/reviews');
+          }} 
+          className="flex flex-col items-center gap-2 cursor-pointer group"
+        >
+          <div className="w-full aspect-square max-w-[64px] rounded-2xl bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-900/40 dark:to-indigo-800/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shadow-sm border border-indigo-200/50 dark:border-indigo-700/30 group-hover:shadow-md transition-all relative overflow-hidden">
+            <div className="absolute inset-0 bg-white/20 dark:bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+            <Star className="w-6 h-6 xl:w-7 xl:h-7" strokeWidth={1.5} />
+            {siteSettings?.reviewsEnabled === false ? (
+              <div className="absolute top-[3px] right-[3px] px-1 py-0.5 rounded-lg bg-rose-500 text-[6.5px] font-black tracking-widest text-white uppercase leading-none shadow shadow-rose-500/25 animate-pulse">Off</div>
+            ) : (
+              <div className="absolute top-[3px] right-[3px] px-1 py-0.5 rounded-lg bg-emerald-500 text-[6.5px] font-black tracking-widest text-white uppercase leading-none shadow shadow-emerald-500/25 animate-bounce">LIVE</div>
+            )}
+          </div>
+          <span className="text-[10px] sm:text-[11px] font-bold text-center leading-tight truncate w-full text-slate-700 dark:text-slate-300">Reviews</span>
+        </motion.div>
+        </div>
       </div>
 
       {/* Referral Code Section */}
@@ -689,7 +719,7 @@ export function Dashboard() {
             <div className="pt-3 border-t border-slate-100 dark:border-slate-700/50 mt-4 outline-none">
               <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 mb-3 uppercase tracking-widest pl-1">Task Balances</p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {['Facebook', 'Gmail', 'Instagram', 'Sell Accounts', 'Microjob', 'Typing', 'Watch Ads', 'Other'].map(taskName => {
+                {['Facebook', 'Gmail', 'Instagram', 'Telegram', 'Review', 'Sell Accounts', 'Microjob', 'Typing', 'Watch Ads', 'Other'].map(taskName => {
                   const balance = profile?.balances?.tasks?.[taskName] || 0;
                   return (
                     <div key={taskName} className="bg-slate-50 dark:bg-slate-900/30 p-3 rounded-xl border border-transparent dark:border-slate-700/30 flex flex-col">

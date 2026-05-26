@@ -51,6 +51,7 @@ export function Wallet() {
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [selectedWallet, setSelectedWallet] = useState('main');
   const [transactions, setTransactions] = useState<any[]>([]);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const { t } = useLanguage();
 
   const [withdrawSettings, setWithdrawSettings] = useState({ mainMin: 50, mainFee: 0, bonusMin: 50, bonusFee: 0, referralMin: 50, referralFee: 0, tasksMin: 50, tasksFee: 0, customAmounts: "110, 210, 310, 410, 510" });
@@ -288,12 +289,23 @@ export function Wallet() {
 
   // Process data for the chart from transactions
   const groupedTransactions: Record<string, any> = {};
+  let runningBalance = 0;
   
   [...transactions].reverse().forEach((t) => {
     const dateKey = t.createdAt ? t.createdAt.toDate().toLocaleDateString() : 'Now';
+    
+    const amt = t.amount || 0;
+    const typeStr = (t.type || '').toLowerCase();
+    const isExpense = typeStr === 'withdraw';
+    const change = isExpense ? -amt : amt;
+
     if (!groupedTransactions[dateKey]) {
       groupedTransactions[dateKey] = {
         name: dateKey,
+        Open: runningBalance,
+        Close: runningBalance,
+        High: runningBalance,
+        Low: runningBalance,
         Withdrawal: 0,
         Deposit: 0,
         Task: 0,
@@ -305,25 +317,29 @@ export function Wallet() {
       };
     }
     
-    const amt = t.amount || 0;
-    const typeStr = (t.type || '').toLowerCase();
+    runningBalance += change;
     
+    const day = groupedTransactions[dateKey];
+    day.Close = runningBalance;
+    if (runningBalance > day.High) day.High = runningBalance;
+    if (runningBalance < day.Low) day.Low = runningBalance;
+
     if (typeStr === 'withdraw') {
-      groupedTransactions[dateKey].Withdrawal += amt;
+      day.Withdrawal += amt;
     } else if (typeStr === 'deposit') {
-      groupedTransactions[dateKey].Deposit += amt;
+      day.Deposit += amt;
     } else if (typeStr.includes('task') || typeStr.includes('job')) {
-      groupedTransactions[dateKey].Task += amt;
+      day.Task += amt;
     } else if (typeStr === 'math' || typeStr.includes('math')) {
-      groupedTransactions[dateKey].Math += amt;
+      day.Math += amt;
     } else if (typeStr === 'spin') {
-      groupedTransactions[dateKey].Spin += amt;
+      day.Spin += amt;
     } else if (typeStr.includes('referral')) {
-      groupedTransactions[dateKey].Referral += amt;
+      day.Referral += amt;
     } else if (typeStr.includes('bonus') || typeStr.includes('reward')) {
-      groupedTransactions[dateKey].Bonus += amt;
+      day.Bonus += amt;
     } else {
-      groupedTransactions[dateKey].Other += amt;
+      day.Other += amt;
     }
   });
 
@@ -638,52 +654,104 @@ export function Wallet() {
           exit={{ opacity: 0, scale: 0.95 }}
           className="space-y-4"
         >
-          <div className="bg-white/90 backdrop-blur-md dark:bg-slate-800/90 p-5 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700">
-            <h3 className="text-sm font-display font-bold text-slate-700 dark:text-slate-300 mb-4 capitalize tracking-wide hidden">Balance Timeline</h3>
+          <div className="bg-[#0f172a] p-5 rounded-3xl shadow-lg border border-slate-800 relative overflow-hidden">
             {barChartData.length > 0 ? (
-              <div className="h-48 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={barChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                    <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} tick={{fill: '#64748b', fontWeight: 600}} dy={10} />
-                    <YAxis 
-                      fontSize={10} 
-                      tickLine={false} 
-                      axisLine={false} 
-                      tick={{fill: '#64748b', fontWeight: 600}} 
-                      width={35}
-                      tickFormatter={(val) => val >= 1000 ? `${(val/1000).toFixed(1)}k` : val}
-                    />
-                    <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
-                    <ReferenceLine y={0} stroke="#334155" strokeWidth={2} strokeDasharray="3 3"/>
+              <div className="h-48 w-full relative">
+                {/* Y Axis Labels (Rough max/min) */}
+                <div className="absolute left-0 top-0 bottom-0 flex flex-col justify-between text-[9px] text-slate-500 font-mono py-2 opacity-50">
+                  <span>{Math.max(...barChartData.map(d => d.High)).toFixed(0)}</span>
+                  <span>{Math.min(...barChartData.map(d => d.Low)).toFixed(0)}</span>
+                </div>
+                
+                {/* SVG Candlestick Canvas */}
+                <svg width="100%" height="100%" viewBox="0 0 300 150" preserveAspectRatio="none" className="pl-8">
+                  {(() => {
+                    const minP = Math.min(...barChartData.map((d: any) => d.Low));
+                    const maxP = Math.max(...barChartData.map((d: any) => d.High));
+                    const range = (maxP - minP) || 1;
+                    const yMin = minP - range * 0.1;
+                    const yMax = maxP + range * 0.1;
+                    const yRange = yMax - yMin;
+                    const mapY = (v: number) => 140 - ((v - yMin) / yRange) * 110;
                     
-                    {/* Glowing binary trading style colors */}
-                    <Bar dataKey="Deposit" stackId="income" fill="#10b981" radius={[0, 0, 0, 0]} />
-                    <Bar dataKey="Task" stackId="income" fill="#34d399" radius={[0, 0, 0, 0]} />
-                    <Bar dataKey="Math" stackId="income" fill="#6ee7b7" radius={[0, 0, 0, 0]} />
-                    <Bar dataKey="Spin" stackId="income" fill="#059669" radius={[0, 0, 0, 0]} />
-                    <Bar dataKey="Referral" stackId="income" fill="#047857" radius={[0, 0, 0, 0]} />
-                    <Bar dataKey="Bonus" stackId="income" fill="#a7f3d0" radius={[0, 0, 0, 0]} />
-                    <Bar dataKey="Other" stackId="income" fill="#4ade80" radius={[4, 4, 0, 0]} />
-                    
-                    <Bar dataKey="Withdrawal" fill="#f43f5e" radius={[0, 0, 4, 4]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                    const barWidth = 270 / Math.max(barChartData.length, 5);
+                    const candleW = Math.max(barWidth * 0.7, 4);
+
+                    return barChartData.map((d: any, i: number) => {
+                      const x = i * barWidth + barWidth / 2;
+                      const yH = mapY(d.High);
+                      const yL = mapY(d.Low);
+                      const yO = mapY(d.Open);
+                      const yC = mapY(d.Close);
+                      const isUp = d.Close >= d.Open;
+                      const color = isUp ? '#10b981' : '#ef4444'; // Emerald/Rose
+                      const top = Math.min(yO, yC);
+                      const bottom = Math.max(yO, yC);
+                      const h = Math.max(2, bottom - top); // min body height
+
+                      return (
+                        <g 
+                          key={i} 
+                          onClick={() => setSelectedDate(selectedDate === d.name ? null : d.name)}
+                          className="cursor-pointer hover:opacity-80 transition-opacity"
+                        >
+                          {/* Invisible larger hit area for easier tapping */}
+                          <rect x={Math.max(0, x - barWidth/2)} y="0" width={barWidth} height="150" fill="transparent" />
+                          {/* Grid line */}
+                          <line x1={x} y1="0" x2={x} y2="150" stroke={selectedDate === d.name ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.02)"} strokeWidth="1" />
+                          {/* Wick */}
+                          <line x1={x} y1={yH} x2={x} y2={yL} stroke={color} strokeWidth={1} />
+                          {/* Body */}
+                          <rect x={x - candleW/2} y={top} width={candleW} height={h} fill={color} stroke={color} rx="1" />
+                          {/* Selected Date highlight text */}
+                          {selectedDate === d.name && (
+                            <>
+                              <circle cx={x} cy={yH - 8} r="3" fill="#3b82f6" />
+                              <text x={x} y={yH - 18} fill="#94a3b8" fontSize="8" textAnchor="middle" fontWeight="bold">{d.name}</text>
+                              <text x={x} y={yH - 28} fill={color} fontSize="8" textAnchor="middle" fontWeight="bold">৳{d.Close.toFixed(0)}</text>
+                            </>
+                          )}
+                        </g>
+                      )
+                    });
+                  })()}
+                </svg>
               </div>
             ) : (
-              <div className="h-32 flex flex-col items-center justify-center text-slate-400 text-sm">
-                <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-2">
-                  <History className="w-5 h-5 opacity-50" />
+              <div className="h-32 flex flex-col items-center justify-center text-slate-500 text-sm">
+                <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center mb-2">
+                  <TrendingUp className="w-5 h-5 opacity-50" />
                 </div>
-                <p>No activity yet.</p>
+                <p>No trading data yet.</p>
               </div>
             )}
           </div>
 
-          <div className="space-y-3 mt-4">
-            {transactions.length === 0 ? (
-              <div className="text-center py-6 text-slate-400 text-sm">No transactions found.</div>
-            ) : (
-              transactions.map((tx) => (
+          <div className="flex justify-between items-end mt-4 px-1">
+            <h3 className="text-sm font-display font-bold text-slate-700 dark:text-slate-300 capitalize tracking-wide">
+              {selectedDate ? `History: ${selectedDate}` : 'All History'}
+            </h3>
+            {selectedDate && (
+              <button 
+                onClick={() => setSelectedDate(null)}
+                className="text-[10px] text-blue-500 font-bold uppercase tracking-widest bg-blue-50 dark:bg-blue-900/30 px-3 py-1 rounded-full active:scale-95 transition-all"
+              >
+                Clear Filter
+              </button>
+            )}
+          </div>
+
+          <div className="space-y-3">
+            {(() => {
+              const filteredTxs = selectedDate 
+                ? transactions.filter(t => (t.createdAt ? t.createdAt.toDate().toLocaleDateString() : 'Now') === selectedDate)
+                : transactions;
+
+              if (filteredTxs.length === 0) {
+                return <div className="text-center py-6 text-slate-400 text-sm">No transactions found.</div>;
+              }
+
+              return filteredTxs.map((tx) => (
                 <motion.div 
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -713,7 +781,7 @@ export function Wallet() {
                   </div>
                 </motion.div>
               ))
-            )}
+            })()}
           </div>
         </motion.div>
       )}

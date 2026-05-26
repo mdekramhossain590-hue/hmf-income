@@ -1050,13 +1050,14 @@ export function AdminPanel() {
             <div className="grid gap-3">
               <input type="text" placeholder="Task Title" required value={newJob.title} onChange={e => setNewJob({...newJob, title: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold placeholder:text-slate-400" />
               <textarea placeholder="Job Description / Instructions" required value={newJob.description} onChange={e => setNewJob({...newJob, description: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold h-24 placeholder:text-slate-400" />
+              <input type="text" placeholder="Action Link (e.g. Telegram Group Link, URL)" value={newJob.link || ''} onChange={e => setNewJob({...newJob, link: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold placeholder:text-slate-400 text-blue-500" />
             </div>
             
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-1 block">Category</label>
                 <select value={newJob.type} onChange={e => setNewJob({...newJob, type: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold">
-                  {['Facebook', 'Gmail', 'Instagram', 'Sell Accounts', 'Microjob', 'Typing', 'Watch Ads', 'Other'].map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                  {['Facebook', 'Gmail', 'Instagram', 'Telegram', 'Review', 'Sell Accounts', 'Microjob', 'Typing', 'Watch Ads', 'Other'].map(cat => <option key={cat} value={cat}>{cat}</option>)}
                 </select>
               </div>
               <div>
@@ -1093,6 +1094,7 @@ export function AdminPanel() {
                   <option value="MessageCircle">Chatting</option>
                   <option value="Heart">Likes / Reaction</option>
                   <option value="Star">Review / Star</option>
+                  <option value="Send">Telegram / Message</option>
                   <option value="User">User Account</option>
                   <option value="Globe">Global Link</option>
                 </select>

@@ -236,14 +236,16 @@ export function TaskDetail() {
         
         <p className="text-sm text-gray-600 dark:text-gray-300 mb-6">{job.description}</p>
         
-        <a 
-          href={job.link}
-          target="_blank"
-          rel="noreferrer"
-          className="w-full flex items-center justify-center gap-2 bg-[#0D47A1]/10 text-[#0D47A1] dark:bg-blue-900/30 dark:text-blue-400 font-bold py-3 rounded-xl hover:bg-[#0D47A1]/20 transition"
-        >
-          Open Task Link <ExternalLink className="w-4 h-4" />
-        </a>
+        {job.link && (
+          <a 
+            href={job.link}
+            target="_blank"
+            rel="noreferrer"
+            className="w-full flex items-center justify-center gap-2 bg-[#0D47A1]/10 text-[#0D47A1] dark:bg-blue-900/30 dark:text-blue-400 font-bold py-3 rounded-xl hover:bg-[#0D47A1]/20 transition"
+          >
+            Open Task Link <ExternalLink className="w-4 h-4" />
+          </a>
+        )}
 
         <div className="grid grid-cols-2 gap-3 mt-5">
           <div className="bg-slate-50 dark:bg-slate-900/50 rounded-xl p-3 border border-slate-100 dark:border-slate-700/50">
