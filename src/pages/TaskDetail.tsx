@@ -230,7 +230,7 @@ export function TaskDetail() {
             <p className="text-xs text-gray-500 dark:text-gray-400">{job.type}</p>
           </div>
           <div className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 font-bold px-3 py-1 rounded-full text-sm">
-            ৳ {job.reward}
+            {job.type === 'Review' ? 'Direct Paid' : `৳ ${job.reward}`}
           </div>
         </div>
         

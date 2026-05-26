@@ -475,33 +475,39 @@ export function AdminPanel() {
             const updateData: any = {
               totalTasksCompleted: increment(1)
             };
-            if (jobType) {
+            if (jobType === 'Review') {
+              // Review tasks are paid directly, do not add to wallet balance
+              updateData[`balances.tasks.${jobType}`] = increment(0);
+            } else if (jobType) {
               updateData[`balances.tasks.${jobType}`] = increment(subReward);
             } else {
               updateData["balances.main"] = increment(subReward);
             }
             batch.update(userRef, updateData);
             
-            const txRef = doc(collection(db, "users", userId, "transactions"));
-            batch.set(txRef, {
-              amount: subReward,
-              type: 'task',
-              status: 'completed',
-              createdAt: serverTimestamp()
-            });
+            if (jobType !== 'Review') {
+              const txRef = doc(collection(db, "users", userId, "transactions"));
+              batch.set(txRef, {
+                amount: subReward,
+                type: 'task',
+                status: 'completed',
+                createdAt: serverTimestamp()
+              });
+
+              const leaderboardRef = doc(db, "leaderboard", userId);
+              batch.set(leaderboardRef, {
+                totalIncome: increment(subReward),
+                updatedAt: serverTimestamp()
+              }, { merge: true });
+            }
             
             const taskHisRef = doc(collection(db, "users", userId, "tasks"));
             batch.set(taskHisRef, {
               title: subTitle,
-              reward: subReward,
+              reward: jobType === 'Review' ? 0 : subReward,
+              type: jobType || 'Other',
               completedAt: serverTimestamp()
             });
-
-            const leaderboardRef = doc(db, "leaderboard", userId);
-            batch.set(leaderboardRef, {
-              totalIncome: increment(subReward),
-              updatedAt: serverTimestamp()
-            }, { merge: true });
           }
 
           const notifRef = doc(collection(db, "users", userId, "notifications"));

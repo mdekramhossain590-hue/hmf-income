@@ -486,154 +486,212 @@ export function Dashboard() {
           </div>
         </motion.div>
       </div>
-      
+
       {/* Quick Actions Grid */}
-      <div className="bg-white dark:bg-slate-800 p-4 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 mb-8 select-none">
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+      <div className="bg-white/80 backdrop-blur-xl dark:bg-slate-800/80 p-4 sm:p-5 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700 mb-8 select-none">
+        <h3 className="text-[13px] font-black text-slate-800 dark:text-slate-200 mb-4 px-2 uppercase tracking-wide flex items-center gap-2">
+          <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
+          Premium Features
+        </h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          {/* Drive Offers */}
           <motion.div 
-          whileTap={{ scale: 0.9 }} 
-          onClick={() => {
-            playTapSound();
-            if (siteSettings?.driveOffersEnabled === false) {
-              setComingSoonFeature({ 
-                title: 'Drive Offers Suspended', 
-                desc: 'দুঃখিত, ড্রাইভ অফার প্যাক ক্রয় করার সুবিধাটি এডমিন দ্বারা সাময়িকভাবে বন্ধ রাখা হয়েছে। নতুন অফারগুলোর সাথে শীঘ্রই পুনরায় সার্ভিসটি চালু হবে। আমাদের সাথে থাকুন!', 
-                icon: <Wifi className="w-7 h-7" />, 
-                color: 'from-blue-600 to-indigo-700' 
-              });
-            } else {
-              navigate('/drive');
-            }
-          }} 
-          className="flex flex-col items-center gap-2 cursor-pointer group"
-        >
-          <div className={`w-full aspect-square max-w-[64px] rounded-2xl flex items-center justify-center shadow-sm border transition-all relative overflow-hidden group-hover:shadow-md ${
-            siteSettings?.driveOffersEnabled === false
-              ? "bg-slate-100 dark:bg-slate-800 border-slate-200/30 text-slate-400 dark:text-slate-500 opacity-60 saturate-50"
-              : "bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/40 dark:to-blue-800/20 text-blue-600 text-blue-600 dark:text-blue-400 border-blue-200/50 dark:border-blue-700/30"
-          }`}>
-            <div className="absolute inset-0 bg-white/20 dark:bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            <Wifi className="w-6 h-6 xl:w-7 xl:h-7" strokeWidth={1.5} />
-            {siteSettings?.driveOffersEnabled === false ? (
-              <div className="absolute top-[3px] right-[3px] px-1 py-0.5 rounded-lg bg-rose-500 text-[6.5px] font-black tracking-widest text-white uppercase leading-none shadow shadow-rose-500/25 animate-pulse">Off</div>
-            ) : (
-              <div className="absolute top-[3px] right-[3px] px-1 py-0.5 rounded-lg bg-emerald-500 text-[6.5px] font-black tracking-widest text-white uppercase leading-none shadow shadow-emerald-500/25 animate-bounce">LIVE</div>
-            )}
-          </div>
-          <span className={`text-[10px] sm:text-[11px] font-bold text-center leading-tight truncate w-full ${
-            siteSettings?.driveOffersEnabled === false ? "text-slate-450 dark:text-slate-500" : "text-slate-700 dark:text-slate-300"
-          }`}>{t('drive_offer')}</span>
-        </motion.div>
-        
-        <motion.div whileTap={{ scale: 0.9 }} onClick={() => { playTapSound(); navigate('/recharge'); }} className="flex flex-col items-center gap-2 cursor-pointer group">
-          <div className="w-full aspect-square max-w-[64px] rounded-2xl bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-900/40 dark:to-emerald-800/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shadow-sm border border-emerald-200/50 dark:border-emerald-700/30 group-hover:shadow-md transition-all relative overflow-hidden">
-            <div className="absolute inset-0 bg-white/20 dark:bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            <Smartphone className="w-6 h-6 xl:w-7 xl:h-7" strokeWidth={1.5} />
-            {siteSettings?.rechargeEnabled === false ? (
-              <div className="absolute top-[3px] right-[3px] px-1 py-0.5 rounded-lg bg-rose-500 text-[6.5px] font-black tracking-widest text-white uppercase leading-none shadow shadow-rose-500/25 animate-pulse">Off</div>
-            ) : (
-              <div className="absolute top-[3px] right-[3px] px-1 py-0.5 rounded-lg bg-emerald-500 text-[6.5px] font-black tracking-widest text-white uppercase leading-none shadow shadow-emerald-500/25 animate-bounce">LIVE</div>
-            )}
-          </div>
-          <span className="text-[10px] sm:text-[11px] font-bold text-center leading-tight truncate w-full text-slate-700 dark:text-slate-300">{t('recharge')}</span>
-        </motion.div>
+            whileTap={{ scale: 0.95 }} 
+            onClick={() => {
+              playTapSound();
+              if (siteSettings?.driveOffersEnabled === false) {
+                setComingSoonFeature({ 
+                  title: 'Drive Offers Suspended', 
+                  desc: 'দুঃখিত, ড্রাইভ অফার প্যাক ক্রয় করার সুবিধাটি এডমিন দ্বারা সাময়িকভাবে বন্ধ রাখা হয়েছে। নতুন অফারগুলোর সাথে শীঘ্রই পুনরায় সার্ভিসটি চালু হবে। আমাদের সাথে থাকুন!', 
+                  icon: <Wifi className="w-7 h-7" />, 
+                  color: 'from-blue-600 to-indigo-700' 
+                });
+              } else {
+                navigate('/drive');
+              }
+            }} 
+            className={`relative flex items-center gap-3 p-3 sm:p-4 rounded-[24px] border transition-all cursor-pointer group ${
+              siteSettings?.driveOffersEnabled === false 
+                ? 'bg-slate-50 dark:bg-slate-900/30 border-slate-100 dark:border-slate-800 opacity-70 saturate-50' 
+                : 'bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-700 hover:bg-blue-50 dark:hover:bg-slate-700/80 hover:border-blue-200 dark:hover:border-slate-600'
+            }`}
+          >
+            <div className={`w-10 h-10 sm:w-12 sm:h-12 flex-shrink-0 rounded-[16px] flex items-center justify-center relative overflow-hidden ${
+              siteSettings?.driveOffersEnabled === false
+                ? 'bg-slate-200/50 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                : 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-md shadow-blue-500/20 group-hover:scale-105 transition-transform'
+            }`}>
+              <Wifi className="w-5 h-5 sm:w-6 sm:h-6" strokeWidth={1.5} />
+            </div>
+            <div className="flex flex-col justify-center min-w-0 pr-2">
+              <span className={`text-[11px] sm:text-[13px] font-bold truncate ${siteSettings?.driveOffersEnabled === false ? 'text-slate-500 dark:text-slate-400' : 'text-slate-800 dark:text-slate-200'}`}>{t('drive_offer')}</span>
+              {siteSettings?.driveOffersEnabled === false ? (
+                <span className="text-[9px] font-black text-rose-500 uppercase tracking-widest flex items-center gap-1 mt-0.5"><div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></div>OFFLINE</span>
+              ) : (
+                <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-1 mt-0.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>LIVE NOW</span>
+              )}
+            </div>
+          </motion.div>
+          
+          {/* Recharge */}
+          <motion.div 
+            whileTap={{ scale: 0.95 }} 
+            onClick={() => { playTapSound(); navigate('/recharge'); }} 
+            className={`relative flex items-center gap-3 p-3 sm:p-4 rounded-[24px] border transition-all cursor-pointer group ${
+              siteSettings?.rechargeEnabled === false 
+                ? 'bg-slate-50 dark:bg-slate-900/30 border-slate-100 dark:border-slate-800 opacity-70 saturate-50' 
+                : 'bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-700 hover:bg-emerald-50 dark:hover:bg-slate-700/80 hover:border-emerald-200 dark:hover:border-slate-600'
+            }`}
+          >
+            <div className={`w-10 h-10 sm:w-12 sm:h-12 flex-shrink-0 rounded-[16px] flex items-center justify-center relative overflow-hidden ${
+              siteSettings?.rechargeEnabled === false
+                ? 'bg-slate-200/50 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                : 'bg-gradient-to-br from-emerald-400 to-teal-500 text-white shadow-md shadow-emerald-500/20 group-hover:scale-105 transition-transform'
+            }`}>
+              <Smartphone className="w-5 h-5 sm:w-6 sm:h-6" strokeWidth={1.5} />
+            </div>
+            <div className="flex flex-col justify-center min-w-0 pr-2">
+              <span className={`text-[11px] sm:text-[13px] font-bold truncate ${siteSettings?.rechargeEnabled === false ? 'text-slate-500 dark:text-slate-400' : 'text-slate-800 dark:text-slate-200'}`}>{t('recharge')}</span>
+              {siteSettings?.rechargeEnabled === false ? (
+                <span className="text-[9px] font-black text-rose-500 uppercase tracking-widest flex items-center gap-1 mt-0.5"><div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></div>OFFLINE</span>
+              ) : (
+                <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-1 mt-0.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>LIVE NOW</span>
+              )}
+            </div>
+          </motion.div>
 
-        <motion.div 
-          whileTap={{ scale: 0.9 }} 
-          onClick={() => { 
-            playTapSound(); 
-            if (siteSettings?.coursesEnabled === false) {
+          {/* Courses */}
+          <motion.div 
+            whileTap={{ scale: 0.95 }} 
+            onClick={() => { 
+              playTapSound(); 
+              if (siteSettings?.coursesEnabled === false) {
+                setComingSoonFeature({ 
+                  title: 'Premium Courses', 
+                  desc: 'খুব শীঘ্রই আমাদের প্রিমিয়াম কোর্সগুলো (ডিজিটাল মার্কেটিং, ভিডিও এডিটিং ও গ্রাফিক্স ডিজাইন) ড্যাশবোর্ডে লাইভ হবে যা শিখে আপনি স্থায়ীভাবে ইনকাম বাড়াতে পারবেন। আমাদের সাথেই থাকুন!', 
+                  icon: <BookOpen className="w-7 h-7" />, 
+                  color: 'from-purple-500 to-indigo-650' 
+                }); 
+              } else {
+                navigate('/courses');
+              }
+            }} 
+            className={`relative flex items-center gap-3 p-3 sm:p-4 rounded-[24px] border transition-all cursor-pointer group ${
+              siteSettings?.coursesEnabled === false 
+                ? 'bg-slate-50 dark:bg-slate-900/30 border-slate-100 dark:border-slate-800 opacity-70 saturate-50' 
+                : 'bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-700 hover:bg-purple-50 dark:hover:bg-slate-700/80 hover:border-purple-200 dark:hover:border-slate-600'
+            }`}
+          >
+            <div className={`w-10 h-10 sm:w-12 sm:h-12 flex-shrink-0 rounded-[16px] flex items-center justify-center relative overflow-hidden ${
+              siteSettings?.coursesEnabled === false
+                ? 'bg-slate-200/50 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                : 'bg-gradient-to-br from-purple-500 to-indigo-500 text-white shadow-md shadow-purple-500/20 group-hover:scale-105 transition-transform'
+            }`}>
+              <BookOpen className="w-5 h-5 sm:w-6 sm:h-6" strokeWidth={1.5} />
+            </div>
+            <div className="flex flex-col justify-center min-w-0 pr-2">
+              <span className={`text-[11px] sm:text-[13px] font-bold truncate ${siteSettings?.coursesEnabled === false ? 'text-slate-500 dark:text-slate-400' : 'text-slate-800 dark:text-slate-200'}`}>{t('courses')}</span>
+              {siteSettings?.coursesEnabled === false ? (
+                <span className="text-[9px] font-black text-rose-500 uppercase tracking-widest flex items-center gap-1 mt-0.5"><div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></div>OFFLINE</span>
+              ) : (
+                <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-1 mt-0.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>LIVE NOW</span>
+              )}
+            </div>
+          </motion.div>
+
+          {/* Salary */}
+          <motion.div 
+            whileTap={{ scale: 0.95 }} 
+            onClick={() => { 
+              playTapSound(); 
               setComingSoonFeature({ 
-                title: 'Premium Courses', 
-                desc: 'খুব শীঘ্রই আমাদের প্রিমিয়াম কোর্সগুলো (ডিজিটাল মার্কেটিং, ভিডিও এডিটিং ও গ্রাফিক্স ডিজাইন) ড্যাশবোর্ডে লাইভ হবে যা শিখে আপনি স্থায়ীভাবে ইনকাম বাড়াতে পারবেন। আমাদের সাথেই থাকুন!', 
-                icon: <BookOpen className="w-7 h-7" />, 
-                color: 'from-purple-500 to-indigo-650' 
+                title: 'Monthly Salary', 
+                desc: 'একটি নির্দিষ্ট সংখ্যক রেফার ও টাস্ক সম্পন্নকারী বিশ্বস্ত ইউজারদের জন্য মাসিক নিয়মিত "ফিক্সড স্যালারি" বা ফিক্সড বেতন ফিচার আসছে! কাজের ধারাবাহিকতা বজায় রাখুন।', 
+                icon: <Banknote className="w-7 h-7" />, 
+                color: 'from-amber-500 to-orange-600' 
               }); 
-            } else {
-              navigate('/courses');
-            }
-          }} 
-          className="flex flex-col items-center gap-2 cursor-pointer group"
-        >
-          <div className={`w-full aspect-square max-w-[64px] rounded-2xl flex items-center justify-center shadow-sm border transition-all relative overflow-hidden group-hover:shadow-md ${
-            siteSettings?.coursesEnabled === false
-              ? "bg-slate-100 dark:bg-slate-800 border-slate-200/30 text-slate-400 dark:text-slate-500 opacity-60 saturate-50"
-              : "bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/40 dark:to-purple-800/20 text-purple-600 dark:text-purple-400 border-purple-200/50 dark:border-purple-700/30"
-          }`}>
-            <div className="absolute inset-0 bg-white/20 dark:bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            <BookOpen className="w-6 h-6 xl:w-7 xl:h-7" strokeWidth={1.5} />
-            {siteSettings?.coursesEnabled === false ? (
-              <div className="absolute top-[3px] right-[3px] px-1 py-0.5 rounded-lg bg-rose-500 text-[6.5px] font-black tracking-widest text-white uppercase leading-none shadow shadow-rose-500/25 animate-pulse">Off</div>
-            ) : (
-              <div className="absolute top-[3px] right-[3px] px-1 py-0.5 rounded-lg bg-emerald-500 text-[6.5px] font-black tracking-widest text-white uppercase leading-none shadow shadow-emerald-500/25 animate-bounce">LIVE</div>
-            )}
-          </div>
-          <span className={`text-[10px] sm:text-[11px] font-bold text-center leading-tight truncate w-full ${
-            siteSettings?.coursesEnabled === false ? "text-slate-450 dark:text-slate-500" : "text-slate-700 dark:text-slate-300"
-          }`}>{t('courses')}</span>
-        </motion.div>
+            }} 
+            className="relative flex items-center gap-3 p-3 sm:p-4 rounded-[24px] border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/30 opacity-70 saturate-50 transition-all cursor-pointer group"
+          >
+            <div className="w-10 h-10 sm:w-12 sm:h-12 flex-shrink-0 rounded-[16px] flex items-center justify-center bg-slate-200/50 text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+              <Banknote className="w-5 h-5 sm:w-6 sm:h-6" strokeWidth={1.5} />
+            </div>
+            <div className="flex flex-col justify-center min-w-0 pr-2">
+              <span className="text-[11px] sm:text-[13px] font-bold truncate text-slate-500 dark:text-slate-400">{t('salary')}</span>
+              <span className="text-[9px] font-black text-rose-500 uppercase tracking-widest flex items-center gap-1 mt-0.5"><div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></div>OFFLINE</span>
+            </div>
+          </motion.div>
+          
+          {/* Ads View */}
+          <motion.div 
+            whileTap={{ scale: 0.95 }} 
+            onClick={() => { 
+              playTapSound(); 
+              if (siteSettings?.adsViewEnabled) {
+                navigate('/ads');
+              } else {
+                setComingSoonFeature({ 
+                  title: 'Ads View Earnings', 
+                  desc: 'ভিডিও ও বিজ্ঞাপন দেখে প্রতি ভিউতে অতিরিক্ত বোনাস টাকা ক্যাশব্যাক করার হাই-পেইড সেলফ ইনকাম ফিচারটি আমাদের পরবর্তী আপডেটে উন্নত এড-নেটওয়ার্ক ও ইনস্ট্যান্ট উইথড্র সুবিধা সহ চালু হচ্ছে। আমাদের সাথেই থাকুন!', 
+                  icon: <MonitorPlay className="w-7 h-7" />, 
+                  color: 'from-rose-500 to-pink-600',
+                  link: siteSettings?.adsViewLink || '',
+                  linkText: siteSettings?.adsViewText || 'অফিসিয়াল চ্যানেল এ যুক্ত হন'
+                }); 
+              }
+            }} 
+            className={`relative flex items-center gap-3 p-3 sm:p-4 rounded-[24px] border transition-all cursor-pointer group ${
+              !siteSettings?.adsViewEnabled 
+                ? 'bg-slate-50 dark:bg-slate-900/30 border-slate-100 dark:border-slate-800 opacity-70 saturate-50' 
+                : 'bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-700 hover:bg-rose-50 dark:hover:bg-slate-700/80 hover:border-rose-200 dark:hover:border-slate-600'
+            }`}
+          >
+            <div className={`w-10 h-10 sm:w-12 sm:h-12 flex-shrink-0 rounded-[16px] flex items-center justify-center relative overflow-hidden ${
+              !siteSettings?.adsViewEnabled
+                ? 'bg-slate-200/50 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                : 'bg-gradient-to-br from-rose-400 to-orange-500 text-white shadow-md shadow-rose-500/20 group-hover:scale-105 transition-transform'
+            }`}>
+              <MonitorPlay className="w-5 h-5 sm:w-6 sm:h-6" strokeWidth={1.5} />
+            </div>
+            <div className="flex flex-col justify-center min-w-0 pr-2">
+              <span className={`text-[11px] sm:text-[13px] font-bold truncate ${!siteSettings?.adsViewEnabled ? 'text-slate-500 dark:text-slate-400' : 'text-slate-800 dark:text-slate-200'}`}>{t('ads_view')}</span>
+              {!siteSettings?.adsViewEnabled ? (
+                <span className="text-[9px] font-black text-rose-500 uppercase tracking-widest flex items-center gap-1 mt-0.5"><div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></div>OFFLINE</span>
+              ) : (
+                <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-1 mt-0.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>LIVE NOW</span>
+              )}
+            </div>
+          </motion.div>
 
-        <motion.div whileTap={{ scale: 0.9 }} onClick={() => { playTapSound(); setComingSoonFeature({ title: 'Monthly Salary', desc: 'একটি নির্দিষ্ট সংখ্যক রেফার ও টাস্ক সম্পন্নকারী বিশ্বস্ত ইউজারদের জন্য মাসিক নিয়মিত "ফিক্সড স্যালারি" বা ফিক্সড বেতন ফিচার আসছে! কাজের ধারাবাহিকতা বজায় রাখুন।', icon: <Banknote className="w-7 h-7" />, color: 'from-amber-500 to-orange-600' }); }} className="flex flex-col items-center gap-2 cursor-pointer group">
-          <div className="w-full aspect-square max-w-[64px] rounded-2xl bg-slate-100 dark:bg-slate-800 border-[1px] border-slate-200/30 text-slate-400 dark:text-slate-500 opacity-60 saturate-50 flex items-center justify-center shadow-sm relative overflow-hidden">
-            <div className="absolute inset-0 bg-white/20 dark:bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            <Banknote className="w-6 h-6 xl:w-7 xl:h-7" strokeWidth={1.5} />
-            <div className="absolute top-[3px] right-[3px] px-1 py-0.5 rounded-lg bg-rose-500 text-[6.5px] font-black tracking-widest text-white uppercase leading-none shadow shadow-rose-500/25 animate-pulse">Off</div>
-          </div>
-          <span className="text-[10px] sm:text-[11px] font-bold text-center leading-tight truncate w-full text-slate-450 dark:text-slate-500">{t('salary')}</span>
-        </motion.div>
-        
-        <motion.div 
-          whileTap={{ scale: 0.9 }} 
-          onClick={() => { 
-            playTapSound(); 
-            if (siteSettings?.adsViewEnabled) {
-              navigate('/ads');
-            } else {
-              setComingSoonFeature({ 
-                title: 'Ads View Earnings', 
-                desc: 'ভিডিও ও বিজ্ঞাপন দেখে প্রতি ভিউতে অতিরিক্ত বোনাস টাকা ক্যাশব্যাক করার হাই-পেইড সেলফ ইনকাম ফিচারটি আমাদের পরবর্তী আপডেটে উন্নত এড-নেটওয়ার্ক ও ইনস্ট্যান্ট উইথড্র সুবিধা সহ চালু হচ্ছে। আমাদের সাথেই থাকুন!', 
-                icon: <MonitorPlay className="w-7 h-7" />, 
-                color: 'from-rose-500 to-pink-600',
-                link: siteSettings?.adsViewLink || '',
-                linkText: siteSettings?.adsViewText || 'অফিসিয়াল চ্যানেল এ যুক্ত হন'
-              }); 
-            }
-          }} 
-          className="flex flex-col items-center gap-2 cursor-pointer group"
-        >
-          <div className="w-full aspect-square max-w-[64px] rounded-2xl bg-gradient-to-br from-rose-50 to-rose-100 dark:from-rose-900/40 dark:to-rose-800/20 text-rose-600 dark:text-rose-400 flex items-center justify-center shadow-sm border border-rose-200/50 dark:border-rose-700/30 group-hover:shadow-md transition-all relative overflow-hidden">
-            <div className="absolute inset-0 bg-white/20 dark:bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            <MonitorPlay className="w-6 h-6 xl:w-7 xl:h-7" strokeWidth={1.5} />
-            {siteSettings?.adsViewEnabled ? (
-              <div className="absolute top-[3px] right-[3px] px-1 py-0.5 rounded-lg bg-emerald-500 text-[6.5px] font-black tracking-widest text-white uppercase leading-none shadow shadow-emerald-500/25 animate-bounce">LIVE</div>
-            ) : (
-              <div className="absolute top-[3px] right-[3px] px-1 py-0.5 rounded-lg bg-rose-500 text-[6.5px] font-black tracking-widest text-white uppercase leading-none shadow shadow-rose-500/25 animate-pulse">Off</div>
-            )}
-          </div>
-          <span className={`text-[10px] sm:text-[11px] font-bold text-center leading-tight truncate w-full ${
-            siteSettings?.adsViewEnabled ? "text-slate-700 dark:text-slate-300" : "text-slate-450 dark:text-slate-500"
-          }`}>{t('ads_view')}</span>
-        </motion.div>
-
-        <motion.div 
-          whileTap={{ scale: 0.9 }} 
-          onClick={() => { 
-            playTapSound(); 
-            navigate('/reviews');
-          }} 
-          className="flex flex-col items-center gap-2 cursor-pointer group"
-        >
-          <div className="w-full aspect-square max-w-[64px] rounded-2xl bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-900/40 dark:to-indigo-800/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shadow-sm border border-indigo-200/50 dark:border-indigo-700/30 group-hover:shadow-md transition-all relative overflow-hidden">
-            <div className="absolute inset-0 bg-white/20 dark:bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            <Star className="w-6 h-6 xl:w-7 xl:h-7" strokeWidth={1.5} />
-            {siteSettings?.reviewsEnabled === false ? (
-              <div className="absolute top-[3px] right-[3px] px-1 py-0.5 rounded-lg bg-rose-500 text-[6.5px] font-black tracking-widest text-white uppercase leading-none shadow shadow-rose-500/25 animate-pulse">Off</div>
-            ) : (
-              <div className="absolute top-[3px] right-[3px] px-1 py-0.5 rounded-lg bg-emerald-500 text-[6.5px] font-black tracking-widest text-white uppercase leading-none shadow shadow-emerald-500/25 animate-bounce">LIVE</div>
-            )}
-          </div>
-          <span className="text-[10px] sm:text-[11px] font-bold text-center leading-tight truncate w-full text-slate-700 dark:text-slate-300">Reviews</span>
-        </motion.div>
+          {/* Reviews */}
+          <motion.div 
+            whileTap={{ scale: 0.95 }} 
+            onClick={() => { 
+              playTapSound(); 
+              navigate('/reviews');
+            }} 
+            className={`relative flex items-center gap-3 p-3 sm:p-4 rounded-[24px] border transition-all cursor-pointer group ${
+              siteSettings?.reviewsEnabled === false 
+                ? 'bg-slate-50 dark:bg-slate-900/30 border-slate-100 dark:border-slate-800 opacity-70 saturate-50' 
+                : 'bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-700 hover:bg-amber-50 dark:hover:bg-slate-700/80 hover:border-amber-200 dark:hover:border-slate-600'
+            }`}
+          >
+            <div className={`w-10 h-10 sm:w-12 sm:h-12 flex-shrink-0 rounded-[16px] flex items-center justify-center relative overflow-hidden ${
+              siteSettings?.reviewsEnabled === false
+                ? 'bg-slate-200/50 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                : 'bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-md shadow-amber-500/20 group-hover:scale-105 transition-transform'
+            }`}>
+              <Star className="w-5 h-5 sm:w-6 sm:h-6 fill-current" strokeWidth={1.5} />
+            </div>
+            <div className="flex flex-col justify-center min-w-0 pr-2">
+              <span className={`text-[11px] sm:text-[13px] font-bold truncate ${siteSettings?.reviewsEnabled === false ? 'text-slate-500 dark:text-slate-400' : 'text-slate-800 dark:text-slate-200'}`}>Reviews</span>
+              {siteSettings?.reviewsEnabled === false ? (
+                <span className="text-[9px] font-black text-rose-500 uppercase tracking-widest flex items-center gap-1 mt-0.5"><div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></div>OFFLINE</span>
+              ) : (
+                <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-1 mt-0.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>HOT NOW</span>
+              )}
+            </div>
+          </motion.div>
         </div>
       </div>
 

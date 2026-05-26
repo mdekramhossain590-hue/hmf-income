@@ -90,7 +90,7 @@ export function Reviews() {
                     <h4 className="font-display font-bold text-[12px] leading-tight mb-1 text-slate-800 dark:text-slate-200 flex items-center justify-center gap-1 w-full truncate">
                       <span className="truncate">{job.title}</span>
                     </h4>
-                    <span className="text-indigo-600 dark:text-indigo-400 text-[15px] font-display font-bold mb-3 tracking-tight drop-shadow-sm">৳ {job.reward}</span>
+                    <span className="text-emerald-600 dark:text-emerald-400 text-[10px] uppercase font-black tracking-widest bg-emerald-50 dark:bg-emerald-900/30 px-2.5 py-1 rounded-full mb-3 border border-emerald-100 dark:border-emerald-800/50">Direct Payment</span>
                     <button 
                       onClick={() => startTask(job.id)}
                       className="w-full bg-slate-900 dark:bg-indigo-600 hover:bg-slate-800 dark:hover:bg-indigo-500 text-white py-2 rounded-xl text-xs font-bold transition-all active:scale-95"
@@ -131,8 +131,8 @@ export function Reviews() {
                     <p className="text-xs text-gray-500">{historyItem.completedAt?.toDate().toLocaleString() || 'Just now'}</p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-sm font-display font-black text-green-600 dark:text-green-400">+৳{historyItem.reward}</p>
+                <div className="text-right flex items-center justify-end">
+                  <p className="text-[9px] font-display font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest bg-emerald-50 dark:bg-emerald-900/30 px-2 py-1 rounded-lg border border-emerald-100 dark:border-emerald-800/50 mt-1">Direct Paid</p>
                 </div>
               </div>
             ))

@@ -51,7 +51,7 @@ export function Wallet() {
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [selectedWallet, setSelectedWallet] = useState('main');
   const [transactions, setTransactions] = useState<any[]>([]);
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedTxId, setSelectedTxId] = useState<string | null>(null);
   const { t } = useLanguage();
 
   const [withdrawSettings, setWithdrawSettings] = useState({ mainMin: 50, mainFee: 0, bonusMin: 50, bonusFee: 0, referralMin: 50, referralFee: 0, tasksMin: 50, tasksFee: 0, customAmounts: "110, 210, 310, 410, 510" });
@@ -288,62 +288,42 @@ export function Wallet() {
   };
 
   // Process data for the chart from transactions
-  const groupedTransactions: Record<string, any> = {};
   let runningBalance = 0;
   
-  [...transactions].reverse().forEach((t) => {
-    const dateKey = t.createdAt ? t.createdAt.toDate().toLocaleDateString() : 'Now';
+  const barChartData = [...transactions].reverse().map((t, index) => {
+    let dateStr = t.createdAt ? t.createdAt.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Now';
+    if (t.createdAt) {
+      dateStr = `${t.createdAt.toDate().toLocaleDateString(undefined, {month:'short', day:'numeric'})} ${dateStr}`;
+    }
     
     const amt = t.amount || 0;
     const typeStr = (t.type || '').toLowerCase();
     const isExpense = typeStr === 'withdraw';
     const change = isExpense ? -amt : amt;
 
-    if (!groupedTransactions[dateKey]) {
-      groupedTransactions[dateKey] = {
-        name: dateKey,
-        Open: runningBalance,
-        Close: runningBalance,
-        High: runningBalance,
-        Low: runningBalance,
-        Withdrawal: 0,
-        Deposit: 0,
-        Task: 0,
-        Math: 0,
-        Spin: 0,
-        Referral: 0,
-        Bonus: 0,
-        Other: 0
-      };
-    }
-    
+    const open = runningBalance;
     runningBalance += change;
+    const close = runningBalance;
     
-    const day = groupedTransactions[dateKey];
-    day.Close = runningBalance;
-    if (runningBalance > day.High) day.High = runningBalance;
-    if (runningBalance < day.Low) day.Low = runningBalance;
+    // For a single transaction candle, high/low can just be boundaries of open/close,
+    // or maybe add a small wick if we want it to look like a 'candle'.
+    // Let's just use open and close for the body, and make high=max(open,close) and low=min(open,close).
+    // Actually, to make them look like candles even for same open/close, we can add a small padding to high/low.
+    const high = Math.max(open, close) + (amt * 0.05);
+    const low = Math.min(open, close) - (amt * 0.05);
 
-    if (typeStr === 'withdraw') {
-      day.Withdrawal += amt;
-    } else if (typeStr === 'deposit') {
-      day.Deposit += amt;
-    } else if (typeStr.includes('task') || typeStr.includes('job')) {
-      day.Task += amt;
-    } else if (typeStr === 'math' || typeStr.includes('math')) {
-      day.Math += amt;
-    } else if (typeStr === 'spin') {
-      day.Spin += amt;
-    } else if (typeStr.includes('referral')) {
-      day.Referral += amt;
-    } else if (typeStr.includes('bonus') || typeStr.includes('reward')) {
-      day.Bonus += amt;
-    } else {
-      day.Other += amt;
-    }
+    return {
+      index,
+      name: dateStr,
+      txId: t.id,
+      Open: open,
+      Close: close,
+      High: high,
+      Low: low,
+      txType: typeStr,
+      amt: amt
+    };
   });
-
-  const barChartData = Object.values(groupedTransactions);
 
   return (
     <div className="pt-6 px-4 pb-24">
@@ -654,61 +634,75 @@ export function Wallet() {
           exit={{ opacity: 0, scale: 0.95 }}
           className="space-y-4"
         >
-          <div className="bg-[#0f172a] p-5 rounded-3xl shadow-lg border border-slate-800 relative overflow-hidden">
+          <div className="bg-[#0f172a] p-4 sm:p-5 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-[#1e293b] relative overflow-hidden">
+            <h3 className="text-xs font-mono font-bold text-slate-400 mb-4 px-1 flex items-center justify-between">
+              <span>TRX/BDT</span>
+              <span className="text-[10px] text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full">+ LIVE</span>
+            </h3>
             {barChartData.length > 0 ? (
               <div className="h-48 w-full relative">
                 {/* Y Axis Labels (Rough max/min) */}
-                <div className="absolute left-0 top-0 bottom-0 flex flex-col justify-between text-[9px] text-slate-500 font-mono py-2 opacity-50">
-                  <span>{Math.max(...barChartData.map(d => d.High)).toFixed(0)}</span>
-                  <span>{Math.min(...barChartData.map(d => d.Low)).toFixed(0)}</span>
+                <div className="absolute left-0 top-0 bottom-0 flex flex-col justify-between text-[8px] text-slate-500 font-mono py-2 opacity-60">
+                  <span>৳{Math.max(...barChartData.map(d => d.High)).toFixed(0)}</span>
+                  <span>৳{Math.min(...barChartData.map(d => d.Low)).toFixed(0)}</span>
                 </div>
                 
                 {/* SVG Candlestick Canvas */}
-                <svg width="100%" height="100%" viewBox="0 0 300 150" preserveAspectRatio="none" className="pl-8">
+                <svg width="100%" height="100%" viewBox="0 0 300 150" preserveAspectRatio="none" className="pl-6">
+                  {/* Horizontal Grid Lines */}
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <line key={`h-${i}`} x1="0" y1={i * (150 / 4)} x2="300" y2={i * (150 / 4)} stroke="#1e293b" strokeWidth="1" strokeDasharray="2 4" />
+                  ))}
+                  
                   {(() => {
                     const minP = Math.min(...barChartData.map((d: any) => d.Low));
                     const maxP = Math.max(...barChartData.map((d: any) => d.High));
                     const range = (maxP - minP) || 1;
-                    const yMin = minP - range * 0.1;
-                    const yMax = maxP + range * 0.1;
+                    // Add 15% padding top and bottom
+                    const yMin = minP - range * 0.15;
+                    const yMax = maxP + range * 0.15;
                     const yRange = yMax - yMin;
-                    const mapY = (v: number) => 140 - ((v - yMin) / yRange) * 110;
+                    const mapY = (v: number) => 150 - ((v - yMin) / yRange) * 150;
                     
-                    const barWidth = 270 / Math.max(barChartData.length, 5);
-                    const candleW = Math.max(barWidth * 0.7, 4);
+                    const barWidth = 280 / Math.max(barChartData.length, 5);
+                    const candleW = Math.max(barWidth * 0.4, 2);
 
                     return barChartData.map((d: any, i: number) => {
                       const x = i * barWidth + barWidth / 2;
-                      const yH = mapY(d.High);
-                      const yL = mapY(d.Low);
+                      const yH = mapY(d.High + d.amt * 0.1); // Add small simulated wick
+                      const yL = mapY(d.Low - d.amt * 0.1);
                       const yO = mapY(d.Open);
                       const yC = mapY(d.Close);
                       const isUp = d.Close >= d.Open;
                       const color = isUp ? '#10b981' : '#ef4444'; // Emerald/Rose
                       const top = Math.min(yO, yC);
                       const bottom = Math.max(yO, yC);
-                      const h = Math.max(2, bottom - top); // min body height
+                      const h = Math.max(1.5, bottom - top); // min body height
 
                       return (
                         <g 
                           key={i} 
-                          onClick={() => setSelectedDate(selectedDate === d.name ? null : d.name)}
-                          className="cursor-pointer hover:opacity-80 transition-opacity"
+                          onClick={() => setSelectedTxId(selectedTxId === d.txId ? null : d.txId)}
+                          className="cursor-pointer hover:opacity-100 opacity-90 transition-all"
+                          style={{
+                            filter: selectedTxId === d.txId ? 'brightness(1.5)' : 'none'
+                          }}
                         >
                           {/* Invisible larger hit area for easier tapping */}
                           <rect x={Math.max(0, x - barWidth/2)} y="0" width={barWidth} height="150" fill="transparent" />
-                          {/* Grid line */}
-                          <line x1={x} y1="0" x2={x} y2="150" stroke={selectedDate === d.name ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.02)"} strokeWidth="1" />
+                          
                           {/* Wick */}
-                          <line x1={x} y1={yH} x2={x} y2={yL} stroke={color} strokeWidth={1} />
+                          <line x1={x} y1={yH} x2={x} y2={yL} stroke={color} strokeWidth={0.75} />
                           {/* Body */}
-                          <rect x={x - candleW/2} y={top} width={candleW} height={h} fill={color} stroke={color} rx="1" />
+                          <rect x={x - candleW/2} y={top} width={candleW} height={h} fill={color} stroke={color} strokeWidth={0.5} rx="0.5" />
+                          
                           {/* Selected Date highlight text */}
-                          {selectedDate === d.name && (
+                          {selectedTxId === d.txId && (
                             <>
-                              <circle cx={x} cy={yH - 8} r="3" fill="#3b82f6" />
-                              <text x={x} y={yH - 18} fill="#94a3b8" fontSize="8" textAnchor="middle" fontWeight="bold">{d.name}</text>
-                              <text x={x} y={yH - 28} fill={color} fontSize="8" textAnchor="middle" fontWeight="bold">৳{d.Close.toFixed(0)}</text>
+                              <line x1={x} y1="0" x2={x} y2="150" stroke="#3b82f6" strokeWidth="0.5" strokeDasharray="2 2" className="opacity-50" />
+                              <circle cx={x} cy={yC} r="2" fill="#3b82f6" />
+                              <rect x={Math.max(0, x - 25)} y={Math.max(0, yH - 24)} width="50" height="20" fill="#1e293b" rx="2" className="shadow-lg" />
+                              <text x={x} y={yH - 10} fill="#f8fafc" fontSize="7" textAnchor="middle" fontWeight="bold">৳{d.amt}</text>
                             </>
                           )}
                         </g>
@@ -729,11 +723,11 @@ export function Wallet() {
 
           <div className="flex justify-between items-end mt-4 px-1">
             <h3 className="text-sm font-display font-bold text-slate-700 dark:text-slate-300 capitalize tracking-wide">
-              {selectedDate ? `History: ${selectedDate}` : 'All History'}
+              {selectedTxId ? 'Transaction Focus' : 'All History'}
             </h3>
-            {selectedDate && (
+            {selectedTxId && (
               <button 
-                onClick={() => setSelectedDate(null)}
+                onClick={() => setSelectedTxId(null)}
                 className="text-[10px] text-blue-500 font-bold uppercase tracking-widest bg-blue-50 dark:bg-blue-900/30 px-3 py-1 rounded-full active:scale-95 transition-all"
               >
                 Clear Filter
@@ -743,8 +737,8 @@ export function Wallet() {
 
           <div className="space-y-3">
             {(() => {
-              const filteredTxs = selectedDate 
-                ? transactions.filter(t => (t.createdAt ? t.createdAt.toDate().toLocaleDateString() : 'Now') === selectedDate)
+              const filteredTxs = selectedTxId 
+                ? transactions.filter(t => t.id === selectedTxId)
                 : transactions;
 
               if (filteredTxs.length === 0) {
