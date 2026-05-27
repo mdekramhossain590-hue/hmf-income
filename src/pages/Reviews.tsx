@@ -24,7 +24,7 @@ export function Reviews() {
     );
     
     const unsubscribeHistory = onSnapshot(q, (snapshot) => {
-      const history = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(item => item.type === 'Review');
+      const history = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any)).filter((item: any) => item.type === 'Review');
       setTaskHistory(history);
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, `users/${auth.currentUser?.uid}/tasks`);

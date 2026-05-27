@@ -83,6 +83,8 @@ export function AdminPanel() {
     allowedCompletions: 1, // Total job slots
     userLimit: 1, // 0 for unlimited per user, 1 for once, 2 for twice etc
     deadline: '',
+    isAccountSell: false,
+    todaysPassword: ''
   });
 
   const handleEditJobClick = (job: any) => {
@@ -99,13 +101,15 @@ export function AdminPanel() {
       allowedCompletions: job.allowedCompletions || 1,
       userLimit: job.userLimit || 1,
       deadline: job.deadline || '',
+      isAccountSell: job.isAccountSell || false,
+      todaysPassword: job.todaysPassword || ''
     });
     setEditingJobId(job.id);
   };
 
   const handleCancelEditJob = () => {
     setNewJob({
-      title: '', description: '', reward: 10, link: '', type: 'Facebook', icon: 'MessageCircle', color: 'text-blue-500', bg: 'bg-blue-100', requiredProofs: ['text'], allowedCompletions: 1, userLimit: 1, deadline: ''
+      title: '', description: '', reward: 10, link: '', type: 'Facebook', icon: 'MessageCircle', color: 'text-blue-500', bg: 'bg-blue-100', requiredProofs: ['text'], allowedCompletions: 1, userLimit: 1, deadline: '', isAccountSell: false, todaysPassword: ''
     });
     setEditingJobId(null);
   };
@@ -195,14 +199,14 @@ export function AdminPanel() {
       if (doc.exists()) {
         const data = doc.data();
         setWithdrawSettings({
-          mainMin: data.mainMin || 50,
-          mainFee: data.mainFee || 0,
-          bonusMin: data.bonusMin || 50,
-          bonusFee: data.bonusFee || 0,
-          referralMin: data.referralMin || 50,
-          referralFee: data.referralFee || 0,
-          tasksMin: data.tasksMin || 50,
-          tasksFee: data.tasksFee || 0,
+          mainMin: data.mainMin !== undefined ? data.mainMin : 50,
+          mainFee: data.mainFee !== undefined ? data.mainFee : 0,
+          bonusMin: data.bonusMin !== undefined ? data.bonusMin : 50,
+          bonusFee: data.bonusFee !== undefined ? data.bonusFee : 0,
+          referralMin: data.referralMin !== undefined ? data.referralMin : 50,
+          referralFee: data.referralFee !== undefined ? data.referralFee : 0,
+          tasksMin: data.tasksMin !== undefined ? data.tasksMin : 50,
+          tasksFee: data.tasksFee !== undefined ? data.tasksFee : 0,
           customAmounts: data.customAmounts || "110, 210, 310, 410, 510"
         });
       }
@@ -980,6 +984,24 @@ export function AdminPanel() {
                       </button>
                     </div>
                   )}
+                  {sub.proofs.twoFactorCode && (
+                    <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50">
+                      <div className="flex-1 min-w-0">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">2FA / Recovery:</span>
+                        <p className="text-sm font-mono font-bold text-emerald-500 break-all">{sub.proofs.twoFactorCode}</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(sub.proofs.twoFactorCode);
+                          toast.success("2FA copied!");
+                        }}
+                        className="p-1 px-1.5 rounded-lg text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors shrink-0 self-center"
+                        title="Copy 2FA"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
                   {sub.proofs.videoUrl && (
                     <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50">
                       <div className="flex-1 min-w-0">
@@ -1115,7 +1137,7 @@ export function AdminPanel() {
             <div className="space-y-3">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Required Proofs To Check</p>
               <div className="flex gap-2 flex-wrap">
-                {['text', 'screenshot', 'username', 'password', 'videoUrl'].map(p => (
+                {['text', 'screenshot', 'username', 'password', 'videoUrl', '2facode'].map(p => (
                   <button 
                     type="button" 
                     key={p} 
@@ -1126,10 +1148,26 @@ export function AdminPanel() {
                       : 'bg-white text-slate-500 border-slate-100 dark:bg-slate-800 dark:border-slate-700'
                     }`}
                   >
-                    {p}
+                    {p === '2facode' ? '2FA Code' : p}
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-3xl space-y-3 border border-red-100 dark:border-red-900/30">
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-black text-red-500 uppercase tracking-widest">Account Selling Config</p>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={newJob.isAccountSell} onChange={e => setNewJob({...newJob, isAccountSell: e.target.checked})} className="w-4 h-4 text-red-500 rounded border-red-300 focus:ring-red-500 bg-white" />
+                  <span className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase tracking-wider">Enable Sell UI</span>
+                </label>
+              </div>
+              
+              {newJob.isAccountSell && (
+                <div className="grid gap-3 mt-2">
+                  <input type="text" placeholder="Today's Password (e.g. ayan@770)" value={newJob.todaysPassword} onChange={e => setNewJob({...newJob, todaysPassword: e.target.value})} className="w-full bg-white dark:bg-slate-800 border-none px-4 py-3 rounded-2xl text-sm font-bold placeholder:text-slate-400 text-red-600 focus:ring-1 focus:ring-red-500" />
+                </div>
+              )}
             </div>
             
             <button type="submit" className="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black uppercase tracking-[0.2em] py-4 rounded-2xl shadow-xl hover:scale-[1.02] active:scale-95 transition-all text-xs">{editingJobId ? 'Update Job Now' : 'Publish Job Now'}</button>
@@ -1844,11 +1882,11 @@ export function AdminPanel() {
                   <div className="flex items-center justify-end gap-2 w-full sm:w-auto shrink-0 border-t sm:border-y-0 border-slate-50 dark:border-slate-750/30 pt-3 sm:pt-0">
                     <button 
                       onClick={() => {
-                        setNewCourseTitle(course.title);
-                        setNewCourseDesc(course.description);
-                        setNewCourseThumbnail(course.thumbnailUrl);
-                        setNewCourseLink(course.videoLink);
-                        setNewCourseCategory(course.category);
+                        setNewCourseTitle(course.title || '');
+                        setNewCourseDesc(course.description || '');
+                        setNewCourseThumbnail(course.thumbnailUrl || '');
+                        setNewCourseLink(course.videoLink || '');
+                        setNewCourseCategory(course.category || 'টাস্ক কমপ্লিট');
                         setCourseItems(course.items || []);
                         setEditingCourseId(course.id);
                         toast.success("সম্পাদনার জন্য ডাটা লোড হয়েছে!");
