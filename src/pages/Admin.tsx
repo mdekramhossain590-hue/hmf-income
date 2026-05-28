@@ -5,7 +5,7 @@ import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { uploadImageOrFallback } from '../lib/imageUpload';
 import { processReferralCommission, processRegistrationReferral } from '../lib/referral';
 import { Trash2, CheckCircle, XCircle, Users, ShieldAlert, ShieldCheck, Wallet, ListChecks, Settings, User, Eye, Calculator, MessageSquare, Globe, Coins, Megaphone, Gamepad2, CreditCard, Lock, BellRing, RefreshCw, Smartphone, Mail, Camera, MessageCircle, Send, BookOpen, Layers, Copy, HelpCircle } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import toast from 'react-hot-toast';
 
 export function AdminPanel() {
@@ -48,6 +48,7 @@ export function AdminPanel() {
   });
   const [siteSettings, setSiteSettings] = useState({ logoUrl: '', faviconUrl: '', telegramUrl: '', dailyTaskLimit: 0, driveOffersEnabled: true, coursesEnabled: true, adsViewEnabled: false, adsViewLink: '', adsViewText: 'Watch Ads' });
   const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [viewingScreenshot, setViewingScreenshot] = useState<string | null>(null);
   const [settingsSubTab, setSettingsSubTab] = useState<'identity' | 'gateways' | 'rewards' | 'security' | 'danger'>('identity');
   
   const [faqsList, setFaqsList] = useState<{question_en: string; answer_en: string; question_bn: string; answer_bn: string}[]>([]);
@@ -1022,9 +1023,12 @@ export function AdminPanel() {
                   )}
                   {sub.proofs.screenshot && (
                     <div className="pt-2">
-                      <a href={sub.proofs.screenshot} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-xs font-black text-white bg-slate-900 dark:bg-slate-700 px-4 py-2 rounded-xl hover:scale-[1.02] active:scale-95 transition-all w-fit shadow-md">
+                      <button 
+                        onClick={() => setViewingScreenshot(sub.proofs.screenshot)}
+                        className="flex items-center gap-2 text-xs font-black text-white bg-emerald-600 dark:bg-emerald-500 px-4 py-2 rounded-xl hover:scale-[1.02] active:scale-95 transition-all w-fit shadow-md cursor-pointer"
+                      >
                         <Eye className="w-3.5 h-3.5" /> View Proof Image
-                      </a>
+                      </button>
                     </div>
                   )}
                 </div>
@@ -1252,31 +1256,69 @@ export function AdminPanel() {
               <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-700/50 mb-5 text-sm">
                 {req.type === 'withdraw' && (
                   <div className="space-y-1">
-                    <div className="flex justify-between border-b border-slate-200 dark:border-slate-700 pb-1.5 mb-1.5">
+                    <div className="flex justify-between border-b border-slate-200 dark:border-slate-700 pb-1.5 mb-1.5 font-sans">
                       <span className="text-[10px] font-black text-slate-400 uppercase">Wallet</span>
                       <span className="font-bold uppercase tracking-widest text-[10px] text-blue-500">{req.wallet} Wallet</span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex justify-between font-sans">
                       <span className="text-[10px] font-black text-slate-400 uppercase">Method</span>
                       <span className="font-bold">{req.method}</span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex justify-between items-center font-sans">
                       <span className="text-[10px] font-black text-slate-400 uppercase">Account</span>
-                      <span className="font-mono font-bold text-slate-700 dark:text-slate-200 tracking-wider">{req.account}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono font-bold text-slate-700 dark:text-slate-200 tracking-wider text-[11px]">{req.account}</span>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(req.account);
+                            toast.success('Account copied!');
+                          }}
+                          className="hover:text-indigo-500 text-slate-400 transition p-0.5 rounded cursor-pointer active:scale-95"
+                          title="Copy Account Number"
+                        >
+                          <Copy className="w-3 h-3" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
                 {req.type === 'deposit' && (
                   <div className="space-y-1">
-                    <div className="flex justify-between border-b border-slate-200 dark:border-slate-700 pb-1.5 mb-1.5">
+                    <div className="flex justify-between border-b border-slate-200 dark:border-slate-700 pb-1.5 mb-1.5 font-sans">
                       <span className="text-[10px] font-black text-slate-400 uppercase">Sender Number</span>
-                      <span className="font-mono font-bold text-slate-700 dark:text-slate-200 tracking-wider text-[11px]">{req.account || 'Unknown'}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono font-bold text-slate-700 dark:text-slate-200 tracking-wider text-[11px]">{req.account || 'Unknown'}</span>
+                        {req.account && (
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(req.account);
+                              toast.success('Sender number copied!');
+                            }}
+                            className="hover:text-indigo-500 text-slate-400 transition p-0.5 rounded cursor-pointer active:scale-95"
+                            title="Copy Sender Number"
+                          >
+                            <Copy className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex justify-between items-center font-sans">
                       <span className="text-[10px] font-black text-slate-400 uppercase">Transaction ID</span>
-                      <span className="font-mono font-bold text-indigo-600 selection:bg-indigo-100 tracking-wider text-[11px]">{req.trxId}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono font-bold text-indigo-600 selection:bg-indigo-100 tracking-wider text-[11px]">{req.trxId}</span>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(req.trxId);
+                            toast.success('Transaction ID copied!');
+                          }}
+                          className="hover:text-indigo-500 text-slate-400 transition p-0.5 rounded cursor-pointer active:scale-95"
+                          title="Copy Transaction ID"
+                        >
+                          <Copy className="w-3 h-3" />
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex justify-between border-t border-slate-200 dark:border-slate-700 mt-1.5 pt-1.5">
+                    <div className="flex justify-between border-t border-slate-200 dark:border-slate-700 mt-1.5 pt-1.5 font-sans">
                       <span className="text-[10px] font-black text-slate-400 uppercase">Method</span>
                       <span className="font-bold text-xs uppercase text-indigo-600 dark:text-indigo-400">{req.method || 'Bkash/Nagad merely indicated'}</span>
                     </div>
@@ -1284,15 +1326,41 @@ export function AdminPanel() {
                 )}
                 {req.type === 'activation' && (
                   <div className="space-y-1">
-                    <div className="flex justify-between border-b border-slate-200 dark:border-slate-700 pb-1.5 mb-1.5">
+                    <div className="flex justify-between border-b border-slate-200 dark:border-slate-700 pb-1.5 mb-1.5 font-sans">
                       <span className="text-[10px] font-black text-slate-400 uppercase">Sender Number</span>
-                      <span className="font-mono font-bold text-slate-700 dark:text-slate-200 tracking-wider text-[11px]">{req.account || 'Unknown'}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono font-bold text-slate-700 dark:text-slate-200 tracking-wider text-[11px]">{req.account || 'Unknown'}</span>
+                        {req.account && (
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(req.account);
+                              toast.success('Sender number copied!');
+                            }}
+                            className="hover:text-emerald-500 text-slate-400 transition p-0.5 rounded cursor-pointer active:scale-95"
+                            title="Copy Sender Number"
+                          >
+                            <Copy className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex justify-between items-center font-sans">
                       <span className="text-[10px] font-black text-slate-400 uppercase">Transaction ID</span>
-                      <span className="font-mono font-bold text-emerald-600 tracking-wider text-[11px]">{req.trxId}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono font-bold text-emerald-600 tracking-wider text-[11px]">{req.trxId}</span>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(req.trxId);
+                            toast.success('Transaction ID copied!');
+                          }}
+                          className="hover:text-emerald-500 text-slate-400 transition p-0.5 rounded cursor-pointer active:scale-95"
+                          title="Copy Transaction ID"
+                        >
+                          <Copy className="w-3 h-3" />
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex justify-between border-t border-slate-200 dark:border-slate-700 mt-1.5 pt-1.5">
+                    <div className="flex justify-between border-t border-slate-200 dark:border-slate-700 mt-1.5 pt-1.5 font-sans">
                       <span className="text-[10px] font-black text-slate-400 uppercase">Method</span>
                       <span className="font-bold text-xs uppercase text-emerald-600 dark:text-emerald-400">{req.method || 'Bkash/Nagad'}</span>
                     </div>
@@ -2599,6 +2667,53 @@ export function AdminPanel() {
           </div>
         </div>
       )}
+
+      {/* Screenshot Preview Modal */}
+      <AnimatePresence>
+        {viewingScreenshot && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" 
+              onClick={() => setViewingScreenshot(null)}
+            ></motion.div>
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 15 }} 
+              animate={{ opacity: 1, scale: 1, y: 0 }} 
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              transition={{ type: "spring", damping: 25, stiffness: 350 }}
+              className="relative bg-white dark:bg-slate-900 rounded-[24px] p-5 max-w-md w-full shadow-2xl border border-slate-100 dark:border-slate-800 z-10 flex flex-col max-h-[85vh]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800/80 mb-3">
+                <span className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Proof Screenshot</span>
+                <button
+                  onClick={() => setViewingScreenshot(null)}
+                  className="px-3 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/30 hover:text-rose-600 dark:hover:text-rose-400 text-slate-500 dark:text-slate-400 font-extrabold text-[10px] transition-all cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800/50 flex items-center justify-center p-2.5">
+                <img
+                  src={viewingScreenshot}
+                  alt="Proof screenshot"
+                  className="max-w-full max-h-[60vh] object-contain rounded-xl shadow-md cursor-zoom-in"
+                  onClick={() => window.open(viewingScreenshot, '_blank')}
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+              <div className="pt-3 text-center">
+                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                  Tap image to open in full tab
+                </p>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Custom Confirm Modal */}
       {confirmDialog && (

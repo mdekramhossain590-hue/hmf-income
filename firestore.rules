@@ -13,7 +13,7 @@ service cloud.firestore {
     function isSignedIn() { return request.auth != null; }
 
     function isAdmin() {
-      return (isSignedIn() && request.auth.token.email == 'mdekramhossain590@gmail.com') ||
+      return (isSignedIn() && (request.auth.token.email == 'mdekramhossain590@gmail.com' || request.auth.uid == 'SZSb7XIrt4R0zcpwDleBAf3atmm2')) ||
              (isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'employee'));
     }
 
@@ -47,10 +47,10 @@ service cloud.firestore {
 
     function isValidTaskHistory(data) {
       return data.keys().hasAll(['title', 'reward', 'completedAt']) &&
-        data.keys().size() == 3 &&
         data.title is string && data.title.size() <= 150 &&
         data.reward is number &&
-        data.completedAt is timestamp;
+        data.completedAt is timestamp &&
+        (data.keys().hasAny(['type']) ? (data.type is string && data.type.size() <= 150) : true);
     }
 
     function isValidMathHistory(data) {
@@ -255,12 +255,11 @@ service cloud.firestore {
     }
 
     function isValidLeaderboardEntry(data) {
-      return data.keys().hasAll(['fullName', 'bonus', 'updatedAt']) &&
-        data.fullName is string && data.fullName.size() <= 100 &&
-        data.bonus is number &&
+      return data.updatedAt is timestamp &&
+        (data.keys().hasAny(['fullName']) ? (data.fullName is string && data.fullName.size() <= 100) : true) &&
+        (data.keys().hasAny(['bonus']) ? data.bonus is number : true) &&
         (data.get('referrals', 0) is number) &&
-        (data.get('totalIncome', 0) is number) &&
-        data.updatedAt is timestamp;
+        (data.get('totalIncome', 0) is number);
     }
 
     function isValidCourse(data) {

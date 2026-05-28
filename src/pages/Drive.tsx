@@ -144,18 +144,52 @@ export function Drive() {
     e.preventDefault();
     if (!auth.currentUser || !selectedOffer) return;
 
-    if (!mobileNumber || mobileNumber.length < 11 || !mobileNumber.startsWith('01')) {
+    // Clean mobile number (strip non-digits and strip leading country code if any)
+    let cleanedNumber = mobileNumber.replace(/\D/g, '');
+    if (cleanedNumber.startsWith('8801')) {
+      cleanedNumber = cleanedNumber.substring(2);
+    }
+
+    if (!cleanedNumber || cleanedNumber.length !== 11 || !cleanedNumber.startsWith('01')) {
       toast.error('ভ্যালিড ১১-ডিজিটের বাংলাদেশি মোবাইল নাম্বার লিখুন (যেমন: 017XXXXXXXX)');
       return;
     }
 
-    let walletBalance = 0;
-    if (selectedWallet === 'main') walletBalance = profile?.balances?.main || 0;
-    else if (selectedWallet === 'bonus') walletBalance = profile?.balances?.bonus || 0;
-    else if (selectedWallet === 'referral') walletBalance = profile?.balances?.referral || 0;
+    const prefix = cleanedNumber.substring(0, 3);
+    const op = selectedOffer.operator;
+
+    let isValidPrefix = false;
+    let expectedPrefixMsg = '';
+
+    if (op === 'Grameenphone') {
+      isValidPrefix = (prefix === '017');
+      expectedPrefixMsg = '017';
+    } else if (op === 'Robi') {
+      isValidPrefix = (prefix === '018');
+      expectedPrefixMsg = '018';
+    } else if (op === 'Banglalink') {
+      isValidPrefix = (prefix === '019');
+      expectedPrefixMsg = '019';
+    } else if (op === 'Airtel') {
+      isValidPrefix = (prefix === '016');
+      expectedPrefixMsg = '016';
+    } else if (op === 'Teletalk') {
+      isValidPrefix = (prefix === '015');
+      expectedPrefixMsg = '015';
+    } else {
+      isValidPrefix = true;
+    }
+
+    if (!isValidPrefix) {
+      toast.error(`দুঃখিত! ${op} অপারেটরের জন্য মোবাইল নাম্বারটি অবশ্যই ${expectedPrefixMsg} দিয়ে শুরু হতে হবে।`);
+      return;
+    }
+
+    // Force payment to strictly proceed from 'main' wallet (Add Money / Deposit wallet)
+    const walletBalance = profile?.balances?.main || 0;
 
     if (walletBalance < selectedOffer.salePrice) {
-      toast.error('দুঃখিত! আপনার নির্বাচন করা ওয়ালেটে পর্যাপ্ত ব্যালেন্স নেই।');
+      toast.error('দুঃখিত! আপনার মেইন ওয়ালেট ব্যালেন্সে (অ্যাড মানি করা টাকা) পর্যাপ্ত ব্যালেন্স নেই। অনুগ্রহ করে ওয়ালেট পেজ থেকে অ্যাড মানি করুন।');
       return;
     }
 
@@ -165,8 +199,8 @@ export function Drive() {
       const batch = writeBatch(db);
       const userRef = doc(db, 'users', auth.currentUser.uid);
 
-      // 1. Deduct balance from selected wallet
-      const balanceField = `balances.${selectedWallet}`;
+      // 1. Deduct balance from main wallet only
+      const balanceField = 'balances.main';
       batch.update(userRef, {
         [balanceField]: increment(-selectedOffer.salePrice)
       });
@@ -186,9 +220,9 @@ export function Drive() {
         netAmount: selectedOffer.salePrice,
         type: 'withdraw',
         status: 'pending',
-        wallet: selectedWallet,
+        wallet: 'main',
         method: 'Drive Package',
-        account: `${selectedOffer.operator} - ${mobileNumber} [${selectedOffer.title}] - ${region}`,
+        account: `${selectedOffer.operator} - ${cleanedNumber} [${selectedOffer.title}] - ${region}`,
         createdAt: serverTimestamp()
       });
 
@@ -199,9 +233,9 @@ export function Drive() {
         netAmount: selectedOffer.salePrice,
         type: 'withdraw',
         status: 'pending',
-        wallet: selectedWallet,
+        wallet: 'main',
         method: 'Drive Package',
-        account: `${selectedOffer.operator} - ${mobileNumber} [${selectedOffer.title}] - ${region}`,
+        account: `${selectedOffer.operator} - ${cleanedNumber} [${selectedOffer.title}] - ${region}`,
         createdAt: serverTimestamp()
       });
 
@@ -439,34 +473,18 @@ export function Drive() {
                   </div>
                 </div>
 
-                {/* Wallet Select */}
-                <div>
-                  <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1 mb-1.5">Select Pay Wallet</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedWallet('main')}
-                      className={`p-3 rounded-xl border flex flex-col items-center justify-center transition-all ${
-                        selectedWallet === 'main'
-                          ? 'bg-indigo-50 border-indigo-500 text-indigo-700 dark:bg-indigo-950/40 dark:border-indigo-500 dark:text-indigo-400 shadow-sm font-bold'
-                          : 'bg-white border-slate-200 text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-350 hover:border-indigo-300'
-                      }`}
-                    >
-                      <span className="text-[10px] uppercase font-black opacity-75">Main Money</span>
-                      <span className="text-xs font-black mt-1">৳{profile?.balances?.main?.toFixed(1) || '0.0'}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedWallet('bonus')}
-                      className={`p-3 rounded-xl border flex flex-col items-center justify-center transition-all ${
-                        selectedWallet === 'bonus'
-                          ? 'bg-indigo-50 border-indigo-500 text-indigo-700 dark:bg-indigo-950/40 dark:border-indigo-500 dark:text-indigo-400 shadow-sm font-bold'
-                          : 'bg-white border-slate-200 text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-350 hover:border-indigo-300'
-                      }`}
-                    >
-                      <span className="text-[10px] uppercase font-black opacity-75">Bonus Money</span>
-                      <span className="text-xs font-black mt-1">৳{profile?.balances?.bonus?.toFixed(1) || '0.0'}</span>
-                    </button>
+                {/* Wallet Information */}
+                <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/30 p-4 rounded-2xl">
+                  <div className="flex items-center gap-2 text-amber-850 dark:text-amber-400 mb-1.5">
+                    <Wallet className="w-4 h-4" />
+                    <span className="text-xs font-black uppercase tracking-wider font-sans">Payment Source: Main Wallet</span>
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 font-bold mb-2">
+                    পেমেন্ট শুধুমাত্র আপনার অ্যাড মানি করা মেইন ব্যালেন্স থেকে কাটা হবে। টাস্ক বা বোনাস ব্যালেন্স প্রযোজ্য নয়।
+                  </p>
+                  <div className="flex items-center justify-between text-xs font-bold pt-1 border-t border-amber-200/40 dark:border-amber-900/20 text-indigo-700 dark:text-indigo-400">
+                    <span>Your Main Wallet Balance:</span>
+                    <span className="font-extrabold text-sm">৳{profile?.balances?.main?.toFixed(2) || '0.00'}</span>
                   </div>
                 </div>
 

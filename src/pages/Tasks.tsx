@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { History, List, MessageCircle, Video, Copy, Send, Key, ThumbsUp, Mail, Camera, Monitor, Smartphone, MonitorPlay, Heart, Star, User, Music, Globe, Hash, Briefcase } from 'lucide-react';
+import { History, List, MessageCircle, Video, Copy, Send, Key, ThumbsUp, Mail, Camera, Monitor, Smartphone, MonitorPlay, Heart, Star, User, Music, Globe, Hash, Briefcase, ArrowLeft, ChevronRight } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../components/AuthProvider';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
@@ -39,6 +39,7 @@ export function Tasks() {
   const [jobs, setJobs] = useState<any[]>([]);
   const initCategory = searchParams.get('category') || 'All';
   const [selectedCategory, setSelectedCategory] = useState<string>(initCategory);
+  const [viewingCategory, setViewingCategory] = useState<string | null>(null);
   const { t } = useLanguage();
 
   useEffect(() => {
@@ -73,7 +74,7 @@ export function Tasks() {
     navigate(`/tasks/${jobId}`);
   };
 
-  const filteredJobs = jobs.filter(job => job.type !== 'Review' && (selectedCategory === 'All' || job.type === selectedCategory));
+  const filteredJobs = jobs.filter(job => job.type !== 'Review' && (viewingCategory === 'All' || job.type === viewingCategory));
   
   const categoryDetails = [
     { name: 'All', icon: Briefcase, bg: 'bg-indigo-50 dark:bg-indigo-950/20', color: 'text-indigo-500 hover:text-indigo-600' },
@@ -124,89 +125,117 @@ export function Tasks() {
           exit={{ opacity: 0, x: 20 }}
           transition={{ duration: 0.2 }}
         >
-          {/* Category Section with Official Logos */}
-          <div className="mb-6">
-            <h3 className="text-[12px] font-black uppercase tracking-widest text-[#0D47A1] dark:text-blue-400 mb-3 ml-1">
-              {t('courses_categories') || 'Categories'}
-            </h3>
-            <div className="grid grid-cols-2 gap-3">
-              {categoryDetails.map((cat) => {
-                const CatIcon = cat.icon;
-                const isSelected = selectedCategory === cat.name;
-                const count = getCategoryCount(cat.name);
+          {viewingCategory === null ? (
+            /* Index View: Only Category Cards with no lists underneath */
+            <div className="mb-6">
+              <h3 className="text-[12px] font-black uppercase tracking-widest text-[#0D47A1] dark:text-blue-400 mb-3 ml-1">
+                {t('courses_categories') || 'Categories'}
+              </h3>
+              <div className="grid grid-cols-2 gap-3">
+                {categoryDetails.map((cat) => {
+                  const CatIcon = cat.icon;
+                  const count = getCategoryCount(cat.name);
+                  
+                  return (
+                    <motion.button 
+                      key={cat.name}
+                      whileTap={{ scale: 0.96 }}
+                      onClick={() => {
+                        setViewingCategory(cat.name);
+                        playTapSound?.();
+                      }}
+                      className="flex items-center gap-3 p-3 rounded-2xl border transition-all text-left relative overflow-hidden group bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-sm"
+                    >
+                      {/* Official branding icon badge */}
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-all duration-300 group-hover:scale-105 ${cat.bg} ${cat.color}`}>
+                        <CatIcon className="w-5 h-5 stroke-[2.2]" />
+                      </div>
+                      
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-black uppercase tracking-wide truncate text-slate-850 dark:text-white">
+                          {cat.name}
+                        </p>
+                        <span className="text-[9px] font-bold text-slate-400">
+                          {count} {count === 1 ? 'Job' : 'Jobs'}
+                        </span>
+                      </div>
+
+                      <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200" />
+                    </motion.button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            /* Sub-page / Category Detail View */
+            <div>
+              {/* Elegant back button to Categories */}
+              <button 
+                onClick={() => setViewingCategory(null)}
+                className="flex items-center gap-2 text-xs font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/20 px-4.5 py-2.5 rounded-2xl hover:scale-[1.02] active:scale-95 transition-all mb-4 hover:bg-indigo-100/50 dark:hover:bg-indigo-950/30"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" /> {t('back') || 'Back'}
+              </button>
+
+              {/* Category Brand Header */}
+              {(() => {
+                const currentCat = categoryDetails.find(c => c.name === viewingCategory) || { name: viewingCategory, icon: Briefcase, bg: 'bg-indigo-50 dark:bg-indigo-950/20', color: 'text-indigo-500' };
+                const CatIcon = currentCat.icon;
                 
                 return (
-                  <motion.button 
-                    key={cat.name}
-                    whileTap={{ scale: 0.96 }}
-                    onClick={() => {
-                      setSelectedCategory(cat.name);
-                      playTapSound?.();
-                    }}
-                    className={`flex items-center gap-3 p-3 rounded-2xl border transition-all text-left relative overflow-hidden group ${
-                      isSelected 
-                        ? 'bg-gradient-to-tr from-indigo-600 to-indigo-700 text-white border-indigo-600 shadow-md shadow-indigo-650/20' 
-                        : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700'
-                    }`}
-                  >
-                    {/* Official branding icon badge */}
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-all duration-300 group-hover:scale-105 ${
-                      isSelected 
-                        ? 'bg-white/20 text-white' 
-                        : `${cat.bg} ${cat.color}`
-                    }`}>
-                      <CatIcon className="w-5 h-5 stroke-[2.2]" />
+                  <div className="flex items-center justify-between p-4 mb-4 bg-gradient-to-tr from-indigo-50 to-indigo-100/30 dark:from-slate-800/40 dark:to-slate-900/40 rounded-3xl border border-indigo-100/10 dark:border-slate-800">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-11 h-11 rounded-2xl flex items-center justify-center ${currentCat.bg} ${currentCat.color}`}>
+                        <CatIcon className="w-5 h-5 stroke-[2.2]" />
+                      </div>
+                      <div>
+                        <h3 className="text-xs font-black uppercase tracking-widest text-[#0D47A1] dark:text-blue-400">
+                          {viewingCategory}
+                        </h3>
+                        <span className="text-[10px] font-bold text-slate-400 block -mt-0.5">
+                          {t('available_jobs') || 'Available Jobs'}
+                        </span>
+                      </div>
                     </div>
-                    
-                    <div className="min-w-0 flex-1">
-                      <p className={`text-xs font-black uppercase tracking-wide truncate ${isSelected ? 'text-white' : 'text-slate-850 dark:text-white'}`}>
-                        {cat.name}
-                      </p>
-                      <span className={`text-[9px] font-bold ${isSelected ? 'text-indigo-200' : 'text-slate-400'}`}>
-                        {count} {count === 1 ? 'Job' : 'Jobs'}
-                      </span>
-                    </div>
-                  </motion.button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Section Divider with Selected Category Title */}
-          <div className="flex items-center justify-between mb-4 mt-2 px-1">
-            <h3 className="text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-300">
-              {selectedCategory === 'All' ? t('available_jobs') : `${selectedCategory}`}
-            </h3>
-            <span className="text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/45 text-indigo-600 dark:text-indigo-400 px-2.5 py-1 rounded-full ring-1 ring-indigo-100 dark:ring-indigo-900/30">
-              {filteredJobs.length} {filteredJobs.length === 1 ? 'Job' : 'Jobs'}
-            </span>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {filteredJobs.length === 0 ? (
-              <div className="col-span-full text-center py-10 text-slate-400 dark:text-slate-500 font-medium">No jobs available in this category.</div>
-            ) : (
-              filteredJobs.map((job) => {
-                const Icon = getIcon(job.icon);
-                return (
-                  <div key={job.id} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm hover:shadow-md ring-1 ring-slate-100 dark:ring-slate-700/50 flex flex-col items-center text-center transition-all">
-                    <div className={`w-12 h-12 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700/50 flex items-center justify-center mb-3 text-indigo-500`}>
-                      <Icon className="w-6 h-6" />
-                    </div>
-                    <h4 className="font-display font-bold text-[12px] leading-tight mb-1 text-slate-800 dark:text-slate-200 flex items-center justify-center gap-1 w-full truncate">
-                      <span className="truncate">{job.title}</span>
-                    </h4>
-                    <span className="text-indigo-600 dark:text-indigo-400 text-[15px] font-display font-bold mb-3 tracking-tight drop-shadow-sm">৳ {job.reward}</span>
-                    <button 
-                      onClick={() => startTask(job.id)}
-                      className="w-full bg-slate-900 dark:bg-indigo-600 hover:bg-slate-800 dark:hover:bg-indigo-500 text-white py-2 rounded-xl text-xs font-bold transition-all active:scale-95"
-                    >
-                      {t('start')}
-                    </button>
+                    <span className="text-[10px] font-black bg-indigo-600 text-white px-3 py-1.5 rounded-full shadow-sm ring-2 ring-indigo-500/10">
+                      {filteredJobs.length} {filteredJobs.length === 1 ? 'Job' : 'Jobs'}
+                    </span>
                   </div>
                 );
-              })
-            )}
-          </div>
+              })()}
+
+              {/* Jobs Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {filteredJobs.length === 0 ? (
+                  <div className="col-span-full text-center py-12 bg-white dark:bg-slate-850 rounded-3xl p-6 text-slate-400 dark:text-slate-500 font-medium">
+                    <Briefcase className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                    No jobs currently available in this category.
+                  </div>
+                ) : (
+                  filteredJobs.map((job) => {
+                    const Icon = getIcon(job.icon);
+                    return (
+                      <div key={job.id} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm hover:shadow-md ring-1 ring-slate-100 dark:ring-slate-700/50 flex flex-col items-center text-center transition-all">
+                        <div className={`w-12 h-12 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700/50 flex items-center justify-center mb-3 text-indigo-500`}>
+                          <Icon className="w-6 h-6" />
+                        </div>
+                        <h4 className="font-display font-bold text-[12px] leading-tight mb-1 text-slate-800 dark:text-slate-200 flex items-center justify-center gap-1 w-full truncate">
+                          <span className="truncate">{job.title}</span>
+                        </h4>
+                        <span className="text-indigo-600 dark:text-indigo-400 text-[15px] font-display font-bold mb-3 tracking-tight drop-shadow-sm">৳ {job.reward}</span>
+                        <button 
+                          onClick={() => startTask(job.id)}
+                          className="w-full bg-slate-900 dark:bg-indigo-600 hover:bg-slate-800 dark:hover:bg-indigo-500 text-white py-2 rounded-xl text-xs font-bold transition-all active:scale-95"
+                        >
+                          {t('start')}
+                        </button>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
         </motion.div>
       )}
 

@@ -761,6 +761,21 @@ export function Wallet() {
                     <div>
                       <h4 className="text-sm font-bold text-slate-800 dark:text-white capitalize">{tx.type}</h4>
                       <p className="text-[11px] font-medium text-slate-500 mt-0.5 tracking-wide">{tx.createdAt?.toDate().toLocaleDateString() || 'Pending'}</p>
+                      <div className="flex items-center gap-1.5 mt-1 bg-slate-50 dark:bg-slate-900/45 px-2 py-0.5 rounded-lg border border-slate-100 dark:border-slate-800">
+                        <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 select-all">
+                          ID: <span className="font-semibold">{tx.trxId || tx.id}</span>
+                        </span>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(tx.trxId || tx.id);
+                            toast.success('ID Copied!');
+                          }}
+                          className="hover:text-indigo-500 text-slate-400 transition p-0.5 rounded cursor-pointer active:scale-95"
+                          title="Copy ID to Clipboard"
+                        >
+                          <Copy className="w-3 h-3" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                   <div className="text-right">
