@@ -6,6 +6,7 @@ import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { useLanguage } from '../components/LanguageProvider';
 import { motion, AnimatePresence } from 'motion/react';
+import { playTapSound } from '../lib/sound';
 
 const getIcon = (iconName: string) => {
   switch (iconName) {
@@ -74,7 +75,25 @@ export function Tasks() {
 
   const filteredJobs = jobs.filter(job => job.type !== 'Review' && (selectedCategory === 'All' || job.type === selectedCategory));
   
-  const categories = ['All', 'Facebook', 'Gmail', 'Instagram', 'Telegram', 'Sell Accounts', 'Microjob', 'Typing', 'Watch Ads', 'Other'];
+  const categoryDetails = [
+    { name: 'All', icon: Briefcase, bg: 'bg-indigo-50 dark:bg-indigo-950/20', color: 'text-indigo-500 hover:text-indigo-600' },
+    { name: 'Facebook', icon: ThumbsUp, bg: 'bg-blue-50 dark:bg-blue-950/20', color: 'text-[#1877F2]' },
+    { name: 'Gmail', icon: Mail, bg: 'bg-red-50 dark:bg-red-950/20', color: 'text-[#EA4335]' },
+    { name: 'Instagram', icon: Camera, bg: 'bg-pink-50 dark:bg-pink-950/20', color: 'text-[#E1306C]' },
+    { name: 'Telegram', icon: Send, bg: 'bg-sky-50 dark:bg-sky-950/20', color: 'text-[#229ED9]' },
+    { name: 'Sell Accounts', icon: User, bg: 'bg-amber-50 dark:bg-amber-950/20', color: 'text-amber-500' },
+    { name: 'Microjob', icon: Monitor, bg: 'bg-violet-50 dark:bg-violet-950/20', color: 'text-violet-500' },
+    { name: 'Typing', icon: Key, bg: 'bg-emerald-50 dark:bg-emerald-950/20', color: 'text-emerald-500' },
+    { name: 'Watch Ads', icon: MonitorPlay, bg: 'bg-rose-50 dark:bg-rose-950/20', color: 'text-red-600' },
+    { name: 'Other', icon: Globe, bg: 'bg-slate-50 dark:bg-slate-900/40', color: 'text-slate-500' }
+  ];
+
+  const getCategoryCount = (category: string) => {
+    if (category === 'All') {
+      return jobs.filter(job => job.type !== 'Review').length;
+    }
+    return jobs.filter(job => job.type === category).length;
+  };
 
   return (
     <div className="pt-6 px-4 pb-20">
@@ -105,16 +124,62 @@ export function Tasks() {
           exit={{ opacity: 0, x: 20 }}
           transition={{ duration: 0.2 }}
         >
-          <div className="flex gap-2 overflow-x-auto pb-4 mb-2 no-scrollbar px-1">
-            {categories.map(cat => (
-              <button 
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-bold transition-all ${selectedCategory === cat ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-600 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-600'}`}
-              >
-                {cat}
-              </button>
-            ))}
+          {/* Category Section with Official Logos */}
+          <div className="mb-6">
+            <h3 className="text-[12px] font-black uppercase tracking-widest text-[#0D47A1] dark:text-blue-400 mb-3 ml-1">
+              {t('courses_categories') || 'Categories'}
+            </h3>
+            <div className="grid grid-cols-2 gap-3">
+              {categoryDetails.map((cat) => {
+                const CatIcon = cat.icon;
+                const isSelected = selectedCategory === cat.name;
+                const count = getCategoryCount(cat.name);
+                
+                return (
+                  <motion.button 
+                    key={cat.name}
+                    whileTap={{ scale: 0.96 }}
+                    onClick={() => {
+                      setSelectedCategory(cat.name);
+                      playTapSound?.();
+                    }}
+                    className={`flex items-center gap-3 p-3 rounded-2xl border transition-all text-left relative overflow-hidden group ${
+                      isSelected 
+                        ? 'bg-gradient-to-tr from-indigo-600 to-indigo-700 text-white border-indigo-600 shadow-md shadow-indigo-650/20' 
+                        : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    {/* Official branding icon badge */}
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-all duration-300 group-hover:scale-105 ${
+                      isSelected 
+                        ? 'bg-white/20 text-white' 
+                        : `${cat.bg} ${cat.color}`
+                    }`}>
+                      <CatIcon className="w-5 h-5 stroke-[2.2]" />
+                    </div>
+                    
+                    <div className="min-w-0 flex-1">
+                      <p className={`text-xs font-black uppercase tracking-wide truncate ${isSelected ? 'text-white' : 'text-slate-850 dark:text-white'}`}>
+                        {cat.name}
+                      </p>
+                      <span className={`text-[9px] font-bold ${isSelected ? 'text-indigo-200' : 'text-slate-400'}`}>
+                        {count} {count === 1 ? 'Job' : 'Jobs'}
+                      </span>
+                    </div>
+                  </motion.button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Section Divider with Selected Category Title */}
+          <div className="flex items-center justify-between mb-4 mt-2 px-1">
+            <h3 className="text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-300">
+              {selectedCategory === 'All' ? t('available_jobs') : `${selectedCategory}`}
+            </h3>
+            <span className="text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/45 text-indigo-600 dark:text-indigo-400 px-2.5 py-1 rounded-full ring-1 ring-indigo-100 dark:ring-indigo-900/30">
+              {filteredJobs.length} {filteredJobs.length === 1 ? 'Job' : 'Jobs'}
+            </span>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {filteredJobs.length === 0 ? (
