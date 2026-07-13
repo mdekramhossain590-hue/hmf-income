@@ -1,47 +1,71 @@
 import { useState, useEffect } from 'react';
-import { Copy, Link as LinkIcon, MessageCircle, Send, Users, History, BarChart3, TrendingUp, Coins, Calendar, DollarSign, Layers } from 'lucide-react';
+import { Copy, Link as LinkIcon, MessageCircle, Send, Users, History, BarChart3, TrendingUp, Coins, Calendar, DollarSign, Layers, Shield } from 'lucide-react';
 import { useAuth } from '../components/AuthProvider';
 import { useLanguage } from '../components/LanguageProvider';
-import { collection, query, orderBy, onSnapshot, doc, getDoc } from 'firebase/firestore';
+import { collection, where, getCountFromServer, query, orderBy, getDoc, doc, getDocs, limit } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
+import { getCachedQuery, getCachedDoc } from '../lib/cache';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import toast from 'react-hot-toast';
 
 export function Refer() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const { t, language } = useLanguage();
+  const [actualReferralsCount, setActualReferralsCount] = useState<number>(profile?.totalReferrals || 0);
+
+  useEffect(() => {
+    const uid = user?.uid;
+    if (!uid) return;
+    const fetchReferralCount = async () => {
+      try {
+        const { getCountFromServer, query, collection, where } = await import('firebase/firestore');
+        const snap = await getCountFromServer(query(collection(db, "users", uid, "referrals")));
+        setActualReferralsCount(snap.data().count);
+      } catch (error) {
+        console.error("Failed to fetch actual referral count:", error);
+      }
+    };
+    fetchReferralCount();
+  }, [user?.uid]);
   const [referrals, setReferrals] = useState<any[]>([]);
-  const [referralBonus, setReferralBonus] = useState(10);
+    const [referralBonus, setReferralBonus] = useState(10);
+  const [partnerSettings, setPartnerSettings] = useState({ requiredReferrals: 10, dailyBonus: 100, enabled: true });
 
   useEffect(() => {
     if (!auth.currentUser) return;
     
-    const q = query(
-      collection(db, "users", auth.currentUser.uid, "referrals"),
-      orderBy("createdAt", "desc")
-    );
-    
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const historyItems = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setReferrals(historyItems);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, `users/${auth.currentUser?.uid}/referrals`);
-    });
-
-    const fetchBonus = async () => {
+    const loadReferrals = async () => {
       try {
-        const refDoc = await getDoc(doc(db, "settings", "referral"));
+        const q = query(
+          collection(db, "users", auth.currentUser!.uid, "referrals"),
+          orderBy("createdAt", "desc"),
+          limit(20)
+        );
+        const snapshot = await getCachedQuery(q, `referrals_${auth.currentUser!.uid}`);
+        setReferrals(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        
+        const [refDoc, pDoc] = await Promise.all([
+          getCachedDoc(doc(db, "settings", "referral")),
+          getCachedDoc(doc(db, "settings", "partner"))
+        ]);
         if (refDoc.exists()) {
           setReferralBonus(refDoc.data().fixedBonus || 10);
         }
-      } catch (e) {
-        // ignore
+        if (pDoc.exists()) {
+          const d = pDoc.data();
+          setPartnerSettings({
+            requiredReferrals: d.requiredReferrals !== undefined ? d.requiredReferrals : 10,
+            dailyBonus: d.dailyBonus !== undefined ? d.dailyBonus : 100,
+            enabled: d.enabled !== false
+          });
+        }
+      } catch (error) {
+        handleFirestoreError(error, OperationType.GET, `Refer`);
       }
     };
-    fetchBonus();
-
-    return () => unsubscribe();
-  }, []);
+    
+    loadReferrals();
+  }, [profile?.uid]);
 
   const referLink = profile?.myReferCode ? `${window.location.origin}/register?ref=${profile.myReferCode}` : '';
 
@@ -82,7 +106,7 @@ export function Refer() {
   const [analyticsSubTab, setAnalyticsSubTab] = useState<'earnings' | 'count'>('earnings');
 
   // Calculate key performance statistics
-  const totalReferralsCount = referrals.length;
+  const totalReferralsCount = actualReferralsCount;
   const totalReferralEarnings = referrals.reduce((sum, r) => sum + (Number(r.bonusEarned) || 0), 0);
   const averageEarnedPerReferral = totalReferralsCount > 0 ? (totalReferralEarnings / totalReferralsCount) : 0;
 
@@ -169,8 +193,14 @@ export function Refer() {
 
   return (
     <div className="pt-6 px-4 text-center pb-24">
-      <h2 className="text-2xl font-black mb-6 tracking-tight text-slate-800 dark:text-white">{t('invite_earn')}</h2>
+      <h2 className="text-2xl font-black mb-4 tracking-tight text-slate-800 dark:text-white">{t('invite_earn')}</h2>
       
+      {/* Trust Banner */}
+      <div className="bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30 rounded-[20px] p-3 mb-6 flex items-center justify-center gap-2 cursor-default">
+        <Shield className="w-4 h-4 text-blue-500" />
+        <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-widest">Rewards Guaranteed by System</span>
+      </div>
+
       <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-2xl p-5 text-white shadow-lg mb-6 flex justify-between items-center relative overflow-hidden border border-indigo-500/30">
         <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 blur-2xl rounded-full pointer-events-none"></div>
         <div className="text-left relative z-10">
@@ -192,7 +222,7 @@ export function Refer() {
         <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 mb-2 uppercase tracking-wide">{t('your_referral_code')}</p>
         <div className="bg-indigo-50/50 dark:bg-slate-900/50 rounded-xl p-3 pr-12 border border-indigo-100/50 dark:border-slate-700">
           <h3 className="text-lg font-black tracking-widest text-indigo-600 dark:text-indigo-400 select-all">
-            {profile?.myReferCode || <span className="animate-pulse">Loading...</span>}
+            {profile?.myReferCode || <span className="text-slate-400">Unavailable</span>}
           </h3>
         </div>
         <button 
@@ -207,7 +237,7 @@ export function Refer() {
         <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 mb-2 uppercase tracking-wide">{t('your_referral_link')}</p>
         <div className="bg-amber-50/50 dark:bg-slate-900/50 rounded-xl p-3 pr-12 border border-amber-100/50 dark:border-slate-700">
           <p className="text-[13px] font-semibold text-amber-600 dark:text-amber-400 break-all select-all">
-            {referLink || <span className="animate-pulse">Loading...</span>}
+            {referLink || <span className="text-slate-400">Unavailable</span>}
           </p>
         </div>
         <button 

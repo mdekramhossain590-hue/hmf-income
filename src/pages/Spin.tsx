@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { MapPin, CheckCircle2, XCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { doc, updateDoc, increment, collection, addDoc, serverTimestamp, onSnapshot, setDoc } from 'firebase/firestore';
+import { triggerConfetti } from '../lib/confetti';
+import { doc, updateDoc, increment, collection, addDoc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
+import { getCachedDoc } from '../lib/cache';
 import { useAuth } from '../components/AuthProvider';
 import { processReferralCommission } from '../lib/referral';
 import toast from 'react-hot-toast';
@@ -99,7 +101,7 @@ const Confetti = () => {
 };
 
 export function Spin() {
-  const { refreshProfile, profile } = useAuth();
+  const { refreshProfile, profile, siteSettings } = useAuth();
   const [spinsLeft, setSpinsLeft] = useState(5);
   const [isSpinning, setIsSpinning] = useState(false);
   const [rotation, setRotation] = useState(0);
@@ -108,26 +110,30 @@ export function Spin() {
   const [winningIndex, setWinningIndex] = useState<number | null>(null);
 
   useEffect(() => {
-    const unsubSpin = onSnapshot(doc(db, "settings", "spin"), (docSnapshot) => {
-      if (docSnapshot.exists() && docSnapshot.data().rewards) {
-        setRewards(docSnapshot.data().rewards);
+    const fetchData = async () => {
+      try {
+        const [spinDoc, gameDoc] = await Promise.all([
+          getCachedDoc(doc(db, "settings", "spin")),
+          getCachedDoc(doc(db, "settings", "games"))
+        ]);
+        
+        if (spinDoc.exists() && spinDoc.data().rewards) {
+          setRewards(spinDoc.data().rewards);
+        }
+        
+        if (gameDoc.exists()) {
+          const data = gameDoc.data();
+          setSpinReq({
+            taskReq: data.spinTaskReq || 0,
+            referReq: data.spinReferReq || 0
+          });
+        }
+      } catch (e) {
+        console.error("Error fetching spin settings:", e);
       }
-    });
-
-    const unsubGameSettings = onSnapshot(doc(db, "settings", "games"), (docSnapshot) => {
-      if (docSnapshot.exists()) {
-        const data = docSnapshot.data();
-        setSpinReq({
-          taskReq: data.spinTaskReq || 0,
-          referReq: data.spinReferReq || 0
-        });
-      }
-    });
-
-    return () => {
-      unsubSpin();
-      unsubGameSettings();
     };
+    
+    fetchData();
   }, []);
 
   const hasMetRequirements = () => {
@@ -217,6 +223,7 @@ export function Spin() {
 
           await processReferralCommission(auth.currentUser!.uid, reward, 'Spin');
 
+          triggerConfetti();
           toast.success(`Congratulations! You won ৳${reward} bonus.`);
         } else {
           loseSound();
@@ -299,8 +306,12 @@ export function Spin() {
             })}
             
             {/* Center dot */}
-            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-16 h-16 bg-white dark:bg-slate-800 rounded-full shadow-2xl border-[6px] border-amber-400 dark:border-amber-500 z-10 flex items-center justify-center ring-4 ring-amber-500/20">
-              <span className="font-black text-[11px] tracking-widest text-amber-500 dark:text-amber-400 drop-shadow-sm">SPIN</span>
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-16 h-16 bg-white dark:bg-slate-800 rounded-full shadow-2xl border-[6px] border-amber-400 dark:border-amber-500 z-10 flex items-center justify-center ring-4 ring-amber-500/20 overflow-hidden">
+              {siteSettings?.logoUrl ? (
+                <img src={siteSettings.logoUrl} alt="Logo" className="w-8 h-8 object-contain" />
+              ) : (
+                <span className="font-black text-[11px] tracking-widest text-amber-500 dark:text-amber-400 drop-shadow-sm">SPIN</span>
+              )}
             </div>
           </motion.div>
         </div>

@@ -1,5 +1,5 @@
-import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './components/AuthProvider';
 import { Layout } from './components/Layout';
@@ -16,6 +16,7 @@ import { Profile } from './pages/Profile';
 import { Leaderboard } from './pages/Leaderboard';
 import { Rewards } from './pages/Rewards';
 import { Recharge } from './pages/Recharge';
+import { GiftCode } from './pages/GiftCode';
 import { AdsView } from './pages/AdsView';
 import { Drive } from './pages/Drive';
 import { Settings } from './pages/Settings';
@@ -26,10 +27,23 @@ import { AdminPanel } from './pages/Admin';
 import { Payment } from './pages/Payment';
 import { Courses } from './pages/Courses';
 import { FAQ } from './pages/FAQ';
+import { PostJob } from './pages/PostJob';
 
 import { FullPageLoader } from './components/LoadingSpinner';
 
 import { ActivationPopup } from './components/ActivationPopup';
+
+import { MigrationDashboard } from './pages/MigrationDashboard';
+
+function ScrollToTop() {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
+  return null;
+}
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -82,11 +96,37 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 }
 
 
+function DynamicFavicon() {
+  const { siteSettings } = useAuth();
+  React.useEffect(() => {
+    if (siteSettings?.logoUrl) {
+      let link: HTMLLinkElement | null = document.querySelector("link[rel~='icon']");
+      if (!link) {
+        link = document.createElement('link');
+        link.rel = 'icon';
+        document.head.appendChild(link);
+      }
+      link.href = siteSettings.logoUrl;
+      
+      let appleLink: HTMLLinkElement | null = document.querySelector("link[rel='apple-touch-icon']");
+      if (!appleLink) {
+        appleLink = document.createElement('link');
+        appleLink.rel = 'apple-touch-icon';
+        document.head.appendChild(appleLink);
+      }
+      appleLink.href = siteSettings.logoUrl;
+    }
+  }, [siteSettings?.logoUrl]);
+  return null;
+}
+
 export default function App() {
   return (
     <AuthProvider>
+      <DynamicFavicon />
       <Toaster position="top-center" />
       <BrowserRouter>
+        <ScrollToTop />
           <Routes>
             <Route path="/login" element={<PublicRoute><Auth /></PublicRoute>} />
           <Route path="/register" element={<PublicRoute><Auth /></PublicRoute>} />
@@ -95,6 +135,7 @@ export default function App() {
           <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
             <Route path="/" element={<Dashboard />} />
             <Route path="/tasks" element={<ActiveGuard><Tasks /></ActiveGuard>} />
+            <Route path="/post-job" element={<ActiveGuard><PostJob /></ActiveGuard>} />
             <Route path="/reviews" element={<ActiveGuard><Reviews /></ActiveGuard>} />
             <Route path="/tasks/:id" element={<ActiveGuard><TaskDetail /></ActiveGuard>} />
             <Route path="/spin" element={<ActiveGuard><Spin /></ActiveGuard>} />
@@ -102,12 +143,13 @@ export default function App() {
             <Route path="/refer" element={<ActiveGuard><Refer /></ActiveGuard>} />
             <Route path="/wallet" element={<Wallet />} />
             <Route path="/recharge" element={<Recharge />} />
+            <Route path="/gift" element={<ActiveGuard><GiftCode /></ActiveGuard>} />
             <Route path="/drive" element={<ActiveGuard><Drive /></ActiveGuard>} />
             <Route path="/courses" element={<Courses />} />
             <Route path="/ads" element={<ActiveGuard><AdsView /></ActiveGuard>} />
             <Route path="/payment" element={<Payment />} />
             <Route path="/profile" element={<Profile />} />
-            <Route path="/leaderboard" element={<ActiveGuard><Leaderboard /></ActiveGuard>} />
+            <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/rewards" element={<ActiveGuard><Rewards /></ActiveGuard>} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/support" element={<Support />} />
@@ -115,10 +157,12 @@ export default function App() {
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/terms" element={<Terms />} />
             <Route path="/admin" element={<AdminPanel />} />
+            <Route path="/admin/migrate" element={<MigrationDashboard />} />
           </Route>
           
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        
         </BrowserRouter>
       </AuthProvider>
   );

@@ -1,472 +1,121 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if false;
+    
+    // ১. সহায়তাকারী ফাংশনসমূহ (Helper Functions)
+    function isAuth() {
+      return request.auth != null;
     }
 
-    function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    function isOwner(userId) {
+      return request.auth.uid == userId;
     }
-    function incoming() { return request.resource.data; }
-    function existing() { return resource.data; }
-    function isSignedIn() { return request.auth != null; }
 
     function isAdmin() {
-      return (isSignedIn() && (request.auth.token.email == 'mdekramhossain590@gmail.com' || request.auth.uid == 'SZSb7XIrt4R0zcpwDleBAf3atmm2')) ||
-             (isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'employee'));
+      return isAuth() && (
+        request.auth.uid in ['CGsRdm6gLNZwnAzjkWtPQH0Z3IQ2', 'G0sRdm6gLNZwnAzjkWtPQH0Z3IQ2'] ||
+        ('email' in request.auth.token && request.auth.token.email == 'mdekramhossain590@gmail.com') ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         'role' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'employee'])
+      );
     }
 
-    function isFreeActivationSettings() {
-      return !exists(/databases/$(database)/documents/settings/activation) || 
-             get(/databases/$(database)/documents/settings/activation).data.mode == 'free';
+    // রেকর্ড বা পে-লোডের মালিকানা যাচাই করার সাধারণ ফাংশন
+    function isDataOwner(data) {
+      return isAuth() && data != null && 'userId' in data && request.auth.uid == data.userId;
     }
 
-    function isValidUser(data) {
-      return data.keys().hasAll(['fullName', 'email', 'balances']) &&
-        data.fullName is string && data.fullName.size() <= 200 &&
-        data.email is string && data.email.size() <= 150 &&
-        data.balances is map &&
-        data.balances.main is number &&
-        data.balances.bonus is number &&
-        data.balances.referral is number &&
-        (data.keys().hasAny(['role']) ? (data.role is string && (data.role == 'user' || data.role == 'admin' || data.role == 'employee')) : true) &&
-        (data.keys().hasAny(['myReferCode']) ? (data.myReferCode is string && data.myReferCode.size() <= 40) : true) &&
-        (data.keys().hasAny(['usedReferCode']) ? (data.usedReferCode is string && data.usedReferCode.size() <= 40) : true) &&
-        (data.keys().hasAny(['createdAt']) ? (data.createdAt is timestamp) : true) &&
-        (data.keys().hasAny(['photoURL']) ? (data.photoURL is string && data.photoURL.size() <= 200000) : true) &&
-        (data.keys().hasAny(['totalReferrals']) ? data.totalReferrals is number : true) &&
-        (data.keys().hasAny(['totalTasksCompleted']) ? data.totalTasksCompleted is number : true) &&
-        (data.keys().hasAny(['isActive']) ? data.isActive is bool : true) &&
-        (data.keys().hasAny(['deviceId']) ? (data.deviceId is string && data.deviceId.size() <= 200) : true) &&
-        (data.keys().hasAny(['isBlocked']) ? data.isBlocked is bool : true) &&
-        (data.keys().hasAny(['permissions']) ? data.permissions is list : true) &&
-        (data.keys().hasAny(['referralBonusPaid']) ? data.referralBonusPaid is bool : true) &&
-        (data.keys().hasAny(['lastLoginAt']) ? data.lastLoginAt is timestamp : true);
-    }
-
-    function isValidTaskHistory(data) {
-      return data.keys().hasAll(['title', 'reward', 'completedAt']) &&
-        data.title is string && data.title.size() <= 150 &&
-        data.reward is number &&
-        data.completedAt is timestamp &&
-        (data.keys().hasAny(['type']) ? (data.type is string && data.type.size() <= 150) : true);
-    }
-
-    function isValidMathHistory(data) {
-      return data.keys().hasAll(['question', 'userAnswer', 'correctAnswer', 'reward', 'completedAt']) &&
-        data.keys().size() == 5 &&
-        data.question is string && data.question.size() <= 100 &&
-        data.userAnswer is string && data.userAnswer.size() <= 50 &&
-        data.correctAnswer is string && data.correctAnswer.size() <= 50 &&
-        data.reward is number &&
-        data.completedAt is timestamp;
-    }
-
-    function isValidTransactionHistory(data) {
-      return data.keys().hasAll(['amount', 'type', 'status', 'createdAt']) &&
-        data.amount is number &&
-        data.type is string && (data.type == 'deposit' || data.type == 'withdraw' || data.type == 'task' || data.type == 'referral' || data.type == 'activation') &&
-        data.status is string && data.status.size() <= 50 &&
-        data.createdAt is timestamp &&
-        (data.keys().hasAny(['fee']) ? data.fee is number : true) &&
-        (data.keys().hasAny(['netAmount']) ? data.netAmount is number : true) &&
-        (data.keys().hasAny(['wallet']) ? data.wallet is string : true) &&
-        (data.keys().hasAny(['method']) ? data.method is string : true) &&
-        (data.keys().hasAny(['account']) ? data.account is string : true) &&
-        (data.keys().hasAny(['trxId']) ? data.trxId is string : true) &&
-        (data.keys().hasAny(['updatedAt']) ? data.updatedAt is timestamp : true);
-    }
-
-    function isValidReferralHistory(data) {
-      return data.keys().hasAll(['referredEmail', 'bonusEarned', 'createdAt']) &&
-        data.referredEmail is string && data.referredEmail.size() <= 150 &&
-        data.bonusEarned is number &&
-        (data.keys().hasAny(['level']) ? data.level is number : true) &&
-        (data.keys().hasAny(['referredName']) ? data.referredName is string && data.referredName.size() <= 150 : true) &&
-        data.createdAt is timestamp;
-    }
-
-    function isValidAdminJob(data) {
-      return data.keys().hasAll(['title', 'description', 'reward', 'link', 'type', 'requiredProofs', 'icon', 'color', 'bg', 'status', 'createdAt', 'allowedCompletions', 'deadline', 'postedBy', 'userLimit']) &&
-        data.title is string && data.title.size() <= 150 &&
-        data.description is string && data.description.size() <= 1000 &&
-        data.reward is number &&
-        data.link is string && data.link.size() <= 600 &&
-        data.type is string && data.type.size() <= 50 &&
-        data.requiredProofs is list && data.requiredProofs.size() <= 10 &&
-        data.icon is string && data.icon.size() <= 50 &&
-        data.color is string && data.color.size() <= 50 &&
-        data.bg is string && data.bg.size() <= 50 &&
-        data.status is string && (data.status == 'active' || data.status == 'inactive') &&
-        data.createdAt is timestamp &&
-        data.allowedCompletions is number &&
-        data.deadline is string &&
-        data.postedBy is string &&
-        data.userLimit is number &&
-        (data.keys().hasAny(['isAccountSell']) ? data.isAccountSell is bool : true) &&
-        (data.keys().hasAny(['todaysPassword']) ? data.todaysPassword is string && data.todaysPassword.size() <= 100 : true);
-    }
-
-    function isValidSubmission(data) {
-      return data.keys().hasAll(['jobId', 'userId', 'userEmail', 'title', 'reward', 'proofs', 'status', 'submittedAt']) &&
-        data.jobId is string && data.jobId.size() <= 128 &&
-        data.userId is string && data.userId.size() <= 128 &&
-        data.userEmail is string && data.userEmail.size() <= 150 &&
-        data.title is string && data.title.size() <= 150 &&
-        (data.keys().hasAny(['jobType']) ? data.jobType is string && data.jobType.size() <= 150 : true) &&
-        data.reward is number &&
-        data.proofs is map &&
-        data.status is string && (data.status == 'pending' || data.status == 'approved' || data.status == 'rejected') &&
-        data.submittedAt is timestamp &&
-        (data.keys().hasAny(['reviewedAt']) ? data.reviewedAt is timestamp : true);
-    }
-
-    function isValidPaymentRequest(data) {
-      return data.keys().hasAll(['userId', 'userEmail', 'amount', 'type', 'status', 'createdAt']) &&
-        data.userId is string && data.userId.size() <= 128 &&
-        data.userEmail is string && data.userEmail.size() <= 150 &&
-        (data.keys().hasAny(['transactionId']) ? data.transactionId is string && data.transactionId.size() <= 128 : true) &&
-        data.amount is number &&
-        data.type is string && (data.type == 'withdraw' || data.type == 'deposit' || data.type == 'activation') &&
-        data.status is string && (data.status == 'pending' || data.status == 'approved' || data.status == 'rejected') &&
-        data.createdAt is timestamp &&
-        (data.keys().hasAny(['wallet']) ? data.wallet is string && data.wallet.size() <= 50 : true) &&
-        (data.keys().hasAny(['method']) ? data.method is string && data.method.size() <= 50 : true) &&
-        (data.keys().hasAny(['account']) ? data.account is string && data.account.size() <= 100 : true) &&
-        (data.keys().hasAny(['fee']) ? data.fee is number : true) &&
-        (data.keys().hasAny(['netAmount']) ? data.netAmount is number : true) &&
-        (data.keys().hasAny(['trxId']) ? data.trxId is string : true) &&
-        (data.keys().hasAny(['reviewedAt']) ? data.reviewedAt is timestamp : true) &&
-        (data.keys().hasAny(['updatedAt']) ? data.updatedAt is timestamp : true);
-    }
-
-    function isValidNotification(data) {
-      return data.keys().hasAll(['title', 'message', 'type', 'read', 'createdAt']) &&
-        data.keys().size() == 5 &&
-        data.title is string && data.title.size() <= 150 &&
-        data.message is string && data.message.size() <= 500 &&
-        data.type is string && (data.type == 'task_approved' || data.type == 'task_rejected' || data.type == 'info' || data.type == 'payment_approved' || data.type == 'payment_rejected') &&
-        data.read is bool &&
-        data.createdAt is timestamp;
-    }
-
-    function isValidSettingsSpin(data) {
-      return data.keys().hasAll(['rewards', 'updatedAt']) &&
-        data.keys().size() == 2 &&
-        data.rewards is list && data.rewards.size() <= 20 &&
-        data.updatedAt is timestamp;
-    }
-
-    function isValidSettingsReferral(data) {
-      return data.keys().hasAll(['fixedBonus', 'updatedAt']) &&
-        data.fixedBonus is number &&
-        (data.keys().hasAny(['gen2FixedBonus']) ? data.gen2FixedBonus is number : true) &&
-        (data.keys().hasAny(['gen3FixedBonus']) ? data.gen3FixedBonus is number : true) &&
-        (data.keys().hasAny(['percentageCommission']) ? data.percentageCommission is number : true) &&
-        (data.keys().hasAny(['gen1Percent']) ? data.gen1Percent is number : true) &&
-        (data.keys().hasAny(['gen2Percent']) ? data.gen2Percent is number : true) &&
-        (data.keys().hasAny(['gen3Percent']) ? data.gen3Percent is number : true) &&
-        data.updatedAt is timestamp;
-    }
-
-    function isValidSettingsBanner(data) {
-      return data.keys().hasAll(['text', 'link', 'updatedAt']) &&
-        data.keys().size() == 3 &&
-        data.text is string && data.text.size() <= 500 &&
-        data.link is string && data.link.size() <= 500 &&
-        data.updatedAt is timestamp;
-    }
-
-    function isValidSettingsGames(data) {
-      return data.keys().hasAll(['spinTaskReq', 'spinReferReq', 'mathTaskReq', 'mathReferReq', 'updatedAt']) &&
-        data.spinTaskReq is number &&
-        data.spinReferReq is number &&
-        data.mathTaskReq is number &&
-        data.mathReferReq is number &&
-        data.updatedAt is timestamp;
-    }
-
-    function isValidSettingsWithdraw(data) {
-      return data.keys().hasAll(['updatedAt']) &&
-        data.updatedAt is timestamp &&
-        (data.keys().hasAny(['mainMin']) ? data.mainMin is number : true) &&
-        (data.keys().hasAny(['mainFee']) ? data.mainFee is number : true) &&
-        (data.keys().hasAny(['bonusMin']) ? data.bonusMin is number : true) &&
-        (data.keys().hasAny(['bonusFee']) ? data.bonusFee is number : true) &&
-        (data.keys().hasAny(['referralMin']) ? data.referralMin is number : true) &&
-        (data.keys().hasAny(['referralFee']) ? data.referralFee is number : true) &&
-        (data.keys().hasAny(['tasksMin']) ? data.tasksMin is number : true) &&
-        (data.keys().hasAny(['tasksFee']) ? data.tasksFee is number : true);
-    }
-
-    function isValidSettingsDeposit(data) {
-      return data.keys().hasAll(['bkashNumber', 'nagadNumber', 'updatedAt']) &&
-        data.bkashNumber is string && data.bkashNumber.size() <= 20 &&
-        data.nagadNumber is string && data.nagadNumber.size() <= 20 &&
-        data.updatedAt is timestamp &&
-        (data.keys().hasAny(['minDeposit']) ? data.minDeposit is number : true) &&
-        (data.keys().hasAny(['maxDeposit']) ? data.maxDeposit is number : true) &&
-        (data.keys().hasAny(['bkashEnabled']) ? data.bkashEnabled is bool : true) &&
-        (data.keys().hasAny(['nagadEnabled']) ? data.nagadEnabled is bool : true) &&
-        (data.keys().hasAny(['bkashQrUrl']) ? data.bkashQrUrl is string : true) &&
-        (data.keys().hasAny(['nagadQrUrl']) ? data.nagadQrUrl is string : true);
-    }
-
-    function isValidSettingsActivation(data) {
-      return data.keys().hasAll(['updatedAt']) &&
-        data.updatedAt is timestamp &&
-        (data.keys().hasAny(['mode']) ? data.mode is string && data.mode.size() <= 20 : true) &&
-        (data.keys().hasAny(['fee']) ? data.fee is number : true);
-    }
-
-    function isValidSettingsPopup(data) {
-      return data.keys().hasAll(['telegramLink', 'skipText', 'skipLink', 'updatedAt']) &&
-        data.telegramLink is string && data.telegramLink.size() <= 500 &&
-        data.skipText is string && data.skipText.size() <= 100 &&
-        data.skipLink is string && data.skipLink.size() <= 500 &&
-        data.updatedAt is timestamp &&
-        (data.keys().hasAny(['telegramText']) ? data.telegramText is string && data.telegramText.size() <= 100 : true) &&
-        (data.keys().hasAny(['title']) ? data.title is string && data.title.size() <= 100 : true) &&
-        (data.keys().hasAny(['subtitle']) ? data.subtitle is string && data.subtitle.size() <= 500 : true);
-    }
-
-    function isValidSettingsSupport(data) {
-      return data.keys().hasAll(['updatedAt']) &&
-        data.updatedAt is timestamp &&
-        (data.keys().hasAny(['email']) ? data.email is string && data.email.size() <= 200 : true) &&
-        (data.keys().hasAny(['whatsapp']) ? data.whatsapp is string && data.whatsapp.size() <= 200 : true) &&
-        (data.keys().hasAny(['telegram']) ? data.telegram is string && data.telegram.size() <= 200 : true) &&
-        (data.keys().hasAny(['facebook']) ? data.facebook is string && data.facebook.size() <= 200 : true);
-    }
-
-    function isValidSettingsSite(data) {
-      return data.keys().hasAll(['updatedAt']) &&
-        data.updatedAt is timestamp &&
-        (data.keys().hasAny(['logoUrl']) ? data.logoUrl is string && data.logoUrl.size() <= 2000 : true) &&
-        (data.keys().hasAny(['faviconUrl']) ? data.faviconUrl is string && data.faviconUrl.size() <= 2000 : true) &&
-        (data.keys().hasAny(['telegramUrl']) ? data.telegramUrl is string && data.telegramUrl.size() <= 1000 : true) &&
-        (data.keys().hasAny(['dailyTaskLimit']) ? data.dailyTaskLimit is number : true) &&
-        (data.keys().hasAny(['driveOffersEnabled']) ? data.driveOffersEnabled is bool : true) &&
-        (data.keys().hasAny(['coursesEnabled']) ? data.coursesEnabled is bool : true) &&
-        (data.keys().hasAny(['adsViewEnabled']) ? data.adsViewEnabled is bool : true) &&
-        (data.keys().hasAny(['adsViewLink']) ? data.adsViewLink is string && data.adsViewLink.size() <= 1000 : true) &&
-        (data.keys().hasAny(['adsViewText']) ? data.adsViewText is string && data.adsViewText.size() <= 500 : true);
-    }
-
-    function isValidLeaderboardEntry(data) {
-      return data.updatedAt is timestamp &&
-        (data.keys().hasAny(['fullName']) ? (data.fullName is string && data.fullName.size() <= 100) : true) &&
-        (data.keys().hasAny(['bonus']) ? data.bonus is number : true) &&
-        (data.get('referrals', 0) is number) &&
-        (data.get('totalIncome', 0) is number);
-    }
-
-    function isValidCourse(data) {
-      return data.keys().hasAll(['title', 'description', 'thumbnailUrl', 'videoLink', 'category', 'status']) &&
-        data.title is string && data.title.size() <= 200 &&
-        data.description is string && data.description.size() <= 2000 &&
-        data.thumbnailUrl is string && data.thumbnailUrl.size() <= 1000 &&
-        data.videoLink is string && data.videoLink.size() <= 1000 &&
-        data.category is string && (data.category == 'টাস্ক কমপ্লিট' || data.category == 'টাকা উইথড্র' || data.category == 'অন্যান্য') &&
-        data.status is string && (data.status == 'active' || data.status == 'inactive') &&
-        (data.keys().hasAny(['items']) ? data.items is list : true) &&
-        (data.keys().hasAny(['updatedAt']) ? data.updatedAt is timestamp : true);
-    }
-
-    function isValidSettingsAdsView(data) {
-      return data.keys().hasAll(['description', 'link']) &&
-        data.description is string && data.description.size() <= 1000 &&
-        data.link is string && data.link.size() <= 500;
-    }
-
-    function isValidSettingsFaqs(data) {
-      return data.keys().hasAll(['updatedAt']) &&
-        data.updatedAt is timestamp &&
-        (data.keys().hasAny(['faqs']) ? data.faqs is list : true);
-    }
-
-    match /settings/adsView {
-      allow read: if isSignedIn();
-      allow write: if isAdmin() && isValidSettingsAdsView(incoming());
-    }
-
-    match /settings/spin {
-      allow read: if isSignedIn();
-      allow write: if isAdmin() && isValidSettingsSpin(incoming()) && incoming().updatedAt == request.time;
-    }
-
-    match /settings/referral {
-      allow read: if isSignedIn();
-      allow write: if isAdmin() && isValidSettingsReferral(incoming()) && incoming().updatedAt == request.time;
-    }
-
-    match /settings/banner {
-      allow read: if isSignedIn();
-      allow write: if isAdmin() && isValidSettingsBanner(incoming()) && incoming().updatedAt == request.time;
-    }
-
-    match /settings/games {
-      allow read: if isSignedIn();
-      allow write: if isAdmin() && isValidSettingsGames(incoming()) && incoming().updatedAt == request.time;
-    }
-
-    match /settings/withdraw {
-      allow read: if isSignedIn();
-      allow write: if isAdmin() && isValidSettingsWithdraw(incoming()) && incoming().updatedAt == request.time;
-    }
-
-    match /settings/deposit {
-      allow read: if isSignedIn();
-      allow write: if isAdmin() && isValidSettingsDeposit(incoming()) && incoming().updatedAt == request.time;
-    }
-
-    match /settings/activation {
-      allow read: if isSignedIn();
-      allow write: if isAdmin() && isValidSettingsActivation(incoming()) && incoming().updatedAt == request.time;
-    }
-
-    match /settings/popup {
-      allow read: if isSignedIn();
-      allow write: if isAdmin() && isValidSettingsPopup(incoming()) && incoming().updatedAt == request.time;
-    }
-
-    match /settings/support {
-      allow read: if isSignedIn();
-      allow write: if isAdmin() && isValidSettingsSupport(incoming()) && incoming().updatedAt == request.time;
-    }
-
-    match /settings/site {
+    // ২. সিস্টেম সেটিংস ও অ্যাডমিন রুলস
+    match /settings/{document=**} {
       allow read: if true;
-      allow write: if isAdmin() && isValidSettingsSite(incoming()) && incoming().updatedAt == request.time;
+      allow write: if isAdmin();
+    }
+    match /admin/{document=**} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
     }
 
-    match /settings/faqs {
-      allow read: if true;
-      allow write: if isAdmin() && isValidSettingsFaqs(incoming()) && incoming().updatedAt == request.time;
+    // ৩. ইউজার প্রোফাইল এবং সকল সাব-কালেকশনসমূহ (সংক্ষিপ্ত ও নিরাপদ)
+    match /users/{userId} {
+      allow read: if isAuth();
+      allow write: if isAuth() && (isOwner(userId) || isAdmin());
+
+      // সকল সাব-কালেকশন (tasks, transactions, referrals, notifications, mathHistory ইত্যাদি) স্বয়ংক্রিয়ভাবে কভার করবে
+      match /{allSubcollections=**} {
+        allow read, write: if isAuth() && (isOwner(userId) || isAdmin());
+      }
     }
 
-    match /leaderboard/{userId} {
-      allow list, get: if isSignedIn();
-      allow create: if isSignedIn() && isValidId(userId) &&
-                       isValidLeaderboardEntry(incoming()) && incoming().updatedAt == request.time;
-      allow update: if isSignedIn() && isValidId(userId) &&
-                       isValidLeaderboardEntry(incoming()) && incoming().updatedAt == request.time &&
-                       (request.auth.uid == userId || incoming().diff(existing()).affectedKeys().hasOnly(['referrals', 'totalIncome', 'bonus', 'updatedAt', 'fullName']));
-      allow delete: if isAdmin();
-    }
-
+    // ৪. পাবলিক সার্ভিস কালেকশনসমূহ
     match /jobs/{jobId} {
-      allow list, get: if isSignedIn();
-      allow create: if isAdmin() && isValidId(jobId) && isValidAdminJob(incoming()) && incoming().createdAt == request.time;
-      allow update: if isAdmin() && isValidId(jobId) && isValidAdminJob(incoming());
-      allow delete: if isAdmin();
+      allow read: if isAuth();
+      allow create: if isAuth() && request.resource.data.postedByUid == request.auth.uid && request.resource.data.status == 'pending';
+      allow update, delete: if isAdmin();
+    }
+    match /giftCodes/{codeId} {
+      allow read: if isAuth();
+      allow create, delete: if isAdmin();
+      allow update: if isAuth();
     }
 
     match /courses/{courseId} {
-      allow list, get: if isSignedIn();
-      allow create, update: if isAdmin() && isValidId(courseId) && isValidCourse(incoming());
-      allow delete: if isAdmin();
+      allow read: if isAuth();
+      allow write: if isAdmin();
     }
-
     match /drive_offers/{offerId} {
-      allow list, get: if isSignedIn();
-      allow create, update: if isAdmin() && isValidId(offerId);
-      allow delete: if isAdmin();
+      allow read: if isAuth();
+      allow write: if isAdmin();
     }
 
-    match /submissions/{submissionId} {
-      allow get, list: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
-      allow create: if isSignedIn() && isValidId(submissionId) && 
-                       isValidSubmission(incoming()) && 
-                       incoming().userId == request.auth.uid &&
-                       incoming().status == 'pending' &&
-                       incoming().submittedAt == request.time;
-      allow update: if isSignedIn() && isAdmin() && isValidId(submissionId) &&
-                       (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'reviewedAt']));
+    // ৫. সিস্টেম, রিপোর্ট ও লিডারবোর্ড
+    match /leaderboard/{userId} {
+      allow read: if isAuth();
+      allow create, update: if isAuth() && (isOwner(userId) || isAdmin());
       allow delete: if isAdmin();
     }
-
-    match /payment_requests/{requestId} {
-      allow get, list: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
-      allow create: if isSignedIn() && isValidId(requestId) &&
-                       isValidPaymentRequest(incoming()) &&
-                       incoming().userId == request.auth.uid &&
-                       incoming().status == 'pending' &&
-                       incoming().createdAt == request.time;
-      allow update: if isAdmin() && isValidId(requestId) &&
-                       isValidPaymentRequest(incoming()) &&
-                       (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']));
-      allow delete: if isAdmin();
+    match /system/{document=**} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+    match /reports/{document=**} {
+      allow read: if isAdmin() || isAuth(); 
+      allow write: if isAdmin();
     }
 
-    match /users/{userId} {
-      allow list, get: if isSignedIn();
+    // ৬. সোশ্যাল পোস্ট এবং রিয়্যাকশনস
+    match /social_posts/{postId} {
+      allow read: if isAuth();
+      allow create: if isAuth() && request.auth.uid == request.resource.data.authorId;
+      allow update: if isAuth();
+      allow delete: if isAuth() && (request.auth.uid == resource.data.authorId || isAdmin());
       
-      allow create: if isSignedIn() && request.auth.uid == userId && isValidId(userId) &&
-                       isValidUser(incoming()) &&
-                       incoming().createdAt == request.time &&
-                       (incoming().isActive == false || (incoming().isActive == true && isFreeActivationSettings())) &&
-                       (incoming().role == 'user' || (incoming().role == 'admin' && request.auth.token.email == 'mdekramhossain590@gmail.com'));
-                       
-      allow update: if isSignedIn() && isValidId(userId) &&
-                       (
-                         (isValidUser(incoming()) && request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['balances', 'photoURL', 'fullName', 'totalTasksCompleted', 'totalReferrals', 'deviceId', 'lastLoginAt', 'referralBonusPaid'])) ||
-                         (isValidUser(incoming()) && request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['balances', 'isActive', 'deviceId', 'lastLoginAt', 'referralBonusPaid']) && (incoming().isActive == existing().isActive || (incoming().isActive == true && isFreeActivationSettings()))) ||
-                         (isValidUser(incoming()) && request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['deviceId', 'lastLoginAt'])) ||
-                         (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['balances', 'totalTasksCompleted', 'totalReferrals', 'isActive', 'role', 'permissions', 'isBlocked', 'updatedAt', 'referralBonusPaid'])) ||
-                         (incoming().diff(existing()).affectedKeys().hasOnly(['balances', 'totalReferrals']) && 
-                          incoming().balances.main == existing().balances.main &&
-                          incoming().balances.bonus == existing().balances.bonus &&
-                          (existing().balances.keys().hasAny(['tasks']) ? (incoming().balances.tasks == existing().balances.tasks) : true))
-                       );
-      allow delete: if isAdmin();
-                       
-      match /tasks/{taskId} {
-        allow list, get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-        allow create: if isSignedIn() && (request.auth.uid == userId || isAdmin()) && isValidId(taskId) &&
-                         isValidTaskHistory(incoming()) &&
-                         incoming().completedAt == request.time;
-        allow delete: if isAdmin();
+      match /comments/{commentId} {
+        allow read: if isAuth();
+        allow create: if isAuth() && request.auth.uid == request.resource.data.authorId;
+        allow update, delete: if isAuth() && (request.auth.uid == resource.data.authorId || isAdmin());
       }
-      
-      match /mathHistory/{mathId} {
-        allow list, get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-        allow create: if isSignedIn() && request.auth.uid == userId && isValidId(mathId) &&
-                         isValidMathHistory(incoming()) &&
-                         incoming().completedAt == request.time;
-        allow delete: if isAdmin();
+      match /likes/{userId} {
+        allow read: if isAuth();
+        allow write: if isAuth() && request.auth.uid == userId;
       }
-      
-      match /transactions/{transactionId} {
-        allow list, get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-        allow create: if isSignedIn() && isValidId(transactionId) &&
-                         isValidTransactionHistory(incoming()) &&
-                         incoming().createdAt == request.time &&
-                         (request.auth.uid == userId || incoming().type == 'referral' || incoming().type == 'task' || isAdmin());
-        allow update: if isAdmin() && isValidId(transactionId) &&
-                         isValidTransactionHistory(incoming()) &&
-                         (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']));
-        allow delete: if isAdmin();
-      }
-      
-      match /referrals/{referralId} {
-        allow list, get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-        allow create: if isSignedIn() && isValidId(referralId) &&
-                         isValidReferralHistory(incoming()) &&
-                         incoming().createdAt == request.time;
-        allow delete: if isAdmin();
-      }
-      match /notifications/{notificationId} {
-        allow list, get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-        allow create: if isSignedIn() && (isAdmin() || request.auth.uid == userId) && isValidId(notificationId) &&
-                         isValidNotification(incoming()) &&
-                         incoming().createdAt == request.time;
-        allow update: if isSignedIn() && request.auth.uid == userId && isValidId(notificationId) &&
-                         isValidNotification(incoming()) &&
-                         (incoming().diff(existing()).affectedKeys().hasOnly(['read']));
-        allow delete: if isAdmin();
-      }
+    }
+
+    // ৭. ইউজার রিকোয়েস্ট ও সাবমিশনসমূহ (Submissions, Payments, Support)
+    match /submissions/{id} {
+      allow read: if isAdmin() || isDataOwner(resource.data);
+      allow create: if isAdmin() || isDataOwner(request.resource.data);
+      allow update, delete: if isAdmin();
+    }
+    match /payment_requests/{id} {
+      allow read: if isAdmin() || isDataOwner(resource.data);
+      allow create: if isAdmin() || isDataOwner(request.resource.data);
+      allow update, delete: if isAdmin();
+    }
+    match /support/{id} {
+      allow read: if isAdmin() || isDataOwner(resource.data);
+      allow create: if isAdmin() || isDataOwner(request.resource.data);
+      allow update, delete: if isAdmin();
     }
   }
 }

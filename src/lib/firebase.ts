@@ -3,16 +3,12 @@ import { initializeApp } from "firebase/app";
 import { getAuth, FacebookAuthProvider } from "firebase/auth";
 import { initializeFirestore } from "firebase/firestore";
 import toast from "react-hot-toast";
-// @ts-ignore - The json file is generated at runtime
-import firebaseConfig from "../../firebase-applet-config.json" with { type: "json" };
+import { firebaseConfig } from "./firebase-NEW";
 
-
-// Initialize Firebase
+// Initialize Firebase using your private dedicated project
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = initializeFirestore(app, {
-  experimentalForceLongPolling: true
-}, firebaseConfig.firestoreDatabaseId);
+export const db = initializeFirestore(app, {});
 
 export enum OperationType {
   CREATE = 'create',
@@ -100,6 +96,6 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path
   }
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  console.warn('Firestore Error: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }

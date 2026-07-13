@@ -1,17 +1,31 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../components/AuthProvider';
-import { collection, query, onSnapshot, doc, writeBatch, serverTimestamp, setDoc, orderBy, deleteDoc, increment, updateDoc, getDocs, deleteField } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, writeBatch, serverTimestamp, setDoc, orderBy, deleteDoc, increment, updateDoc, getDocs, deleteField, getDoc, limit, FieldPath } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
+import { getCachedDoc, getCachedQuery, clearCache } from '../lib/cache';
 import { uploadImageOrFallback } from '../lib/imageUpload';
 import { processReferralCommission, processRegistrationReferral } from '../lib/referral';
-import { Trash2, CheckCircle, XCircle, Users, ShieldAlert, ShieldCheck, Wallet, ListChecks, Settings, User, Eye, Calculator, MessageSquare, Globe, Coins, Megaphone, Gamepad2, CreditCard, Lock, BellRing, RefreshCw, Smartphone, Mail, Camera, MessageCircle, Send, BookOpen, Layers, Copy, HelpCircle } from 'lucide-react';
+import { Trash2, CheckCircle, XCircle, Users, ShieldAlert, ShieldCheck, Wallet, ListChecks, Settings, User, Eye, Calculator, MessageSquare, Globe, Coins, Megaphone, Gamepad2, CreditCard, Lock, BellRing, RefreshCw, Smartphone, Mail, Camera, MessageCircle, Send, BookOpen, Layers, Copy, HelpCircle, Database, Search, Download, Gift } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 
 export function AdminPanel() {
   const { profile } = useAuth();
-  const [activeTab, setActiveTab] = useState<'jobs' | 'submissions' | 'settings' | 'requests' | 'users' | 'drives' | 'courses' | 'faqs'>('submissions');
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'jobs' | 'submissions' | 'settings' | 'requests' | 'users' | 'drives' | 'courses' | 'faqs' | 'gifts'>('dashboard');
   
+  // Gift Codes States
+  const [giftCodes, setGiftCodes] = useState<any[]>([]);
+  const [newGiftCode, setNewGiftCode] = useState('');
+  const [giftType, setGiftType] = useState<'fixed' | 'random'>('fixed');
+  const [giftAmount, setGiftAmount] = useState<number | ''>(10);
+  const [giftMinAmount, setGiftMinAmount] = useState<number | ''>(5);
+  const [giftMaxAmount, setGiftMaxAmount] = useState<number | ''>(50);
+  const [giftMaxUses, setGiftMaxUses] = useState<number | ''>(1);
+  const [giftExpiresInHours, setGiftExpiresInHours] = useState<number | ''>(24);
+  const [isCreatingGift, setIsCreatingGift] = useState(false);
+
   // Courses Administration States
   const [adminCourses, setAdminCourses] = useState<any[]>([]);
   const [newCourseTitle, setNewCourseTitle] = useState('');
@@ -34,6 +48,7 @@ export function AdminPanel() {
   const [referralSettings, setReferralSettings] = useState({ fixedBonus: 10, gen2FixedBonus: 0, gen3FixedBonus: 0, gen1Percent: 0, gen2Percent: 0, gen3Percent: 0 });
   const [bannerSettings, setBannerSettings] = useState({ text: 'Welcome to HMF Income! Complete tasks and earn money daily.', link: '#' });
   const [gameSettings, setGameSettings] = useState({ spinTaskReq: 0, spinReferReq: 0, mathTaskReq: 0, mathReferReq: 0 });
+  const [partnerSettings, setPartnerSettings] = useState({ requiredReferrals: 10, dailyBonus: 100, enabled: true, withdrawEnabled: true });
   const [withdrawSettings, setWithdrawSettings] = useState({ mainMin: 50, mainFee: 0, bonusMin: 50, bonusFee: 0, referralMin: 50, referralFee: 0, tasksMin: 50, tasksFee: 0, customAmounts: "110, 210, 310, 410, 510" });
   const [depositSettings, setDepositSettings] = useState({ bkashNumber: '017XX-XXXXXX', nagadNumber: '017XX-XXXXXX', minDeposit: 100, maxDeposit: 25000, bkashEnabled: true, nagadEnabled: true, bkashQrUrl: '', nagadQrUrl: '' });
   const [activationSettings, setActivationSettings] = useState({ mode: 'free', fee: 50 });
@@ -46,7 +61,7 @@ export function AdminPanel() {
     title: 'Welcome!',
     subtitle: 'Join our official channel for updates'
   });
-  const [siteSettings, setSiteSettings] = useState({ logoUrl: '', faviconUrl: '', telegramUrl: '', dailyTaskLimit: 0, driveOffersEnabled: true, coursesEnabled: true, adsViewEnabled: false, adsViewLink: '', adsViewText: 'Watch Ads' });
+  const [siteSettings, setSiteSettings] = useState({ siteName: '', logoUrl: '', telegramUrl: '', apkUrl: 'https://www.mediafire.com/file/glio303il0rsfr4/app-release.apk/file', dailyTaskLimit: 0, driveOffersEnabled: true, coursesEnabled: true, adsViewEnabled: false, reviewsEnabled: true, adsViewLink: '', adsViewText: 'Watch Ads' });
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [viewingScreenshot, setViewingScreenshot] = useState<string | null>(null);
   const [settingsSubTab, setSettingsSubTab] = useState<'identity' | 'gateways' | 'rewards' | 'security' | 'danger'>('identity');
@@ -57,6 +72,7 @@ export function AdminPanel() {
 
   const [employeeConfigUser, setEmployeeConfigUser] = useState<any | null>(null);
   const [employeePermissions, setEmployeePermissions] = useState<string[]>([]);
+  const [userSearchTerm, setUserSearchTerm] = useState('');
 
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
@@ -85,7 +101,8 @@ export function AdminPanel() {
     userLimit: 1, // 0 for unlimited per user, 1 for once, 2 for twice etc
     deadline: '',
     isAccountSell: false,
-    todaysPassword: ''
+    todaysPassword: '',
+    reviewComments: [] as string[]
   });
 
   const handleEditJobClick = (job: any) => {
@@ -103,14 +120,15 @@ export function AdminPanel() {
       userLimit: job.userLimit || 1,
       deadline: job.deadline || '',
       isAccountSell: job.isAccountSell || false,
-      todaysPassword: job.todaysPassword || ''
+      todaysPassword: job.todaysPassword || '',
+      reviewComments: job.reviewComments || []
     });
     setEditingJobId(job.id);
   };
 
   const handleCancelEditJob = () => {
     setNewJob({
-      title: '', description: '', reward: 10, link: '', type: 'Facebook', icon: 'MessageCircle', color: 'text-blue-500', bg: 'bg-blue-100', requiredProofs: ['text'], allowedCompletions: 1, userLimit: 1, deadline: '', isAccountSell: false, todaysPassword: ''
+      title: '', description: '', reward: 10, link: '', type: 'Facebook', icon: 'MessageCircle', color: 'text-blue-500', bg: 'bg-blue-100', requiredProofs: ['text'], allowedCompletions: 1, userLimit: 1, deadline: '', isAccountSell: false, todaysPassword: '', reviewComments: []
     });
     setEditingJobId(null);
   };
@@ -128,6 +146,7 @@ export function AdminPanel() {
   const userPermissions = profile?.permissions || [];
 
   const ALL_TABS = [
+    { id: 'dashboard', label: 'Dashboard', icon: Calculator, color: 'text-indigo-400' },
     { id: 'submissions', label: 'Review', icon: CheckCircle, color: 'text-orange-500' },
     { id: 'requests', label: 'Payments', icon: Wallet, color: 'text-emerald-500' },
     { id: 'drives', label: 'Drives', icon: Smartphone, color: 'text-sky-500' },
@@ -135,10 +154,82 @@ export function AdminPanel() {
     { id: 'courses', label: 'Courses', icon: BookOpen, color: 'text-purple-500' },
     { id: 'users', label: 'Users', icon: Users, color: 'text-indigo-500' },
     { id: 'faqs', label: 'FAQs', icon: HelpCircle, color: 'text-yellow-500' },
-    { id: 'settings', label: 'Configs', icon: Settings, color: 'text-rose-500' }
+    { id: 'gifts', label: 'Gifts', icon: Gift, color: 'text-fuchsia-500' },
+    { id: 'settings', label: 'Configs', icon: Settings, color: 'text-rose-500' },
+    { id: 'migrate', label: 'Migration', icon: Database, color: 'text-purple-600' }
   ];
 
   const allowedTabs = ALL_TABS.filter(tab => isFullAdmin || userPermissions.includes(tab.id));
+
+  const loadSettings = useCallback(async (forceRef = false) => {
+    try {
+      const fetchDoc = async (coll: string, docName: string, setFn: (data: any) => void, mapFn?: (data: any) => any) => {
+        const s = await getCachedDoc(doc(db, coll, docName), forceRef);
+        if (s.exists()) setFn(mapFn ? mapFn(s.data()) : s.data());
+      };
+
+      await Promise.all([
+        fetchDoc("settings", "spin", d => setSpinRewards(d.rewards || [1, 2, 5, 10, 0, 50, 100, 0])),
+        fetchDoc("settings", "referral", d => setReferralSettings({ 
+           fixedBonus: d.fixedBonus || 0, gen2FixedBonus: d.gen2FixedBonus || 0, gen3FixedBonus: d.gen3FixedBonus || 0,
+           gen1Percent: d.gen1Percent || d.percentageCommission || 0, gen2Percent: d.gen2Percent || 0, gen3Percent: d.gen3Percent || 0
+        })),
+        fetchDoc("settings", "banner", d => setBannerSettings({ text: d.text || '', link: d.link || '#' })),
+        fetchDoc("settings", "partner", d => setPartnerSettings({
+           requiredReferrals: d.requiredReferrals !== undefined ? d.requiredReferrals : 10,
+           dailyBonus: d.dailyBonus !== undefined ? d.dailyBonus : 100,
+           enabled: d.enabled !== false,
+           withdrawEnabled: d.withdrawEnabled !== false
+        })),
+        fetchDoc("settings", "games", d => setGameSettings({ spinTaskReq: d.spinTaskReq || 0, spinReferReq: d.spinReferReq || 0, mathTaskReq: d.mathTaskReq || 0, mathReferReq: d.mathReferReq || 0 })),
+        fetchDoc("settings", "withdraw", d => setWithdrawSettings({
+           mainMin: d.mainMin !== undefined ? d.mainMin : 50, mainFee: d.mainFee !== undefined ? d.mainFee : 0, bonusMin: d.bonusMin !== undefined ? d.bonusMin : 50, bonusFee: d.bonusFee !== undefined ? d.bonusFee : 0, referralMin: d.referralMin !== undefined ? d.referralMin : 50, referralFee: d.referralFee !== undefined ? d.referralFee : 0, tasksMin: d.tasksMin !== undefined ? d.tasksMin : 50, tasksFee: d.tasksFee !== undefined ? d.tasksFee : 0, customAmounts: d.customAmounts || "110, 210, 310, 410, 510"
+        })),
+        fetchDoc("settings", "deposit", d => setDepositSettings({
+           bkashNumber: d.bkashNumber || '017XX-XXXXXX', nagadNumber: d.nagadNumber || '017XX-XXXXXX', minDeposit: d.minDeposit !== undefined ? d.minDeposit : 100, maxDeposit: d.maxDeposit !== undefined ? d.maxDeposit : 25000, bkashEnabled: d.bkashEnabled !== false, nagadEnabled: d.nagadEnabled !== false, bkashQrUrl: d.bkashQrUrl || '', nagadQrUrl: d.nagadQrUrl || ''
+        })),
+        fetchDoc("settings", "popup", d => setPopupSettings({
+           telegramText: d.telegramText || 'Join Telegram', telegramLink: d.telegramLink || 'https://t.me/', skipText: d.skipText || 'Skip', skipLink: d.skipLink || '#', title: d.title || 'Welcome!', subtitle: d.subtitle || 'Join our official channel for updates'
+        })),
+        fetchDoc("settings", "activation", d => setActivationSettings({ mode: d.mode || 'free', fee: d.fee || 50 })),
+        fetchDoc("settings", "support", d => setSupportSettings({ email: d.email || 'support@example.com', whatsapp: d.whatsapp || '', telegram: d.telegram || '', facebook: d.facebook || '' })),
+        fetchDoc("settings", "site", d => setSiteSettings({
+           siteName: d.siteName || '', logoUrl: d.logoUrl || '', telegramUrl: d.telegramUrl || '', apkUrl: d.apkUrl || 'https://www.mediafire.com/file/glio303il0rsfr4/app-release.apk/file', dailyTaskLimit: d.dailyTaskLimit || 0, driveOffersEnabled: d.driveOffersEnabled !== false, coursesEnabled: d.coursesEnabled !== false, adsViewEnabled: d.adsViewEnabled === true, reviewsEnabled: d.reviewsEnabled !== false, adsViewLink: d.adsViewLink || '', adsViewText: d.adsViewText || 'Watch Ads'
+        })),
+        fetchDoc("settings", "faqs", d => setFaqsList(d.faqs || []))
+      ]);
+    } catch(err) { console.warn("Error loading settings:", err); }
+  }, []);
+
+  const loadData = useCallback(async (forceRef = false) => {
+    if (!isAdmin) return;
+    try {
+      if (['jobs', 'submissions'].includes(activeTab)) {
+        const jS = await getCachedQuery(query(collection(db, "jobs"), orderBy("createdAt", "desc"), limit(50)), "admin_jobs", forceRef);
+        setJobs(jS.docs.map(d => ({id: d.id, ...d.data()} as any)));
+        const sS = await getCachedQuery(query(collection(db, "submissions"), orderBy("submittedAt", "desc"), limit(50)), "admin_submissions", forceRef);
+        setSubmissions(sS.docs.map(d => ({id: d.id, ...d.data()} as any)));
+      }
+      if (['requests', 'dashboard'].includes(activeTab)) {
+        const pS = await getCachedQuery(query(collection(db, "payment_requests"), orderBy("createdAt", "desc"), limit(2000)), "admin_payment_requests", forceRef);
+        setPaymentRequests(pS.docs.map(d => ({id: d.id, ...d.data()} as any)));
+      }
+      if (activeTab === 'users') {
+        const uS = await getCachedQuery(query(collection(db, "users"), orderBy("createdAt", "desc"), limit(200)), "admin_users", forceRef);
+        setUserList(uS.docs.map(d => ({id: d.id, ...d.data()} as any)));
+      }
+      if (['drives', 'courses'].includes(activeTab)) {
+        const dS = await getCachedQuery(query(collection(db, "drive_offers"), limit(50)), "admin_drive_offers", forceRef);
+        setAdminOffers(dS.docs.map(d => ({id: d.id, ...d.data()} as any)));
+        const cS = await getCachedQuery(query(collection(db, "courses"), limit(50)), "admin_courses", forceRef);
+        setAdminCourses(cS.docs.map(d => ({id: d.id, ...d.data()} as any)));
+      }
+      if (activeTab === 'gifts') {
+        const gS = await getCachedQuery(query(collection(db, "giftCodes"), orderBy("createdAt", "desc"), limit(100)), "admin_gifts", forceRef);
+        setGiftCodes(gS.docs.map(d => ({id: d.id, ...d.data()} as any)));
+      }
+    } catch(e) { console.warn("Error loading data:", e); }
+  }, [isAdmin, activeTab]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -148,161 +239,61 @@ export function AdminPanel() {
       setActiveTab(allowedTabs[0].id as any);
     }
     
-    const jQ = query(collection(db, "jobs"), orderBy("createdAt", "desc"));
-    const unsubJ = onSnapshot(jQ, (snap) => setJobs(snap.docs.map(d => ({id: d.id, ...d.data()}))), (err) => handleFirestoreError(err, OperationType.GET, 'jobs'));
-    
-    const sQ = query(collection(db, "submissions"), orderBy("submittedAt", "desc"));
-    const unsubS = onSnapshot(sQ, (snap) => setSubmissions(snap.docs.map(d => ({id: d.id, ...d.data()}))), (err) => handleFirestoreError(err, OperationType.GET, 'submissions'));
-    
-    const pQ = query(collection(db, "payment_requests"), orderBy("createdAt", "desc"));
-    const unsubP = onSnapshot(pQ, (snap) => setPaymentRequests(snap.docs.map(d => ({id: d.id, ...d.data()}))), (err) => handleFirestoreError(err, OperationType.GET, 'payment_requests'));
-    
-    const unsubSpin = onSnapshot(doc(db, "settings", "spin"), (doc) => {
-      if (doc.exists()) {
-        setSpinRewards(doc.data().rewards || [1, 2, 5, 10, 0, 50, 100, 0]);
-      }
-    }, (err) => console.log(err));
-
-    const unsubReferral = onSnapshot(doc(db, "settings", "referral"), (doc) => {
-      if (doc.exists()) {
-        const data = doc.data();
-        setReferralSettings({ 
-          fixedBonus: data.fixedBonus || 0,
-          gen2FixedBonus: data.gen2FixedBonus || 0,
-          gen3FixedBonus: data.gen3FixedBonus || 0,
-          gen1Percent: data.gen1Percent || data.percentageCommission || 0,
-          gen2Percent: data.gen2Percent || 0,
-          gen3Percent: data.gen3Percent || 0
-        });
-      }
-    }, (err) => console.log(err));
-
-    const unsubBanner = onSnapshot(doc(db, "settings", "banner"), (doc) => {
-      if (doc.exists()) {
-        const data = doc.data();
-        setBannerSettings({ text: data.text || '', link: data.link || '#' });
-      }
-    }, (err) => console.log(err));
-
-    const unsubGameSettings = onSnapshot(doc(db, "settings", "games"), (doc) => {
-      if (doc.exists()) {
-        const data = doc.data();
-        setGameSettings({ 
-          spinTaskReq: data.spinTaskReq || 0, 
-          spinReferReq: data.spinReferReq || 0,
-          mathTaskReq: data.mathTaskReq || 0,
-          mathReferReq: data.mathReferReq || 0
-        });
-      }
-    }, (err) => console.log(err));
-
-    const unsubWithdrawSettings = onSnapshot(doc(db, "settings", "withdraw"), (doc) => {
-      if (doc.exists()) {
-        const data = doc.data();
-        setWithdrawSettings({
-          mainMin: data.mainMin !== undefined ? data.mainMin : 50,
-          mainFee: data.mainFee !== undefined ? data.mainFee : 0,
-          bonusMin: data.bonusMin !== undefined ? data.bonusMin : 50,
-          bonusFee: data.bonusFee !== undefined ? data.bonusFee : 0,
-          referralMin: data.referralMin !== undefined ? data.referralMin : 50,
-          referralFee: data.referralFee !== undefined ? data.referralFee : 0,
-          tasksMin: data.tasksMin !== undefined ? data.tasksMin : 50,
-          tasksFee: data.tasksFee !== undefined ? data.tasksFee : 0,
-          customAmounts: data.customAmounts || "110, 210, 310, 410, 510"
-        });
-      }
-    }, (err) => console.log(err));
-
-    const unsubDepositSettings = onSnapshot(doc(db, "settings", "deposit"), (doc) => {
-      if (doc.exists()) {
-        const data = doc.data();
-        setDepositSettings({
-          bkashNumber: data.bkashNumber || '017XX-XXXXXX',
-          nagadNumber: data.nagadNumber || '017XX-XXXXXX',
-          minDeposit: data.minDeposit !== undefined ? data.minDeposit : 100,
-          maxDeposit: data.maxDeposit !== undefined ? data.maxDeposit : 25000,
-          bkashEnabled: data.bkashEnabled !== false,
-          nagadEnabled: data.nagadEnabled !== false,
-          bkashQrUrl: data.bkashQrUrl || '',
-          nagadQrUrl: data.nagadQrUrl || ''
-        });
-      }
-    }, (err) => console.log(err));
-
-    const unsubPopupSettings = onSnapshot(doc(db, "settings", "popup"), (doc) => {
-      if (doc.exists()) {
-        const data = doc.data();
-        setPopupSettings({
-          telegramText: data.telegramText || 'Join Telegram',
-          telegramLink: data.telegramLink || 'https://t.me/',
-          skipText: data.skipText || 'Skip',
-          skipLink: data.skipLink || '#',
-          title: data.title || 'Welcome!',
-          subtitle: data.subtitle || 'Join our official channel for updates'
-        });
-      }
-    }, (err) => console.log(err));
-
-    const unsubActivationSettings = onSnapshot(doc(db, "settings", "activation"), (doc) => {
-      if (doc.exists()) {
-        const data = doc.data();
-        setActivationSettings({
-          mode: data.mode || 'free',
-          fee: data.fee || 50
-        });
-      }
-    }, (err) => console.log(err));
-
-    const unsubSupportSettings = onSnapshot(doc(db, "settings", "support"), (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        setSupportSettings({
-          email: data.email || 'support@example.com',
-          whatsapp: data.whatsapp || '',
-          telegram: data.telegram || '',
-          facebook: data.facebook || ''
-        });
-      }
-    }, (err) => console.log(err));
-
-    const unsubSiteSettings = onSnapshot(doc(db, "settings", "site"), (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        setSiteSettings({
-          logoUrl: data.logoUrl || '',
-          faviconUrl: data.faviconUrl || '',
-          telegramUrl: data.telegramUrl || '',
-          dailyTaskLimit: data.dailyTaskLimit || 0,
-          driveOffersEnabled: data.driveOffersEnabled !== false,
-          coursesEnabled: data.coursesEnabled !== false,
-          adsViewEnabled: data.adsViewEnabled === true,
-          adsViewLink: data.adsViewLink || '',
-          adsViewText: data.adsViewText || 'Watch Ads'
-        });
-      }
-    }, (err) => console.log(err));
-
-    const unsubFaqs = onSnapshot(doc(db, "settings", "faqs"), (docSnap) => {
-      if (docSnap.exists()) {
-        setFaqsList(docSnap.data().faqs || []);
-      }
-    }, (err) => console.log(err));
-
-    const uQ = query(collection(db, "users"), orderBy("createdAt", "desc"));
-    const unsubU = onSnapshot(uQ, (snap) => setUserList(snap.docs.map(d => ({id: d.id, ...d.data()}))), (err) => handleFirestoreError(err, OperationType.GET, 'users'));
-
-    const unsubD = onSnapshot(collection(db, "drive_offers"), (snap) => {
-      setAdminOffers(snap.docs.map(d => ({id: d.id, ...d.data()})));
-    }, (err) => console.log(err));
-
-    const unsubC = onSnapshot(collection(db, "courses"), (snap) => {
-      setAdminCourses(snap.docs.map(d => ({id: d.id, ...d.data()})));
-    }, (err) => console.log(err));
-
-    return () => { unsubJ(); unsubS(); unsubP(); unsubSpin(); unsubReferral(); unsubBanner(); unsubGameSettings(); unsubWithdrawSettings(); unsubDepositSettings(); unsubActivationSettings(); unsubPopupSettings(); unsubSupportSettings(); unsubSiteSettings(); unsubFaqs(); unsubU(); unsubD(); unsubC(); };
-  }, [isAdmin]);
+    if (activeTab === 'settings') {
+       loadSettings();
+    }
+    loadData();
+  }, [isAdmin, activeTab, loadSettings, loadData]);
 
   if (!isAdmin) return <div className="p-10 text-center">Access Denied</div>;
+
+  const handleCreateGiftCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newGiftCode || newGiftCode.length < 5) {
+      toast.error('Code must be at least 5 characters');
+      return;
+    }
+    
+    setIsCreatingGift(true);
+    try {
+      const expiresAt = new Date();
+      expiresAt.setHours(expiresAt.getHours() + (Number(giftExpiresInHours) || 24));
+      
+      await setDoc(doc(db, "giftCodes", newGiftCode.trim().toUpperCase()), {
+        code: newGiftCode.trim().toUpperCase(),
+        type: giftType,
+        amount: giftType === 'fixed' ? (Number(giftAmount) || 0) : 0,
+        minAmount: giftType === 'random' ? (Number(giftMinAmount) || 0) : 0,
+        maxAmount: giftType === 'random' ? (Number(giftMaxAmount) || 0) : 0,
+        maxUses: Number(giftMaxUses) || 0,
+        usedBy: [],
+        expiresAt: expiresAt,
+        status: 'active',
+        createdAt: serverTimestamp(),
+        createdBy: auth.currentUser?.email || 'admin'
+      });
+      
+      toast.success('Gift Code Created!');
+      setNewGiftCode('');
+      loadData(true);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, 'giftCodes');
+      toast.error('Failed to create code');
+    } finally {
+      setIsCreatingGift(false);
+    }
+  };
+
+  const handleDeleteGiftCode = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this gift code?')) return;
+    try {
+      await deleteDoc(doc(db, "giftCodes", id));
+      toast.success('Gift code deleted');
+      loadData(true);
+    } catch (err) {
+      toast.error('Failed to delete code');
+    }
+  };
 
   const handleSaveFaqs = async (updatedFaqs: any[]) => {
     setIsSavingSettings(true);
@@ -360,7 +351,7 @@ export function AdminPanel() {
     }
   };
 
-  const handleUploadImage = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'favicon') => {
+  const handleUploadImage = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logo') => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -375,7 +366,7 @@ export function AdminPanel() {
 
       setSiteSettings(prev => ({
         ...prev,
-        [type === 'logo' ? 'logoUrl' : 'faviconUrl']: imageUrl
+        logoUrl: imageUrl
       }));
       toast.success(`${type} uploaded successfully!`, { id: toastId });
     } catch (err: any) {
@@ -392,15 +383,15 @@ export function AdminPanel() {
       }, { merge: true });
       toast.success("Site settings saved!");
       
-      // Update favicon immediately
-      if (siteSettings.faviconUrl) {
+      // Update favicon immediately (using logo)
+      if (siteSettings.logoUrl) {
         let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
         if (!link) {
           link = document.createElement('link');
           link.rel = 'icon';
           document.head.appendChild(link);
         }
-        link.href = siteSettings.faviconUrl;
+        link.href = siteSettings.logoUrl;
       }
     } catch (e) {
       handleFirestoreError(e, OperationType.WRITE, 'settings/site');
@@ -421,10 +412,19 @@ export function AdminPanel() {
   const handleCreateJob = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const cleanedReviewComments = newJob.type === 'Review' && Array.isArray(newJob.reviewComments)
+        ? newJob.reviewComments.map(line => line.trim()).filter(line => line !== '')
+        : [];
+
+      const jobPayload = {
+        ...newJob,
+        reviewComments: cleanedReviewComments
+      };
+
       if (editingJobId) {
         const jobRef = doc(db, "jobs", editingJobId);
         await updateDoc(jobRef, {
-          ...newJob,
+          ...jobPayload,
           updatedAt: serverTimestamp()
         });
         toast.success('Job updated.');
@@ -432,14 +432,15 @@ export function AdminPanel() {
       } else {
         const jobRef = doc(collection(db, "jobs"));
         await setDoc(jobRef, {
-          ...newJob,
+          ...jobPayload,
           postedBy: profile?.fullName || 'Admin',
           status: 'active',
           createdAt: serverTimestamp()
         });
         toast.success('Job created.');
       }
-      setNewJob({ title: '', description: '', reward: 10, link: '', type: 'Facebook', icon: 'MessageCircle', color: 'text-blue-500', bg: 'bg-blue-100', requiredProofs: ['text'], allowedCompletions: 1, userLimit: 1, deadline: '' });
+      setNewJob({ title: '', description: '', reward: 10, link: '', type: 'Facebook', icon: 'MessageCircle', color: 'text-blue-500', bg: 'bg-blue-100', requiredProofs: ['text'], allowedCompletions: 1, userLimit: 1, deadline: '', isAccountSell: false, todaysPassword: '', reviewComments: [] });
+      await loadData(true);
     } catch (err) {
       handleFirestoreError(err, editingJobId ? OperationType.UPDATE : OperationType.CREATE, 'jobs');
     }
@@ -453,6 +454,7 @@ export function AdminPanel() {
       onConfirm: async () => {
         try {
           await deleteDoc(doc(db, "jobs", jobId));
+          await loadData(true);
         } catch (err) {
           handleFirestoreError(err, OperationType.DELETE, `jobs/${jobId}`);
         }
@@ -460,7 +462,72 @@ export function AdminPanel() {
     });
   };
 
-  const reviewSubmission = (subId: string, userId: string, subReward: number, subTitle: string, jobType: string, status: 'approved' | 'rejected') => {
+  const handleApproveJob = async (jobId: string) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Approve User Job',
+      message: 'Are you sure you want to approve this job? It will become active for all users.',
+      onConfirm: async () => {
+        try {
+          const jobRef = doc(db, "jobs", jobId);
+          await updateDoc(jobRef, {
+            status: 'active',
+            updatedAt: serverTimestamp()
+          });
+          toast.success('User job approved and is now live!');
+          await loadData(true);
+        } catch (err) {
+          handleFirestoreError(err, OperationType.UPDATE, `jobs/${jobId}`);
+        }
+      }
+    });
+  };
+
+  const handleRejectJob = async (job: any) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Reject User Job',
+      message: `Are you sure you want to reject this job? ৳${job.totalCost} will be refunded to the user's main balance.`,
+      onConfirm: async () => {
+        try {
+          const batch = writeBatch(db);
+          
+          // 1. Update job status
+          const jobRef = doc(db, "jobs", job.id);
+          batch.set(jobRef, {
+            status: 'rejected',
+            updatedAt: serverTimestamp()
+          }, { merge: true });
+
+          // 2. Refund balance
+          if (job.postedByUid) {
+            const userRef = doc(db, "users", job.postedByUid);
+            batch.set(userRef, {
+              balances: { main: increment(job.totalCost) }
+            }, { merge: true });
+
+            // 3. Create transaction refund log
+            const txRef = doc(collection(db, 'users', job.postedByUid, 'transactions'));
+            batch.set(txRef, {
+              amount: job.totalCost,
+              type: 'refund_job',
+              status: 'completed',
+              createdAt: serverTimestamp(),
+              description: `Refund: Job "${job.title}" rejected by admin`
+            });
+          }
+
+          await batch.commit();
+          toast.success('Job rejected and user has been fully refunded.');
+          await loadData(true);
+        } catch (err) {
+          handleFirestoreError(err, OperationType.WRITE, `jobs/${job.id}`);
+        }
+      }
+    });
+  };
+
+  const reviewSubmission = (subId: string, userId: string, subReward: number, subTitle: string, jobType: string, jobId: string | undefined, status: 'approved' | 'rejected') => {
     setConfirmDialog({
       isOpen: true,
       title: `${status === 'approved' ? 'Approve' : 'Reject'} Submission`,
@@ -468,32 +535,45 @@ export function AdminPanel() {
       onConfirm: async () => {
         try {
           const batch = writeBatch(db);
-          
+          const safeReward = Number(subReward || 0);
+
           const subRef = doc(db, "submissions", subId);
+          const subSnap = await getDoc(subRef);
+          if (!subSnap.exists()) {
+            toast.error("Submission not found. It may have been deleted.");
+            return;
+          }
           batch.update(subRef, {
             status,
             reviewedAt: serverTimestamp()
           });
           
-          if (status === 'approved') {
-            const userRef = doc(db, "users", userId);
-            const updateData: any = {
-              totalTasksCompleted: increment(1)
-            };
-            if (jobType === 'Review') {
-              // Review tasks are paid directly, do not add to wallet balance
-              updateData[`balances.tasks.${jobType}`] = increment(0);
-            } else if (jobType) {
-              updateData[`balances.tasks.${jobType}`] = increment(subReward);
-            } else {
-              updateData["balances.main"] = increment(subReward);
-            }
-            batch.update(userRef, updateData);
-            
-            if (jobType !== 'Review') {
+          const userRef = doc(db, "users", userId);
+          const userSnap = await getDoc(userRef);
+          const userExists = userSnap.exists();
+          
+          if (userExists) {
+            if (status === 'approved') {
+              const safeJobType = (jobType || 'Other').replace(/[.\/#\[\]]/g, '');
+              const rewardToAdd = safeReward;
+
+              const updateData: any = {
+                totalTasksCompleted: increment(1),
+                balances: {
+                  tasks: {
+                    [safeJobType]: increment(rewardToAdd)
+                  }
+                }
+              };
+
+              if (!jobType) {
+                updateData.balances.main = increment(safeReward);
+              }
+              batch.set(userRef, updateData, { merge: true });
+              
               const txRef = doc(collection(db, "users", userId, "transactions"));
               batch.set(txRef, {
-                amount: subReward,
+                amount: safeReward,
                 type: 'task',
                 status: 'completed',
                 createdAt: serverTimestamp()
@@ -501,38 +581,55 @@ export function AdminPanel() {
 
               const leaderboardRef = doc(db, "leaderboard", userId);
               batch.set(leaderboardRef, {
-                totalIncome: increment(subReward),
+                totalIncome: increment(safeReward),
                 updatedAt: serverTimestamp()
               }, { merge: true });
+              
+              const taskHisRef = doc(collection(db, "users", userId, "tasks"));
+              batch.set(taskHisRef, {
+                title: subTitle,
+                reward: safeReward,
+                type: jobType || 'Other',
+                completedAt: serverTimestamp()
+              });
             }
-            
-            const taskHisRef = doc(collection(db, "users", userId, "tasks"));
-            batch.set(taskHisRef, {
-              title: subTitle,
-              reward: jobType === 'Review' ? 0 : subReward,
-              type: jobType || 'Other',
-              completedAt: serverTimestamp()
-            });
-          }
 
-          const notifRef = doc(collection(db, "users", userId, "notifications"));
-          batch.set(notifRef, {
-            title: status === 'approved' ? 'Task Approved' : 'Task Rejected',
-            message: `Your submission for "${subTitle}" was ${status}. ${status === 'approved' ? `You earned ৳${subReward}!` : ''}`,
-            type: status === 'approved' ? 'task_approved' : 'task_rejected',
-            read: false,
-            createdAt: serverTimestamp()
-          });
+            if (jobId) {
+              const jobRef = doc(db, "jobs", jobId);
+              const jobSnap = await getDoc(jobRef);
+              if (jobSnap.exists()) {
+                batch.update(jobRef, {
+                  pendingCount: increment(-1),
+                  ...(status === 'approved' ? { completedCount: increment(1) } : { remainingCount: increment(1) })
+                });
+              } else {
+                console.warn(`Job ${jobId} not found, skipping job update.`);
+              }
+            }
+
+            const notifRef = doc(collection(db, "users", userId, "notifications"));
+            batch.set(notifRef, {
+              title: status === 'approved' ? 'Task Approved' : 'Task Rejected',
+              message: `Your submission for "${subTitle}" was ${status}. ${status === 'approved' ? `You earned ৳${safeReward}!` : ''}`,
+              type: status === 'approved' ? 'task_approved' : 'task_rejected',
+              read: false,
+              createdAt: serverTimestamp()
+            });
+          } else {
+            console.warn(`[Admin] User document users/${userId} does not exist. Skipping balance/notification updates but updating the submission status to ${status}.`);
+          }
           
           await batch.commit();
 
-          if (status === 'approved') {
-            await processReferralCommission(userId, subReward, `Job: ${subTitle}`);
+          if (status === 'approved' && userExists) {
+            await processReferralCommission(userId, safeReward, `Job: ${subTitle}`);
           }
 
           toast.success(`Submission ${status}`);
-        } catch (err) {
-          handleFirestoreError(err, OperationType.UPDATE, `submissions/${subId}`);
+          await loadData(true);
+        } catch (err: any) {
+          console.error("Failed to approve/reject task:", err);
+          handleFirestoreError(err, OperationType.UPDATE, `submissions or batch`);
         }
       }
     });
@@ -568,6 +665,21 @@ export function AdminPanel() {
       toast.success('Referral settings saved!');
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, 'settings/referral');
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
+  const handleSavePartnerSettings = async () => {
+    setIsSavingSettings(true);
+    try {
+      await setDoc(doc(db, "settings", "partner"), {
+        ...partnerSettings,
+        updatedAt: serverTimestamp()
+      });
+      toast.success('Partner settings saved!');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, 'settings/partner');
     } finally {
       setIsSavingSettings(false);
     }
@@ -673,45 +785,53 @@ export function AdminPanel() {
           const batch = writeBatch(db);
           
           const reqRef = doc(db, "payment_requests", reqId);
-          batch.update(reqRef, { status, updatedAt: serverTimestamp() });
-          
-          if (txId) {
-            const txRef = doc(db, "users", reqUserId, "transactions", txId);
-            batch.update(txRef, { status, updatedAt: serverTimestamp() });
-          }
+          batch.set(reqRef, { status, updatedAt: serverTimestamp() }, { merge: true });
           
           const userRef = doc(db, "users", reqUserId);
+          const userSnap = await getDoc(userRef);
+          const userExists = userSnap.exists();
           
-          if (reqType === 'deposit' && status === 'approved') {
-            batch.update(userRef, { "balances.main": increment(reqAmount) });
-          } else if (reqType === 'withdraw' && status === 'rejected') {
-            const updateData: any = {};
-            if (wallet === 'main') updateData["balances.main"] = increment(reqAmount);
-            else if (wallet === 'bonus') updateData["balances.bonus"] = increment(reqAmount);
-            else if (wallet === 'referral') updateData["balances.referral"] = increment(reqAmount);
-            else updateData[`balances.tasks.${wallet}`] = increment(reqAmount);
+          if (userExists) {
+            if (txId) {
+              const txRef = doc(db, "users", reqUserId, "transactions", txId);
+              batch.set(txRef, { status, updatedAt: serverTimestamp() }, { merge: true });
+            }
             
-            batch.update(userRef, updateData);
-          } else if (reqType === 'activation' && status === 'approved') {
-            batch.update(userRef, { isActive: true });
+            if (reqType === 'deposit' && status === 'approved') {
+              batch.set(userRef, { balances: { main: increment(reqAmount) } }, { merge: true });
+            } else if (reqType === 'withdraw' && status === 'rejected') {
+              const updateData: any = { balances: {} };
+              if (wallet === 'main') updateData.balances.main = increment(reqAmount);
+              else if (wallet === 'bonus') updateData.balances.bonus = increment(reqAmount);
+              else if (wallet === 'referral') updateData.balances.referral = increment(reqAmount);
+              else if (wallet === 'partner') updateData.balances.partner = increment(reqAmount);
+              else updateData.balances.tasks = { [wallet]: increment(reqAmount) };
+              
+              batch.set(userRef, updateData, { merge: true });
+            } else if (reqType === 'activation' && status === 'approved') {
+              batch.set(userRef, { isActive: true }, { merge: true });
+            }
+            
+            const notifRef = doc(collection(db, "users", reqUserId, "notifications"));
+            batch.set(notifRef, {
+              title: `${reqType === 'deposit' ? 'Deposit' : reqType === 'activation' ? 'Account Activation' : 'Withdrawal'} ${status}`,
+              message: `Your ${reqType} request of ৳${reqAmount} has been ${status}.`,
+              type: `payment_${status}`,
+              read: false,
+              createdAt: serverTimestamp()
+            });
+          } else {
+            console.warn(`[Admin] User document users/${reqUserId} does not exist. Skipping balance/transaction/notification updates but updating the payment request status to ${status}.`);
           }
-          
-          const notifRef = doc(collection(db, "users", reqUserId, "notifications"));
-          batch.set(notifRef, {
-            title: `${reqType === 'deposit' ? 'Deposit' : reqType === 'activation' ? 'Account Activation' : 'Withdrawal'} ${status}`,
-            message: `Your ${reqType} request of ৳${reqAmount} has been ${status}.`,
-            type: `payment_${status}`,
-            read: false,
-            createdAt: serverTimestamp()
-          });
           
           await batch.commit();
 
-          if (reqType === 'activation' && status === 'approved') {
+          if (reqType === 'activation' && status === 'approved' && userExists) {
             await processRegistrationReferral(reqUserId);
           }
 
           toast.success(`${reqType} request ${status}`);
+          await loadData(true);
         } catch (err) {
           handleFirestoreError(err, OperationType.UPDATE, `payment_requests/${reqId}`);
           toast.error('Failed to process request');
@@ -733,6 +853,7 @@ export function AdminPanel() {
             updatedAt: serverTimestamp()
           });
           toast.success(currentStatus ? 'User Unblocked' : 'User Blocked');
+          await loadData(true);
         } catch (err) {
           handleFirestoreError(err, OperationType.UPDATE, `users/${userId}`);
         }
@@ -758,6 +879,7 @@ export function AdminPanel() {
           }
           
           toast.success(currentStatus ? 'User Deactivated' : 'User Activated');
+          await loadData(true);
         } catch (err) {
           handleFirestoreError(err, OperationType.UPDATE, `users/${userId}`);
         }
@@ -775,6 +897,7 @@ export function AdminPanel() {
           await deleteDoc(doc(db, "users", userId));
           await deleteDoc(doc(db, "leaderboard", userId)).catch(() => {});
           toast.success('User deleted successfully');
+          await loadData(true);
         } catch (err) {
           handleFirestoreError(err, OperationType.DELETE, `users/${userId}`);
         }
@@ -868,12 +991,39 @@ export function AdminPanel() {
 
   return (
     <div className="pt-6 px-4 pb-20">
-      <h2 className="text-2xl font-bold mb-4 text-[#0D47A1] dark:text-blue-400">Admin Panel</h2>
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <h2 className="text-2xl font-bold text-[#0D47A1] dark:text-blue-400">Admin Panel</h2>
+        <button
+          onClick={async () => {
+            const toastId = toast.loading('Syncing latest admin data...');
+            try {
+              clearCache();
+              await Promise.all([
+                loadSettings(true),
+                loadData(true)
+              ]);
+              toast.success('Admin data synced fully!', { id: toastId });
+            } catch (err) {
+              toast.error('Failed to sync admin data', { id: toastId });
+            }
+          }}
+          className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-full font-black text-[10px] uppercase tracking-widest transition-all border border-slate-200 dark:border-slate-700 active:scale-95"
+        >
+          <RefreshCw className="w-3.5 h-3.5" />
+          Sync Live Data
+        </button>
+      </div>
       <div className="flex bg-slate-100 dark:bg-slate-900/50 p-1.5 rounded-[20px] mb-8 flex-wrap gap-1.5 ring-1 ring-slate-200 dark:ring-slate-800">
         {allowedTabs.map(tab => (
           <button 
             key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)} 
+            onClick={() => {
+              if (tab.id === 'migrate') {
+                navigate('/admin/migrate');
+              } else {
+                setActiveTab(tab.id as any);
+              }
+            }} 
             className={`flex-1 min-w-[80px] py-2.5 px-2 rounded-[14px] text-[11px] font-black uppercase tracking-wider transition-all flex flex-col items-center gap-1 active:scale-95 ${
               activeTab === tab.id 
                 ? 'bg-white dark:bg-slate-800 shadow-md shadow-slate-200 dark:shadow-black/20 text-slate-900 dark:text-white ring-1 ring-slate-200 dark:ring-slate-700' 
@@ -885,6 +1035,120 @@ export function AdminPanel() {
           </button>
         ))}
       </div>
+      
+      {activeTab === 'dashboard' && (
+        <div className="space-y-6">
+          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6 rounded-3xl shadow-xl shadow-blue-500/20 border border-blue-500/30 flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="space-y-1 text-center md:text-left">
+              <h4 className="font-black text-lg tracking-tight uppercase flex items-center justify-center md:justify-start gap-2">
+                <Database className="w-5 h-5 text-indigo-200" /> cPanel Ready Build (.zip)
+              </h4>
+              <p className="text-xs text-blue-100 max-w-xl leading-relaxed">
+                আপনার cPanel হোস্টিং-এ আপলোড করার জন্য সম্পূর্ণ প্রস্তুত করা <b>dist.zip</b> বিল্ড ফাইলটি ডাউনলোড করুন। এটি সরাসরি cPanel-এর <code className="bg-blue-700/50 px-1.5 py-0.5 rounded text-[11px] font-mono">public_html</code> ফোল্ডারে আপলোড করে এক্সট্র্যাক্ট করতে পারবেন।
+              </p>
+            </div>
+            <a 
+              href="/api/download-zip" 
+              download="dist.zip"
+              className="bg-white hover:bg-slate-50 text-blue-600 px-6 py-3.5 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all active:scale-95 shrink-0"
+            >
+              <Download className="w-4 h-4" /> Download Build ZIP
+            </a>
+          </div>
+
+          <div className="flex items-center justify-between px-1">
+            <h3 className="font-black dark:text-white uppercase tracking-tight text-sm">Financial Overview</h3>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/40 dark:to-teal-900/20 p-5 rounded-3xl border border-emerald-100 dark:border-emerald-800/30">
+              <div className="flex flex-col gap-2">
+                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Total Approved Deposits</span>
+                <span className="text-3xl font-black text-slate-900 dark:text-white">
+                  ৳{paymentRequests.filter(r => r.type === 'deposit' && r.status === 'approved').reduce((acc, curr) => acc + Number(curr.amount || 0), 0).toLocaleString()}
+                </span>
+                <span className="text-[10px] font-bold text-slate-500 uppercase">
+                  {paymentRequests.filter(r => r.type === 'deposit' && r.status === 'approved').length} Transactions
+                </span>
+              </div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-rose-50 to-pink-50 dark:from-rose-900/40 dark:to-pink-900/20 p-5 rounded-3xl border border-rose-100 dark:border-rose-800/30">
+              <div className="flex flex-col gap-2">
+                <span className="text-xs font-bold text-rose-600 dark:text-rose-400 uppercase tracking-widest">Total Approved Withdrawals</span>
+                <span className="text-3xl font-black text-slate-900 dark:text-white">
+                  ৳{paymentRequests.filter(r => r.type === 'withdraw' && r.status === 'approved').reduce((acc, curr) => acc + Number(curr.amount || 0), 0).toLocaleString()}
+                </span>
+                <span className="text-[10px] font-bold text-slate-500 uppercase">
+                  {paymentRequests.filter(r => r.type === 'withdraw' && r.status === 'approved').length} Transactions
+                </span>
+              </div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/40 dark:to-orange-900/20 p-5 rounded-3xl border border-amber-100 dark:border-amber-800/30">
+              <div className="flex flex-col gap-2">
+                <span className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-widest">Pending Deposits</span>
+                <span className="text-3xl font-black text-slate-900 dark:text-white">
+                  ৳{paymentRequests.filter(r => r.type === 'deposit' && r.status === 'pending').reduce((acc, curr) => acc + Number(curr.amount || 0), 0).toLocaleString()}
+                </span>
+                <span className="text-[10px] font-bold text-slate-500 uppercase">
+                  {paymentRequests.filter(r => r.type === 'deposit' && r.status === 'pending').length} Action Required
+                </span>
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-br from-blue-50 to-sky-50 dark:from-blue-900/40 dark:to-sky-900/20 p-5 rounded-3xl border border-blue-100 dark:border-blue-800/30">
+              <div className="flex flex-col gap-2">
+                <span className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest">Pending Withdrawals</span>
+                <span className="text-3xl font-black text-slate-900 dark:text-white">
+                  ৳{paymentRequests.filter(r => r.type === 'withdraw' && r.status === 'pending').reduce((acc, curr) => acc + Number(curr.amount || 0), 0).toLocaleString()}
+                </span>
+                <span className="text-[10px] font-bold text-slate-500 uppercase">
+                  {paymentRequests.filter(r => r.type === 'withdraw' && r.status === 'pending').length} Action Required
+                </span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-100 dark:border-slate-700">
+            <h4 className="font-bold text-slate-900 dark:text-white mb-4">Recent Transactions Flow</h4>
+            <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+              {paymentRequests.slice(0, 50).map(req => (
+                <div key={req.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-700/50">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                      req.type === 'deposit' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' :
+                      req.type === 'withdraw' ? 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400' :
+                      'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400'
+                    }`}>
+                      {req.type === 'deposit' ? '+' : req.type === 'withdraw' ? '-' : <Calculator className="w-4 h-4" />}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="font-bold text-sm text-slate-900 dark:text-white capitalize">{req.type}</p>
+                        <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-sm ${
+                          req.status === 'approved' ? 'bg-emerald-100 text-emerald-600' :
+                          req.status === 'rejected' ? 'bg-rose-100 text-rose-600' :
+                          'bg-amber-100 text-amber-600'
+                        }`}>
+                          {req.status}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">{req.method || 'System'} • {new Date(req.createdAt?.toDate()).toLocaleString()}</p>
+                    </div>
+                  </div>
+                  <div className={`font-black text-lg ${req.type === 'deposit' ? 'text-emerald-500' : 'text-rose-500'}`}>
+                    {req.type === 'deposit' ? '+' : '-'}৳{req.amount}
+                  </div>
+                </div>
+              ))}
+              {paymentRequests.length === 0 && (
+                <p className="text-center text-slate-500 py-4 text-sm font-medium">No transactions found.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {activeTab === 'submissions' && (
         <div className="space-y-4">
@@ -1036,13 +1300,13 @@ export function AdminPanel() {
               
               <div className="grid grid-cols-2 gap-3">
                 <button 
-                  onClick={() => reviewSubmission(sub.id, sub.userId, sub.reward, sub.title, sub.jobType || 'Other', 'approved')} 
+                  onClick={() => reviewSubmission(sub.id, sub.userId, sub.reward, sub.title, sub.jobType || 'Other', sub.jobId, 'approved')} 
                   className="bg-emerald-500 hover:bg-emerald-600 text-white py-3 rounded-2xl font-black uppercase tracking-widest text-[11px] flex justify-center items-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-95 transition-all"
                 >
                   <CheckCircle className="w-4 h-4"/> Approve
                 </button>
                 <button 
-                  onClick={() => reviewSubmission(sub.id, sub.userId, sub.reward, sub.title, sub.jobType || 'Other', 'rejected')} 
+                  onClick={() => reviewSubmission(sub.id, sub.userId, sub.reward, sub.title, sub.jobType || 'Other', sub.jobId, 'rejected')} 
                   className="bg-rose-500 hover:bg-rose-600 text-white py-3 rounded-2xl font-black uppercase tracking-widest text-[11px] flex justify-center items-center gap-2 shadow-lg shadow-rose-500/20 active:scale-95 transition-all"
                 >
                   <XCircle className="w-4 h-4" /> Reject
@@ -1088,7 +1352,57 @@ export function AdminPanel() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-1 block">Category</label>
-                <select value={newJob.type} onChange={e => setNewJob({...newJob, type: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold">
+                <select 
+                  value={newJob.type} 
+                  onChange={e => {
+                    const newType = e.target.value;
+                    let updatedJob = { ...newJob, type: newType };
+                    if (newType === 'Review') {
+                      updatedJob.title = "German Doner Kebab (GDK) ৫ স্টার রিভিউ";
+                      updatedJob.description = "গুগল ম্যাপে গিয়ে অবশ্যই ৫ স্টার (5 Star) রেটিং দিয়ে আপনার জন্য নির্ধারিত কমেন্টটি পেস্ট করতে হবে। অবশ্যই স্ক্রিনশট এবং যে নাম দিয়ে রিভিউ দিয়েছেন তা প্রুফ হিসেবে সাবমিট করবেন।";
+                      updatedJob.link = "https://www.google.com/search?shndl=30&shem=rimspwouoe&q=German+Doner+Kebab+(GDK)&kgmid=/g/11wpz8mg0y";
+                      updatedJob.icon = 'Star';
+                      updatedJob.color = 'text-amber-500';
+                      updatedJob.requiredProofs = ['text', 'screenshot', 'username'];
+                      
+                      const defaultComments = [
+                        "I’ve tried GDK in other locations, and Metrocenter branch is just as good. Consistent taste, clean, and fast.",
+                        "Super convenient inside Metrocenter. Grabbed a Kebab Box between shopping trips. No long wait even during lunch rush.fas",
+                        "What makes GDK different is the sauce selection. Tried Garlic + Chilli. Kebab was packed well and didn’t get soggy.",
+                        "The waffle bread is absolutely incredible! GDK always delivers high-quality donor and the service is extremely friendly.",
+                        "Amazing kebab! Fresh ingredients, tasty sauces, and super clean. Best place in Metrocenter for a quick bite.",
+                        "Really friendly staff and super quick service. The donor meat is perfectly seasoned and not greasy at all.",
+                        "Absolutely love GDK. The food is always piping hot, fresh, and full of flavor. Highly recommend the Boss Box!",
+                        "Best doner kebab around here. Friendly staff, modern clean seating, and consistently delicious food.",
+                        "German Doner Kebab never disappoints! The combination of garlic and spicy sauce is just amazing.",
+                        "Great dining experience at the Metrocenter branch. The doner wraps are fresh, juicy, and huge!",
+                        "I am absolutely in love with GDK's signature sauce. The meat is tender and the waffle bread is so soft.",
+                        "A must-visit spot inside Metrocenter! Super clean environment, polite workers, and top-tier kebabs.",
+                        "Really tasty and healthy portion sizes. The GDK doner is far superior to standard kebabs.",
+                        "Excellent service! The team is efficient even when it is crowded. The food is consistently outstanding.",
+                        "Outstanding taste and amazing packaging! Everything feels very hygienic and fresh.",
+                        "Highly impressed by the speed and cleanliness. The kebab was packed with meat and extremely flavorful.",
+                        "The chili sauce is perfectly spicy and pairs so well with the garlic sauce. Best doner ever!",
+                        "Lovely food and brilliant service! Great addition to Metrocenter, definitely coming back again.",
+                        "The meat is so tender and flavorful, and the veggies are incredibly crisp. Highly recommended!",
+                        "Quick, yummy, and very clean! Definitely my go-to spot whenever I visit Metrocenter.",
+                        "GDK is on another level. The waffle bread kebab is unique, tasty, and loaded with fresh fillings.",
+                        "Perfect quick lunch while shopping. Warm food, delicious taste, and lovely helpful staff.",
+                        "Their doner box with fries is top notch! Perfect blend of spices and very satisfying portion.",
+                        "Great service, clean tables, and incredible flavor. The doner is juicy and absolutely delicious.",
+                        "Highly professional staff, excellent customer service, and unmatched kebab quality. Simply the best.",
+                        "The bread is light and crispy, and the meat is beautifully cooked. Best fast food in Metrocenter!",
+                        "Brilliant taste, gorgeous sauces, and absolutely spot on. Will definitely recommend GDK to friends.",
+                        "Loved the Doner Spring Rolls and the classic kebab. GDK Metrocenter is always top notch!",
+                        "Super fast preparation and extremely delicious. The garlic sauce is out of this world!",
+                        "Super clean, very friendly service, and absolutely scrumptious kebabs. A solid five stars!"
+                      ];
+                      updatedJob.reviewComments = defaultComments;
+                    }
+                    setNewJob(updatedJob);
+                  }} 
+                  className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold"
+                >
                   {['Facebook', 'Gmail', 'Instagram', 'Telegram', 'Review', 'Sell Accounts', 'Microjob', 'Typing', 'Watch Ads', 'Other'].map(cat => <option key={cat} value={cat}>{cat}</option>)}
                 </select>
               </div>
@@ -1158,6 +1472,31 @@ export function AdminPanel() {
               </div>
             </div>
 
+            {newJob.type === "Review" && (
+              <div className="p-4 bg-amber-50 dark:bg-amber-950/20 rounded-3xl space-y-3 border border-amber-100 dark:border-amber-900/30">
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest pl-1">
+                    Google Review Comments (১টি লাইনে ১টি কমেন্ট লিখুন)
+                  </p>
+                  <span className="text-[10px] bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 font-bold px-2 py-0.5 rounded-full">
+                    {Array.isArray(newJob.reviewComments) ? newJob.reviewComments.length : 0}টি কমেন্ট
+                  </span>
+                </div>
+                <textarea
+                  placeholder="এখানে প্রতি লাইনে একটি করে কমেন্ট লিখুন। ২০-৩০টি বা তার বেশি কমেন্ট লিখতে পারেন। ব্যবহারকারী যখন কাজটি করবেন, তখন এখান থেকে একটি কমেন্ট এলোমেলোভাবে (randomly) তাকে দেওয়া হবে।"
+                  value={Array.isArray(newJob.reviewComments) ? newJob.reviewComments.join('\n') : ''}
+                  onChange={e => {
+                    const commentsArray = e.target.value.split('\n');
+                    setNewJob({ ...newJob, reviewComments: commentsArray });
+                  }}
+                  className="w-full bg-white dark:bg-slate-800 border-none px-4 py-3 rounded-2xl text-xs font-bold h-36 placeholder:text-slate-400 focus:ring-1 focus:ring-amber-500"
+                />
+                <p className="text-[9px] text-amber-600 dark:text-amber-500 font-bold pl-1 leading-relaxed">
+                  * গুগল ম্যাপে ব্যবহারকারী যখন রিভিউর কাজটি করবেন, তখন আমাদের ওয়েবসাইট স্বয়ংক্রিয়ভাবে একটি করে কমেন্ট কপি করার জন্য স্ক্রিনে দেখাবে। এর মাধ্যমে ভিন্ন ভিন্ন ব্যবহারকারী ভিন্ন ভিন্ন কমেন্ট দিয়ে গুগল ম্যাপে ৫ স্টার রেটিং দিবে।
+                </p>
+              </div>
+            )}
+
             <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-3xl space-y-3 border border-red-100 dark:border-red-900/30">
               <div className="flex items-center justify-between">
                 <p className="text-[10px] font-black text-red-500 uppercase tracking-widest">Account Selling Config</p>
@@ -1178,12 +1517,67 @@ export function AdminPanel() {
           </form>
 
           <div className="grid gap-3">
-            <h3 className="font-black dark:text-white uppercase tracking-tight text-xs mb-1 px-1 opacity-50">Active Tasks ({jobs.length})</h3>
-            {jobs.map(job => (
+            {jobs.filter(job => job.status === 'pending').length > 0 && (
+              <div className="space-y-3 mb-6">
+                <h3 className="font-black dark:text-white text-rose-500 uppercase tracking-tight text-xs mb-1 px-1 flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></div>
+                  Pending User Job Requests ({jobs.filter(job => job.status === 'pending').length})
+                </h3>
+                {jobs.filter(job => job.status === 'pending').map(job => (
+                  <div key={job.id} className="bg-amber-50/50 dark:bg-amber-950/10 p-4 rounded-3xl shadow-sm border border-amber-100 dark:border-amber-900/30 space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div className="min-w-0 flex-1">
+                        <span className="text-[9px] font-black uppercase tracking-widest text-amber-600 bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 rounded-md">
+                          {job.type}
+                        </span>
+                        <h4 className="font-bold dark:text-white text-sm leading-snug truncate mt-1">{job.title}</h4>
+                        <p className="text-xs text-slate-550 dark:text-slate-400 mt-1 line-clamp-2">{job.description}</p>
+                        <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mt-1">
+                          Link: <a href={job.link} target="_blank" rel="noopener noreferrer" className="underline">{job.link}</a>
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0 ml-3">
+                        <p className="text-xs font-black text-slate-700 dark:text-slate-300">Rate: ৳{job.reward}</p>
+                        <p className="text-[10px] font-bold text-slate-400">Slots: {job.allowedCompletions}</p>
+                        <p className="text-[10px] font-black text-emerald-600">Total: ৳{job.totalCost}</p>
+                        <p className="text-[8px] font-black text-slate-450 uppercase mt-1">By: {job.postedBy}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-2 justify-end pt-2 border-t border-amber-100 dark:border-amber-900/10">
+                      <button 
+                        onClick={() => handleRejectJob(job)} 
+                        className="px-4 py-2 text-rose-650 bg-rose-50 dark:bg-rose-950/30 rounded-xl text-xs font-black uppercase tracking-wider hover:scale-105 active:scale-95 transition-all"
+                      >
+                        Reject & Refund
+                      </button>
+                      <button 
+                        onClick={() => handleApproveJob(job.id)} 
+                        className="px-4 py-2 text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl text-xs font-black uppercase tracking-wider hover:scale-105 active:scale-95 transition-all"
+                      >
+                        Approve Job
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <h3 className="font-black dark:text-white uppercase tracking-tight text-xs mb-1 px-1 opacity-50">
+              Active/All Tasks ({jobs.filter(job => job.status !== 'pending').length})
+            </h3>
+            {jobs.filter(job => job.status !== 'pending').map(job => (
               <div key={job.id} className="bg-white dark:bg-slate-800 p-4 rounded-3xl shadow-sm flex justify-between items-center border border-slate-100 dark:border-slate-700 transition-all hover:border-blue-200">
                 <div className="flex-1 min-w-0">
-                  <h4 className="font-bold dark:text-white truncate uppercase tracking-tight text-sm">{job.title}</h4>
-                  <p className="text-[10px] font-black text-blue-500/80 uppercase tracking-widest">৳{job.reward} &bull; {job.type}</p>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h4 className="font-bold dark:text-white truncate uppercase tracking-tight text-sm">{job.title}</h4>
+                    <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded-md ${
+                      job.status === 'active' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/20 dark:text-emerald-400' : 'bg-rose-100 text-rose-850 dark:bg-rose-950/20 dark:text-rose-400'
+                    }`}>
+                      {job.status}
+                    </span>
+                  </div>
+                  <p className="text-[10px] font-black text-blue-500/80 uppercase tracking-widest">৳{job.reward} &bull; {job.type} &bull; Slots: {job.remainingSlots}/{job.allowedCompletions}</p>
                 </div>
                 <div className="flex items-center gap-2 ml-4">
                   <button onClick={() => handleEditJobClick(job)} className="p-3 text-blue-500 bg-blue-50 dark:bg-blue-900/30 rounded-2xl hover:scale-105 active:scale-90 transition-all">
@@ -1407,6 +1801,99 @@ export function AdminPanel() {
         </div>
       )}
 
+      {activeTab === 'gifts' && (
+        <div className="space-y-6">
+          <form onSubmit={handleCreateGiftCode} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] border border-slate-100 dark:border-slate-700 shadow-sm space-y-4">
+            <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight text-sm">Create Gift Code</h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Gift Code (5-8 Chars)</label>
+                <input type="text" value={newGiftCode} onChange={(e) => setNewGiftCode(e.target.value.toUpperCase())} maxLength={8} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 uppercase" placeholder="e.g. SUMMER50" required />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Reward Type</label>
+                <select value={giftType} onChange={(e) => setGiftType(e.target.value as 'fixed'|'random')} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800">
+                  <option value="fixed">Fixed Amount</option>
+                  <option value="random">Random Amount</option>
+                </select>
+              </div>
+              
+              {giftType === 'fixed' ? (
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Amount (৳)</label>
+                  <input type="number" min="1" value={giftAmount} onChange={(e) => setGiftAmount(e.target.value === '' ? '' : isNaN(parseFloat(e.target.value)) ? "" : parseFloat(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" required />
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Min Amount (৳)</label>
+                    <input type="number" min="1" value={giftMinAmount} onChange={(e) => setGiftMinAmount(e.target.value === '' ? '' : isNaN(parseFloat(e.target.value)) ? "" : parseFloat(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" required />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Max Amount (৳)</label>
+                    <input type="number" min="1" value={giftMaxAmount} onChange={(e) => setGiftMaxAmount(e.target.value === '' ? '' : isNaN(parseFloat(e.target.value)) ? "" : parseFloat(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" required />
+                  </div>
+                </>
+              )}
+              
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Max Uses (0 = unlimited)</label>
+                <input type="number" min="0" value={giftMaxUses} onChange={(e) => setGiftMaxUses(e.target.value === '' ? '' : isNaN(parseInt(e.target.value)) ? "" : parseInt(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" required />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Expires In (Hours)</label>
+                <input type="number" min="1" value={giftExpiresInHours} onChange={(e) => setGiftExpiresInHours(e.target.value === '' ? '' : isNaN(parseInt(e.target.value)) ? "" : parseInt(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" required />
+              </div>
+            </div>
+
+            <button type="submit" disabled={isCreatingGift} className="w-full bg-[#0D47A1] hover:bg-blue-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg transition-all text-xs disabled:opacity-50">
+              {isCreatingGift ? 'Creating...' : 'Create Code'}
+            </button>
+          </form>
+
+          <div className="space-y-3">
+            <h3 className="font-black dark:text-white uppercase tracking-tight text-xs pl-1">Active & Past Codes ({giftCodes.length})</h3>
+            
+            {giftCodes.length === 0 && (
+              <div className="text-center py-12 bg-white dark:bg-slate-800/45 rounded-[32px] border-2 border-dashed border-slate-100 dark:border-slate-800">
+                <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">No gift codes found.</p>
+              </div>
+            )}
+
+            <div className="grid gap-3">
+              {giftCodes.map((code) => {
+                const isExpired = code.expiresAt && code.expiresAt.toDate() < new Date();
+                return (
+                  <div key={code.id} className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-100 dark:border-slate-700 flex flex-col gap-2 shadow-sm">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h4 className="font-black font-mono text-slate-900 dark:text-white text-lg tracking-widest">{code.code}</h4>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                          {code.type === 'fixed' ? `৳${code.amount} Fixed` : `৳${code.minAmount} - ৳${code.maxAmount} Random`}
+                          <span className="mx-2 text-slate-300">•</span>
+                          {code.usedBy?.length || 0} / {code.maxUses || '∞'} Uses
+                        </p>
+                      </div>
+                      <div className="flex flex-col items-end gap-2">
+                        <span className={`text-[9px] px-2.5 py-1 rounded-full font-black uppercase tracking-widest border ${
+                          code.status === 'active' && !isExpired ? 'bg-emerald-100 text-emerald-600 border-emerald-200' : 'bg-rose-100 text-rose-600 border-rose-200'
+                        }`}>
+                          {isExpired ? 'EXPIRED' : code.status}
+                        </span>
+                        <button onClick={() => handleDeleteGiftCode(code.id)} className="p-2 text-rose-500 bg-rose-50 dark:bg-rose-900/30 rounded-lg hover:scale-105 active:scale-90 transition-all">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       {activeTab === 'faqs' && (
         <div className="space-y-6">
           <form onSubmit={handleAddFaq} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] border border-slate-100 dark:border-slate-700 shadow-sm space-y-4">
@@ -1493,6 +1980,7 @@ export function AdminPanel() {
                     status: 'active'
                   });
                   toast.success("Drive pack created successfully!");
+                  await loadData(true);
                   setNewDriveTitle('');
                   setNewDriveOriginalPrice('');
                   setNewDriveSalePrice('');
@@ -1581,6 +2069,7 @@ export function AdminPanel() {
                             const newStatus = of.status === 'active' ? 'inactive' : 'active';
                             await updateDoc(doc(db, "drive_offers", of.id), { status: newStatus });
                             toast.success(`Package set ${newStatus}`);
+                            await loadData(true);
                           } catch (e) {
                             toast.error("Failed to alter status");
                           }
@@ -1595,6 +2084,7 @@ export function AdminPanel() {
                             try {
                               await deleteDoc(doc(db, "drive_offers", of.id));
                               toast.success("Pack deleted");
+                              await loadData(true);
                             } catch (e) {
                               toast.error("Failed to delete pack");
                             }
@@ -1643,6 +2133,7 @@ export function AdminPanel() {
                   }, { merge: true });
                   
                   toast.success(editingCourseId ? "কোর্স বা টিউটোরিয়াল সফলভাবে আপডেট হয়েছে!" : "নতুন টিউটোরিয়াল সফলভাবে যুক্ত হয়েছে!");
+                  await loadData(true);
                   
                   // Clear form
                   setNewCourseTitle('');
@@ -1970,6 +2461,7 @@ export function AdminPanel() {
                           const toggledStatus = course.status === 'active' ? 'inactive' : 'active';
                           await updateDoc(doc(db, "courses", course.id), { status: toggledStatus });
                           toast.success(`কործ স্ট্যাটাস ${toggledStatus} সফল হয়েছে`);
+                          await loadData(true);
                         } catch (err) {
                           toast.error("অবস্থা পরিবর্তনে ব্যর্থতা");
                         }
@@ -1985,6 +2477,7 @@ export function AdminPanel() {
                           try {
                             await deleteDoc(doc(db, "courses", course.id));
                             toast.success("মুছে ফেলা হয়েছে!");
+                            await loadData(true);
                           } catch (err) {
                             toast.error("ফেইল্ড!");
                           }
@@ -2004,14 +2497,31 @@ export function AdminPanel() {
 
       {activeTab === 'users' && (
         <div className="space-y-4">
-          <div className="flex justify-between items-center mb-4 px-1">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 px-1">
             <h3 className="font-black dark:text-white flex items-center gap-2 uppercase tracking-tight text-sm">
               <Users className="w-4 h-4 text-indigo-500" /> Database Entities ({userList.length})
             </h3>
+            
+            <div className="relative w-full sm:w-72">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                <Search className="w-4 h-4" />
+              </span>
+              <input
+                type="text"
+                placeholder="Search by name, email or ID..."
+                value={userSearchTerm}
+                onChange={e => setUserSearchTerm(e.target.value)}
+                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-4 py-2 text-sm font-bold placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:text-white transition-all"
+              />
+            </div>
           </div>
           
           <div className="grid gap-4">
-            {userList.map(user => (
+            {userList.filter(user => 
+              (user.fullName || 'Anonymous').toLowerCase().includes(userSearchTerm.toLowerCase()) || 
+              (user.email || '').toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+              (user.id || '').toLowerCase().includes(userSearchTerm.toLowerCase())
+            ).map(user => (
               <motion.div 
                 initial={{ opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -2023,7 +2533,7 @@ export function AdminPanel() {
                 <div className="flex-1 pl-2">
                   <div className="flex items-center gap-2 mb-2">
                     <h4 className="font-black text-slate-900 dark:text-white uppercase tracking-tight text-base italic">{user.fullName || 'Anonymous'}</h4>
-                    <div className="flex gap-1">
+                    <div className="flex gap-1 flex-wrap">
                       <span className={`text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-widest border ${user.isBlocked ? 'bg-rose-100 text-rose-600 border-rose-200' : 'bg-emerald-100 text-emerald-600 border-emerald-200'}`}>
                         {user.isBlocked ? 'Blocked' : 'Normal Access'}
                       </span>
@@ -2032,8 +2542,11 @@ export function AdminPanel() {
                           {user.isActive ? 'Activated' : 'Inactive'}
                         </span>
                       )}
+                      {user.role === 'employee' && (
+                        <span className="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-widest bg-teal-100 text-teal-700 border border-teal-200">Employee</span>
+                      )}
                       {user.role === 'admin' && (
-                        <span className="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-widest bg-indigo-100 text-indigo-600 border border-indigo-200">System Admin</span>
+                        <span className="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-widest bg-indigo-100 text-indigo-650 border border-indigo-200">System Admin</span>
                       )}
                     </div>
                   </div>
@@ -2216,6 +2729,10 @@ export function AdminPanel() {
             
             <div className="space-y-5 flex-1">
               <div className="group">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-emerald-500">Site Name</label>
+                <input type="text" value={siteSettings.siteName} onChange={(e) => setSiteSettings(prev => ({ ...prev, siteName: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-[11px] font-bold ring-1 ring-slate-100 dark:ring-slate-800" />
+              </div>
+              <div className="group">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-emerald-500">Logo (Master Asset)</label>
                 <div className="flex gap-2">
                   <input type="text" value={siteSettings.logoUrl} onChange={(e) => setSiteSettings(prev => ({ ...prev, logoUrl: e.target.value }))} className="flex-1 bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-[11px] font-bold ring-1 ring-slate-100 dark:ring-slate-800" />
@@ -2227,18 +2744,13 @@ export function AdminPanel() {
                 {siteSettings.logoUrl && <div className="mt-3 p-3 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 inline-block"><img src={siteSettings.logoUrl} alt="Logo Preview" className="h-8 object-contain" /></div>}
               </div>
               <div className="group">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-emerald-500">Favicon (Browser Tab)</label>
-                <div className="flex gap-2">
-                  <input type="text" value={siteSettings.faviconUrl} onChange={(e) => setSiteSettings(prev => ({ ...prev, faviconUrl: e.target.value }))} className="flex-1 bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-[11px] font-bold ring-1 ring-slate-100 dark:ring-slate-800" />
-                  <div className="relative overflow-hidden group">
-                    <button type="button" className="bg-slate-100 dark:bg-slate-700 px-4 py-3 rounded-2xl font-black text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-300">Upload</button>
-                    <input type="file" accept="image/*" onChange={(e) => handleUploadImage(e, 'favicon')} className="absolute inset-0 opacity-0 cursor-pointer" />
-                  </div>
-                </div>
-              </div>
-              <div className="group">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-emerald-500">Floating Telegram URL</label>
                 <input type="text" value={siteSettings.telegramUrl} onChange={(e) => setSiteSettings(prev => ({ ...prev, telegramUrl: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-[11px] font-bold ring-1 ring-slate-100 dark:ring-slate-800" placeholder="https://t.me/yourchannel" />
+              </div>
+              <div className="group mt-3">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-emerald-500">Direct APK Download URL</label>
+                <input type="text" value={siteSettings.apkUrl || ''} onChange={(e) => setSiteSettings(prev => ({ ...prev, apkUrl: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-[11px] font-bold ring-1 ring-slate-100 dark:ring-slate-800" placeholder="https://example.com/app.apk" />
+                <p className="text-[9px] text-slate-500 pl-1 mt-1">If provided, this URL will be used for out-of-store direct APK installs instead of PWA installation.</p>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="group">
@@ -2306,6 +2818,24 @@ export function AdminPanel() {
                     className={`w-12 h-6 rounded-full transition-colors relative ${siteSettings.adsViewEnabled ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-705'}`}
                   >
                     <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${siteSettings.adsViewEnabled ? 'translate-x-6' : ''}`} />
+                  </button>
+                </div>
+              </div>
+              <div className="p-4 bg-indigo-50/50 dark:bg-slate-900 rounded-2xl border border-indigo-100/40 dark:border-slate-800/80 flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tight">Review Jobs Option</h4>
+                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Enable/Disable Review Jobs action access</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={`text-[10px] font-black uppercase tracking-widest ${siteSettings.reviewsEnabled !== false ? 'text-emerald-500' : 'text-slate-400'}`}>
+                    {siteSettings.reviewsEnabled !== false ? 'ON' : 'OFF'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSiteSettings(prev => ({ ...prev, reviewsEnabled: prev.reviewsEnabled === false ? true : false }))}
+                    className={`w-12 h-6 rounded-full transition-colors relative ${siteSettings.reviewsEnabled !== false ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-705'}`}
+                  >
+                    <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${siteSettings.reviewsEnabled !== false ? 'translate-x-6' : ''}`} />
                   </button>
                 </div>
               </div>
@@ -2426,6 +2956,50 @@ export function AdminPanel() {
             </div>
             
             <button onClick={handleSaveReferralSettings} disabled={isSavingSettings} className="mt-6 w-full bg-orange-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-orange-600/20 active:scale-95 transition-all text-xs">Reload Engine</button>
+          </motion.div>
+
+          {/* Partner Engine */}
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700">
+            <div className="flex items-center gap-3 mb-6">
+               <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-500">
+                <Users className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Partner Program</h3>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Daily Yield Rules</p>
+              </div>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-900 p-3 rounded-[20px] ring-1 ring-slate-100 dark:ring-slate-800">
+                <span className="text-xs font-bold text-slate-600 dark:text-slate-300 ml-2">Enable Partner System</span>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" checked={partnerSettings.enabled} onChange={(e) => setPartnerSettings(prev => ({ ...prev, enabled: e.target.checked }))} className="sr-only peer" />
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-indigo-500"></div>
+                </label>
+              </div>
+
+              <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-900 p-3 rounded-[20px] ring-1 ring-slate-100 dark:ring-slate-800">
+                <span className="text-xs font-bold text-slate-600 dark:text-slate-300 ml-2">Enable Partner Withdrawals</span>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" checked={partnerSettings.withdrawEnabled} onChange={(e) => setPartnerSettings(prev => ({ ...prev, withdrawEnabled: e.target.checked }))} className="sr-only peer" />
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-indigo-500"></div>
+                </label>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="group">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Required Referrals</label>
+                  <input type="number" value={partnerSettings.requiredReferrals} onChange={(e) => setPartnerSettings(prev => ({ ...prev, requiredReferrals: Number(e.target.value) }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-black ring-1 ring-slate-100 dark:ring-slate-800" />
+                </div>
+                <div className="group">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Daily Bonus (৳)</label>
+                  <input type="number" value={partnerSettings.dailyBonus} onChange={(e) => setPartnerSettings(prev => ({ ...prev, dailyBonus: Number(e.target.value) }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-black text-indigo-500 ring-1 ring-slate-100 dark:ring-slate-800" />
+                </div>
+              </div>
+            </div>
+            
+            <button onClick={handleSavePartnerSettings} disabled={isSavingSettings} className="mt-6 w-full bg-indigo-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-indigo-600/20 active:scale-95 transition-all text-xs">Save Partner Rules</button>
           </motion.div>
           </>)}
 

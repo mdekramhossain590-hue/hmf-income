@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { CheckCircle } from "lucide-react";
+import { triggerSchoolPrideConfetti } from "../lib/confetti";
 
 export function Celebration({
   isVisible,
@@ -11,6 +12,9 @@ export function Celebration({
 }) {
   useEffect(() => {
     if (isVisible) {
+      // Trigger premium interactive school pride confetti streams
+      triggerSchoolPrideConfetti(2200);
+
       const timer = setTimeout(() => {
         if (onComplete) onComplete();
       }, 3500);
@@ -81,7 +85,7 @@ export function Celebration({
             className="bg-white dark:bg-slate-800 rounded-[32px] p-8 shadow-2xl flex flex-col items-center justify-center mx-4 relative z-10 pointer-events-auto"
             initial={{ scale: 0.5, y: 50, opacity: 0 }}
             animate={{
-              scale: [0.5, 1.1, 1],
+              scale: 1,
               y: 0,
               opacity: 1,
             }}

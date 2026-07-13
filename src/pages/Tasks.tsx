@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { History, List, MessageCircle, Video, Copy, Send, Key, ThumbsUp, Mail, Camera, Monitor, Smartphone, MonitorPlay, Heart, Star, User, Music, Globe, Hash, Briefcase, ArrowLeft, ChevronRight } from 'lucide-react';
+import { History, List, MessageCircle, Video, Copy, Send, Key, ThumbsUp, Mail, Camera, Monitor, Smartphone, MonitorPlay, Heart, Star, User, Music, Globe, Hash, Briefcase, ArrowLeft, ChevronRight, Shield } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../components/AuthProvider';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
+import { getCachedQuery } from '../lib/cache';
 import { useLanguage } from '../components/LanguageProvider';
 import { motion, AnimatePresence } from 'motion/react';
 import { playTapSound } from '../lib/sound';
@@ -46,28 +47,24 @@ export function Tasks() {
     if (!auth.currentUser) return;
     
     // Fetch History
-    const q = query(
-      collection(db, "users", auth.currentUser.uid, "tasks"),
-      orderBy("completedAt", "desc")
-    );
-    
-    const unsubscribeHistory = onSnapshot(q, (snapshot) => {
-      const history = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setTaskHistory(history);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, `users/${auth.currentUser?.uid}/tasks`);
-    });
-    
-    // Fetch Jobs
-    const jobsQuery = query(collection(db, "jobs"), orderBy("createdAt", "desc"));
-    const unsubscribeJobs = onSnapshot(jobsQuery, (snapshot) => {
-      const fetchedJobs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter((j: any) => j.status === 'active');
-      setJobs(fetchedJobs);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'jobs');
-    });
-
-    return () => { unsubscribeHistory(); unsubscribeJobs(); };
+    const loadData = async () => {
+      try {
+        const q = query(
+          collection(db, "users", auth.currentUser!.uid, "tasks"),
+          orderBy("completedAt", "desc"),
+          limit(50)
+        );
+        const taskSnap = await getCachedQuery(q, `tasks_history_${auth.currentUser!.uid}`);
+        setTaskHistory(taskSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        
+        const jobsQuery = query(collection(db, "jobs"), orderBy("createdAt", "desc"), limit(100));
+        const jobSnap = await getCachedQuery(jobsQuery, "jobs_active_list");
+        setJobs(jobSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter((j: any) => j.status === 'active'));
+      } catch (error) {
+        handleFirestoreError(error, OperationType.GET, 'jobs or tasks');
+      }
+    };
+    loadData();
   }, []);
 
   const startTask = (jobId: string) => {
@@ -98,8 +95,14 @@ export function Tasks() {
 
   return (
     <div className="pt-6 px-4 pb-20">
-      <h2 className="text-2xl font-display font-black mb-6 tracking-tight text-slate-800 dark:text-white text-center">{t('my_tasks')}</h2>
+      <h2 className="text-2xl font-display font-black mb-4 tracking-tight text-slate-800 dark:text-white text-center">{t('my_tasks')}</h2>
       
+      {/* Trust Banner Banner */}
+      <div className="bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-800/30 rounded-[20px] p-3 mb-6 flex items-center justify-center gap-2 cursor-default">
+        <Shield className="w-4 h-4 text-emerald-500" />
+        <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-widest">100% Guaranteed Secure Tasks</span>
+      </div>
+
       {/* Tabs */}
       <div className="flex bg-slate-100 dark:bg-slate-900/50 p-1 rounded-xl mb-4 ring-1 ring-slate-200 dark:ring-slate-800">
         <button 

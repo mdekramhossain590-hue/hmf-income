@@ -9,6 +9,8 @@ import { useLanguage } from '../components/LanguageProvider';
 import { getDeviceId } from '../lib/device';
 import toast from 'react-hot-toast';
 
+import { Eye, EyeOff } from 'lucide-react';
+
 export function Auth() {
   const { t } = useLanguage();
   const [searchParams] = useSearchParams();
@@ -22,6 +24,7 @@ export function Auth() {
   const [name, setName] = useState('');
   const [referCode, setReferCode] = useState(initialRef);
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   
   const navigate = useNavigate();
   const { refreshProfile, siteSettings } = useAuth();
@@ -104,9 +107,15 @@ export function Auth() {
   };
 
   const createProfileForUser = async (user: any, displayName: string, userEmail: string) => {
-    const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const uidStr = user.uid.substring(user.uid.length - 4).toUpperCase();
-    const myReferCode = `HMF-${randomStr}-${uidStr}`;
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const numbers = '0123456789';
+    let myReferCode = '';
+    for (let i = 0; i < 2; i++) {
+      myReferCode += letters.charAt(Math.floor(Math.random() * letters.length));
+    }
+    for (let i = 0; i < 6; i++) {
+      myReferCode += numbers.charAt(Math.floor(Math.random() * numbers.length));
+    }
     const deviceId = getDeviceId();
 
     // Fetch activation mode to determine initial activation state
@@ -127,8 +136,8 @@ export function Auth() {
         fullName: displayName,
         email: userEmail,
         myReferCode: myReferCode,
-        usedReferCode: referCode || "none",
-        balances: { main: 0, bonus: 10, referral: 0 },
+        usedReferCode: referCode ? referCode.trim() : "none",
+        balances: { main: 0, bonus: 10, referral: 0, partner: 0 },
         role: userRole,
         isActive: initialIsActive,
         referralBonusPaid: false,
@@ -161,7 +170,9 @@ export function Auth() {
       <div className="absolute bottom-[-10%] right-[-10%] w-64 h-64 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 dark:opacity-30 pointer-events-none"></div>
       
       <div className="text-center mb-8 flex flex-col items-center relative z-10">
-        <img src={siteSettings?.logoUrl || "/favicon.svg"} alt="Logo" className="w-24 h-24 mb-4 drop-shadow-2xl rounded-3xl bg-white dark:bg-slate-800 border p-2 border-white dark:border-slate-700 object-cover rotate-3 hover:rotate-0 transition-transform duration-300" />
+        {siteSettings?.logoUrl && (
+          <img src={siteSettings.logoUrl} alt="Logo" className="w-24 h-24 mb-4 drop-shadow-2xl rounded-3xl bg-white dark:bg-slate-800 border p-2 border-white dark:border-slate-700 object-cover rotate-3 hover:rotate-0 transition-transform duration-300" />
+        )}
         <h1 className="text-4xl font-black tracking-tight mb-2 text-slate-900 dark:text-white uppercase">HMF <span className="text-indigo-600 dark:text-indigo-400 font-outline-2">INCOME</span></h1>
         <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold tracking-[0.2em] uppercase">Premium Earning Platform</p>
       </div>
@@ -188,14 +199,23 @@ export function Auth() {
             onChange={(e) => setEmail(e.target.value)}
             className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 text-base text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
           />
-          <input
-            type="password"
-            placeholder="Password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 text-base text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-          />
+          <div className="relative">
+            <input
+              type={showPassword ? "text" : "password"}
+              placeholder="Password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 pr-12 text-base text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 focus:outline-none"
+            >
+              {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+            </button>
+          </div>
           {isLogin && (
             <div className="flex justify-end mt-1">
               <button
@@ -209,14 +229,23 @@ export function Auth() {
             </div>
           )}
           {!isLogin && (
-            <input
-              type="password"
-              placeholder="Confirm Password"
-              required
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 text-base text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-            />
+            <div className="relative mt-3">
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="Confirm Password"
+                required
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 pr-12 text-base text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 focus:outline-none"
+              >
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
           )}
           {!isLogin && (
             <input
@@ -246,6 +275,22 @@ export function Auth() {
             {isLogin ? 'Sign Up' : 'Log In'}
           </button>
         </p>
+
+        {/* Security Badges */}
+        <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800 flex justify-center gap-6">
+          <div className="flex flex-col items-center gap-1.5 opacity-70 hover:opacity-100 transition-opacity cursor-default">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">SSL Secure</span>
+          </div>
+          <div className="flex flex-col items-center gap-1.5 opacity-70 hover:opacity-100 transition-opacity cursor-default">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M12 2v6"/><path d="M12 8c-3.3 0-6 2.7-6 6v3h12v-3c0-3.3-2.7-6-6-6Z"/><path d="M4 17h16"/></svg>
+            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Bot Protected</span>
+          </div>
+          <div className="flex flex-col items-center gap-1.5 opacity-70 hover:opacity-100 transition-opacity cursor-default">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-purple-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>
+            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Verified Users</span>
+          </div>
+        </div>
       </div>
     </div>
   );

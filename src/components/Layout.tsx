@@ -10,7 +10,7 @@ import { WelcomePopup } from './WelcomePopup';
 import { AnimatePresence, motion } from 'motion/react';
 
 export function Layout() {
-  const { user, siteSettings } = useAuth();
+  const { user, siteSettings, isQuotaExceeded } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const { t } = useLanguage();
@@ -33,7 +33,15 @@ export function Layout() {
   })?.to || '';
 
   return (
-    <div className="max-w-[480px] mx-auto bg-slate-50 dark:bg-slate-950 min-h-screen relative shadow-2xl overflow-x-hidden pb-[90px] transition-colors">
+    <div className="w-full sm:max-w-[480px] mx-auto bg-slate-50 dark:bg-slate-950 min-h-screen relative shadow-none sm:shadow-2xl overflow-x-hidden pb-[90px] transition-colors">
+      {isQuotaExceeded && (
+        <div className="bg-gradient-to-r from-amber-550 to-rose-600 text-white text-[11px] font-bold px-4 py-2.5 text-center flex items-center justify-center gap-2 shadow-lg relative z-[9999] animate-in slide-in-from-top duration-300">
+          <span className="animate-bounce text-sm">⚠️</span>
+          <p className="leading-snug text-left">
+            ফ্রী ফায়ারবেস দৈনিক রিড কোটা শেষ হয়েছে। রিসেন্ট ডাটা ক্যাশ থেকে লোড হচ্ছে। আপনার নিজস্ব হোস্টিং এবং ফায়ারব্যাসে ওল্ড লিমিট এড়াতে বিলিং অন করুন।
+          </p>
+        </div>
+      )}
       <NotificationListener />
       
       <div className="w-full h-full min-h-screen relative flex flex-col">
@@ -52,20 +60,22 @@ export function Layout() {
         <>
           <WelcomePopup />
           <Onboarding />
-          <a
-            href={siteSettings?.telegramUrl || "https://t.me/"}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="fixed bottom-[90px] right-5 z-50 w-14 h-14 bg-gradient-to-tr from-[#0088cc] to-[#39abef] text-white rounded-full flex items-center justify-center shadow-lg shadow-[#0088cc]/40 hover:scale-110 hover:-translate-y-1 active:scale-95 transition-all duration-300 ring-2 ring-white/10 dark:ring-slate-800"
-          >
-            <Send className="w-6 h-6 ml-[-2px] mt-[2px]" />
-          </a>
+          <div className="fixed bottom-[90px] right-5 z-50 sm:right-[calc(50%-220px)] pointer-events-auto">
+            <a
+              href={siteSettings?.telegramUrl || "https://t.me/"}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-14 h-14 bg-gradient-to-tr from-[#0088cc] to-[#39abef] text-white rounded-full flex items-center justify-center shadow-[0_8px_30px_rgba(0,136,204,0.5)] hover:scale-110 hover:-translate-y-1 active:scale-95 transition-all duration-300 ring-4 ring-white/30 dark:ring-slate-800/80 animate-[bounce_4s_ease-in-out_infinite]"
+            >
+              <Send className="w-6 h-6 ml-[-2px] mt-[2px]" />
+            </a>
+          </div>
           <Tabs.Root 
             value={currentTabValue} 
             onValueChange={(val) => {
               if (val) navigate(val);
             }} 
-            className="fixed bottom-0 left-0 right-0 mx-auto w-full max-w-[480px] bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl rounded-t-[28px] z-50 shadow-[0_-12px_44px_rgba(0,0,0,0.05)] dark:shadow-[0_-12px_44px_rgba(0,0,0,0.3)] border-t border-slate-150/45 dark:border-slate-800/40 transition-colors select-none"
+            className="fixed bottom-0 left-0 right-0 mx-auto w-full sm:max-w-[480px] bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl rounded-t-[28px] z-50 shadow-[0_-12px_44px_rgba(0,0,0,0.05)] dark:shadow-[0_-12px_44px_rgba(0,0,0,0.3)] border-t border-slate-150/45 dark:border-slate-800/40 transition-colors select-none"
           >
             <Tabs.List className="flex justify-between items-center px-4 py-2" aria-label="Main navigation tabs">
               {navItems.map((item) => {

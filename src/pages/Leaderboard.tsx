@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Trophy, Medal, Crown, Star, TrendingUp } from 'lucide-react';
-import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { ArrowLeft, Trophy, Medal, Crown, Star, TrendingUp, User } from 'lucide-react';
+import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { getCachedQuery } from '../lib/cache';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -14,25 +15,48 @@ export function Leaderboard() {
 
   useEffect(() => {
     setLoading(true);
-    const q = query(
-      collection(db, "leaderboard"),
-      orderBy(sortBy, "desc"),
-      limit(50)
-    );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetchedLeaders = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setLeaders(fetchedLeaders);
-      setLoading(false);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'leaderboard');
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
+    const fetchLeaders = async () => {
+      try {
+        const snapshot = await getDocs(query(collection(db, "users"), limit(100)));
+        const fetchedLeaders = snapshot.docs.map((doc) => {
+          try {
+            const data = doc.data();
+            const main = Number(data.balances?.main || 0);
+            const bonus = Number(data.balances?.bonus || 0);
+            const ref = Number(data.balances?.referral || 0);
+            let taskSum = 0;
+            if (data.balances?.tasks && typeof data.balances.tasks === 'object') {
+              taskSum = Object.values(data.balances.tasks).reduce((a: any, b: any) => Number(a || 0) + Number(b || 0), 0) as number;
+            }
+            const totalIncome = main + bonus + ref + taskSum;
+            
+            return {
+              id: doc.id,
+              fullName: data.fullName || "User",
+              photoURL: data.photoURL || null,
+              totalIncome,
+              referrals: Number(data.referralCount || 0),
+              bonus
+            };
+          } catch (err) {
+            console.warn("Skipping malformed user record:", doc.id, err);
+            return null;
+          }
+        }).filter(Boolean);
+        
+        fetchedLeaders.sort((a: any, b: any) => b[sortBy] - a[sortBy]);
+        setLeaders(fetchedLeaders.slice(0, 50));
+        
+      } catch (error) {
+        console.error("Error fetching leaders:", error);
+        setLeaders([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchLeaders();
   }, [sortBy]);
 
   const getRankIcon = (index: number) => {
@@ -133,8 +157,12 @@ export function Leaderboard() {
                       className="flex flex-col items-center flex-1 z-10"
                     >
                       <div className="relative mb-3 group">
-                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-slate-300 to-slate-500 flex items-center justify-center text-white font-display font-bold shadow-lg border-2 border-white dark:border-slate-800 text-2xl transform transition-transform group-hover:scale-105">
-                          {leaders[1].fullName?.charAt(0).toUpperCase() || 'U'}
+                        <div className="w-16 h-16 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-white font-display font-bold shadow-lg border-2 border-white dark:border-slate-800 text-2xl transform transition-transform group-hover:scale-105 overflow-hidden">
+                          {leaders[1].photoURL ? (
+                            <img src={leaders[1].photoURL} alt="avatar" className="w-full h-full object-cover" />
+                          ) : (
+                            <User className="w-8 h-8 text-slate-400 dark:text-slate-500" />
+                          )}
                         </div>
                         <div className="absolute -bottom-2 -right-1 bg-slate-500 text-white w-7 h-7 rounded-full flex items-center justify-center text-xs font-black border-2 border-white dark:border-slate-900 shadow-md">2</div>
                       </div>
@@ -159,8 +187,12 @@ export function Leaderboard() {
                       <div className="relative mb-3 group z-10">
                         {/* Glow effect */}
                         <div className="absolute inset-0 bg-yellow-400 rounded-full blur-md opacity-30 -z-10"></div>
-                        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-yellow-300 via-yellow-400 to-orange-500 flex items-center justify-center text-white font-display font-black shadow-2xl border-4 border-white dark:border-slate-800 text-3xl transform transition-transform group-hover:scale-105 relative z-10">
-                          {leaders[0].fullName?.charAt(0).toUpperCase() || 'U'}
+                        <div className="w-20 h-20 rounded-full bg-yellow-100 dark:bg-yellow-900/30 flex items-center justify-center text-white font-display font-black shadow-2xl border-4 border-white dark:border-slate-800 text-3xl transform transition-transform group-hover:scale-105 relative z-10 overflow-hidden">
+                          {leaders[0].photoURL ? (
+                            <img src={leaders[0].photoURL} alt="avatar" className="w-full h-full object-cover" />
+                          ) : (
+                            <User className="w-10 h-10 text-slate-400 dark:text-slate-500" />
+                          )}
                         </div>
                         <div className="absolute -bottom-2 -translate-x-1/2 left-1/2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white w-8 h-8 rounded-full flex items-center justify-center text-sm font-black border-2 border-white dark:border-slate-800 shadow-md z-20">1</div>
                       </div>
@@ -184,8 +216,12 @@ export function Leaderboard() {
                       className="flex flex-col items-center flex-1 z-10"
                     >
                       <div className="relative mb-3 group">
-                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-amber-500 to-orange-700 flex items-center justify-center text-white font-display font-bold shadow-lg border-2 border-white dark:border-slate-800 text-2xl transform transition-transform group-hover:scale-105">
-                          {leaders[2].fullName?.charAt(0).toUpperCase() || 'U'}
+                        <div className="w-16 h-16 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-white font-display font-bold shadow-lg border-2 border-white dark:border-slate-800 text-2xl transform transition-transform group-hover:scale-105 overflow-hidden">
+                          {leaders[2].photoURL ? (
+                            <img src={leaders[2].photoURL} alt="avatar" className="w-full h-full object-cover" />
+                          ) : (
+                            <User className="w-8 h-8 text-slate-400 dark:text-slate-500" />
+                          )}
                         </div>
                         <div className="absolute -bottom-2 -left-1 bg-amber-700 text-white w-7 h-7 rounded-full flex items-center justify-center text-xs font-black border-2 border-white dark:border-slate-800 shadow-md">3</div>
                       </div>
@@ -214,8 +250,12 @@ export function Leaderboard() {
                           {index + 4}
                         </div>
                         <div className="relative">
-                          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-slate-700 dark:to-slate-600 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-display font-bold shadow-sm text-lg border border-indigo-100 dark:border-slate-600">
-                            {leader.fullName?.charAt(0).toUpperCase() || 'U'}
+                          <div className="w-12 h-12 rounded-full bg-indigo-50 dark:bg-slate-700 font-display font-bold shadow-sm border border-indigo-100 dark:border-slate-600 overflow-hidden">
+                            {leader.photoURL ? (
+                              <img src={leader.photoURL} alt="avatar" className="w-full h-full object-cover" />
+                            ) : (
+                              <User className="w-6 h-6 text-slate-400 dark:text-slate-500" />
+                            )}
                           </div>
                         </div>
                         <div className="flex flex-col">

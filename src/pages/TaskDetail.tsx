@@ -14,6 +14,7 @@ import {
   Lock,
   Copy,
   Key,
+  Star,
 } from "lucide-react";
 import { useAuth } from "../components/AuthProvider";
 import {
@@ -27,6 +28,7 @@ import {
   getDocs,
 } from "firebase/firestore";
 import { db, handleFirestoreError, OperationType, auth } from "../lib/firebase";
+import { getCachedDoc, getCachedQuery } from "../lib/cache";
 import { FullPageLoader } from "../components/LoadingSpinner";
 import { uploadImageOrFallback } from "../lib/imageUpload";
 import toast from "react-hot-toast";
@@ -60,6 +62,31 @@ export function TaskDetail() {
   const [submitting, setSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const [selectedComment, setSelectedComment] = useState("");
+
+  const rotateComment = () => {
+    if (job && job.reviewComments && job.reviewComments.length > 0) {
+      const remainingComments = job.reviewComments.filter((c: string) => c !== selectedComment);
+      const list = remainingComments.length > 0 ? remainingComments : job.reviewComments;
+      const randomIndex = Math.floor(Math.random() * list.length);
+      setSelectedComment(list[randomIndex]);
+      toast.success("নতুন কমেন্ট লোড হয়েছে!");
+    } else {
+      const defaultComments = [
+        "খুব সুন্দর এবং দ্রুত সার্ভিস, আমি অনেক সন্তুষ্ট।",
+        "Highly recommended! Very professional and cooperative.",
+        "তাদের ব্যবহার এবং কাজের মান অসাধারণ।",
+        "Excellent customer service. Truly appreciate their effort.",
+        "অল্প সময়ে অনেক ভালো সেবা পেয়েছি, ধন্যবাদ।"
+      ];
+      const remainingComments = defaultComments.filter((c: string) => c !== selectedComment);
+      const list = remainingComments.length > 0 ? remainingComments : defaultComments;
+      const randomIndex = Math.floor(Math.random() * list.length);
+      setSelectedComment(list[randomIndex]);
+      toast.success("নতুন কমেন্ট লোড হয়েছে!");
+    }
+  };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -99,7 +126,24 @@ export function TaskDetail() {
         const docRef = doc(db, "jobs", id);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
-          setJob({ id: docSnap.id, ...docSnap.data() });
+          const jobData = { id: docSnap.id, ...docSnap.data() } as any;
+          setJob(jobData);
+          if (jobData.type === "Review") {
+            if (jobData.reviewComments && jobData.reviewComments.length > 0) {
+              const randomIndex = Math.floor(Math.random() * jobData.reviewComments.length);
+              setSelectedComment(jobData.reviewComments[randomIndex]);
+            } else {
+              const defaultComments = [
+                "খুব সুন্দর এবং দ্রুত সার্ভিস, আমি অনেক সন্তুষ্ট।",
+                "Highly recommended! Very professional and cooperative.",
+                "তাদের ব্যবহার এবং কাজের মান অসাধারণ।",
+                "Excellent customer service. Truly appreciate their effort.",
+                "অল্প সময়ে অনেক ভালো সেবা পেয়েছি, ধন্যবাদ।"
+              ];
+              const randomIndex = Math.floor(Math.random() * defaultComments.length);
+              setSelectedComment(defaultComments[randomIndex]);
+            }
+          }
         }
 
         const q = query(
@@ -171,19 +215,21 @@ export function TaskDetail() {
     }
 
     // Specific input validation
-    if (job.requiredProofs?.includes("text") && proofText.trim().length < 10) {
-      toast.error("Text proof must be at least 10 characters long.");
-      return;
-    }
+    if (!job.isAccountSell) {
+      if (job.requiredProofs?.includes("text") && proofText.trim().length < 10) {
+        toast.error("Text proof must be at least 10 characters long.");
+        return;
+      }
 
-    if (
-      job.requiredProofs?.includes("videoUrl") &&
-      !/^https?:\/\/.+/.test(videoUrl)
-    ) {
-      toast.error(
-        "Please provide a valid URL for the video (starting with http:// or https://).",
-      );
-      return;
+      if (
+        job.requiredProofs?.includes("videoUrl") &&
+        !/^https?:\/\/.+/.test(videoUrl)
+      ) {
+        toast.error(
+          "Please provide a valid URL for the video (starting with http:// or https://).",
+        );
+        return;
+      }
     }
 
     if (
@@ -265,6 +311,7 @@ export function TaskDetail() {
       setShowSubmitForm(false);
       setShowConfirmModal(false);
       setShowCelebration(true);
+      toast.success("Task submitted successfully!");
       // Wait for celebration to end before we navigate away or reload
     } catch (e: any) {
       console.error(e);
@@ -475,20 +522,7 @@ export function TaskDetail() {
         )}
 
         {/* Submission Form */}
-        {previousSubmission && previousSubmission.status === "pending" ? (
-          <div className="bg-white dark:bg-slate-800 rounded-[24px] border border-slate-100 dark:border-slate-700/50 p-6 text-center space-y-3">
-            <div className="w-12 h-12 bg-amber-50 dark:bg-amber-900/30 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-2">
-              <Clock className="w-6 h-6" />
-            </div>
-            <h3 className="font-bold text-slate-800 dark:text-white">
-              Reviewing Your Account
-            </h3>
-            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
-              Your previously submitted account is being checked. Once approved,
-              you can submit again (if slots remain).
-            </p>
-          </div>
-        ) : (!job.allowedCompletions ||
+        {(!job.allowedCompletions ||
             submissionCount < job.allowedCompletions) &&
           (!job.userLimit || submissionCount < job.userLimit) ? (
           <form
@@ -669,13 +703,47 @@ export function TaskDetail() {
             </p>
           </div>
           <div className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 font-bold px-3 py-1 rounded-full text-sm">
-            {job.type === "Review" ? "Direct Paid" : `৳ ${job.reward}`}
+            ৳ {job.reward}
           </div>
         </div>
 
         <p className="text-sm text-gray-600 dark:text-gray-300 mb-6">
           {job.description}
         </p>
+
+        {job.type === "Review" && selectedComment && (
+          <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/30 rounded-2xl p-4 mb-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-widest flex items-center gap-1">
+                <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500 animate-pulse" /> আপনার জন্য নির্ধারিত কমেন্ট
+              </span>
+              <button
+                type="button"
+                onClick={rotateComment}
+                className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 hover:underline uppercase tracking-wider bg-indigo-50 dark:bg-indigo-950/40 px-2.5 py-1 rounded-lg"
+              >
+                কমেন্ট পরিবর্তন করুন
+              </button>
+            </div>
+            <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-100 dark:border-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-200 shadow-sm relative pr-12 select-all leading-relaxed">
+              {selectedComment}
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(selectedComment);
+                  toast.success("কমেন্ট কপি হয়েছে!");
+                }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg transition"
+                title="Copy to clipboard"
+              >
+                <Copy className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-[10px] text-amber-600 dark:text-amber-500 font-bold leading-relaxed">
+              * গুগল ম্যাপে অবশ্যই <strong className="text-rose-500">৫ স্টার (5 Star)</strong> রেটিং দিয়ে উপরের কমেন্টটি পেস্ট করে সাবমিট করুন। এরপর স্ক্রিনশট এবং যে নাম দিয়ে রিভিউ দিয়েছেন তা নিচে জমা দিন।
+            </p>
+          </div>
+        )}
 
         {job.link && (
           <a
@@ -819,7 +887,7 @@ export function TaskDetail() {
         </div>
       )}
 
-      {previousSubmission && !showSubmitForm ? (
+      {previousSubmission && (
         <>
           <div className="flex items-center gap-2 mb-4 dark:text-white">
             {previousSubmission.status === "approved" ? (
@@ -939,29 +1007,15 @@ export function TaskDetail() {
               </div>
             )}
 
-            {previousSubmission.status === "pending" && (
-              <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-700 text-center flex items-center justify-center gap-2 text-sm text-amber-600 dark:text-amber-400 font-medium">
-                <Clock className="w-4 h-4" /> Wait for an administrator to
-                review your submission.
-              </div>
-            )}
-
-            {(!job.allowedCompletions ||
-              submissionCount < job.allowedCompletions) &&
-              (!job.userLimit || submissionCount < job.userLimit) && (
-                <div className="mt-6 text-center pt-4 border-t border-slate-100 dark:border-slate-700/50">
-                  <button
-                    onClick={() => setShowSubmitForm(true)}
-                    className="text-indigo-600 dark:text-indigo-400 font-bold hover:underline"
-                  >
-                    Submit this task again
-                  </button>
-                </div>
-              )}
           </div>
         </>
-      ) : (
-        <>
+      )}
+
+      {/* Submission Form Area */}
+      {(!job.allowedCompletions ||
+        submissionCount < job.allowedCompletions) &&
+        (!job.userLimit || submissionCount < job.userLimit) ? (
+        <div className="mt-8">
           <h3 className="font-bold text-gray-800 dark:text-white mb-4">
             {previousSubmission ? "Submit Another Proof" : "Submit Proof"}
           </h3>
@@ -1165,7 +1219,17 @@ export function TaskDetail() {
               </button>
             )}
           </form>
-        </>
+        </div>
+      ) : (
+        <div className="mt-8 bg-white dark:bg-slate-800 rounded-[24px] border border-slate-100 dark:border-slate-700/50 p-6 text-center space-y-3">
+          <div className="w-12 h-12 bg-slate-100 dark:bg-slate-700 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-2">
+            <CheckCircle className="w-6 h-6" />
+          </div>
+          <h3 className="font-bold text-slate-800 dark:text-white">Limit Reached</h3>
+          <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+            You have reached the maximum allowed submissions for this task.
+          </p>
+        </div>
       )}
 
       {showConfirmModal && (

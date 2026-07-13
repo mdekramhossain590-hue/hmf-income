@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthProvider';
 import { useNavigate } from 'react-router-dom';
 import { Smartphone, ArrowLeft, Send, Wallet } from 'lucide-react';
-import { collection, doc, writeBatch, increment, serverTimestamp, onSnapshot } from 'firebase/firestore';
+import { collection, doc, writeBatch, increment, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
+import { getCachedDoc } from '../lib/cache';
 import toast from 'react-hot-toast';
 
 export function Recharge() {
@@ -18,22 +19,25 @@ export function Recharge() {
   const [withdrawSettings, setWithdrawSettings] = useState({ mainMin: 20, mainFee: 0, bonusMin: 20, bonusFee: 0, referralMin: 20, referralFee: 0, tasksMin: 20, tasksFee: 0 });
 
   useEffect(() => {
-    const unsubSettings = onSnapshot(doc(db, "settings", "withdraw"), (docSnapshot) => {
-      if (docSnapshot.exists()) {
-        const data = docSnapshot.data();
-        setWithdrawSettings({
-          mainMin: data.mainMin || 20,
-          mainFee: data.mainFee || 0,
-          bonusMin: data.bonusMin || 20,
-          bonusFee: data.bonusFee || 0,
-          referralMin: data.referralMin || 20,
-          referralFee: data.referralFee || 0,
-          tasksMin: data.tasksMin || 20,
-          tasksFee: data.tasksFee || 0
-        });
-      }
-    });
-    return () => unsubSettings();
+    const fetchSettings = async () => {
+      try {
+        const docSnapshot = await getCachedDoc(doc(db, "settings", "withdraw"));
+        if (docSnapshot.exists()) {
+          const data = docSnapshot.data();
+          setWithdrawSettings({
+            mainMin: data.mainMin || 20,
+            mainFee: data.mainFee || 0,
+            bonusMin: data.bonusMin || 20,
+            bonusFee: data.bonusFee || 0,
+            referralMin: data.referralMin || 20,
+            referralFee: data.referralFee || 0,
+            tasksMin: data.tasksMin || 20,
+            tasksFee: data.tasksFee || 0
+          });
+        }
+      } catch(e) {}
+    };
+    fetchSettings();
   }, []);
 
   const handleRecharge = async (e: React.FormEvent) => {

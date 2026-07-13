@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { getCachedDoc } from '../lib/cache';
 import { X, Send, ArrowRight, BellRing } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -21,7 +22,7 @@ export function WelcomePopup() {
       if (!hasSeenPopup) {
         try {
           const docRef = doc(db, 'settings', 'popup');
-          const docSnap = await getDoc(docRef);
+          const docSnap = await getCachedDoc(docRef);
           if (docSnap.exists()) {
             setSettings({
               telegramText: docSnap.data().telegramText || 'Join Telegram',
@@ -35,7 +36,7 @@ export function WelcomePopup() {
           setIsOpen(true);
           sessionStorage.setItem('hasSeenWelcomePopup', 'true');
         } catch (error) {
-          console.error("Error fetching popup settings", error);
+          console.warn("Error fetching popup settings", error);
         }
       }
     };

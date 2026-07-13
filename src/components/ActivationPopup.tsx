@@ -3,6 +3,7 @@ import { useAuth } from './AuthProvider';
 import { useNavigate } from 'react-router-dom';
 import { doc, getDoc, updateDoc, increment } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
+import { getCachedDoc } from '../lib/cache';
 import { processRegistrationReferral } from '../lib/referral';
 import { Lock, CreditCard, ShieldCheck, CheckCircle2, ChevronRight, XCircle } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -18,7 +19,7 @@ export function ActivationPopup({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const docSnap = await getDoc(doc(db, 'settings', 'activation'));
+        const docSnap = await getCachedDoc(doc(db, 'settings', 'activation'));
         if (docSnap.exists()) {
           setSettings(docSnap.data() as any);
         }

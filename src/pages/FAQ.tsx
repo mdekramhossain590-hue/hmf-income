@@ -28,14 +28,15 @@ export function FAQ() {
   const [dynamicFaqs, setDynamicFaqs] = useState<any[]>([]);
 
   useEffect(() => {
-    import('firebase/firestore').then(({ doc, onSnapshot }) => {
+    import('firebase/firestore').then(({ doc }) => {
       import('../lib/firebase').then(({ db }) => {
-        const unsub = onSnapshot(doc(db, "settings", "faqs"), (docSnap) => {
-          if (docSnap.exists()) {
-            setDynamicFaqs(docSnap.data().faqs || []);
-          }
+        import('../lib/cache').then(({ getCachedDoc }) => {
+          getCachedDoc(doc(db, "settings", "faqs")).then((docSnap) => {
+            if (docSnap.exists()) {
+              setDynamicFaqs(docSnap.data().faqs || []);
+            }
+          }).catch(e => console.warn(e));
         });
-        return () => unsub();
       });
     });
   }, []);

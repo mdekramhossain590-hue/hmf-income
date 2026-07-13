@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../components/AuthProvider';
-import { collection, onSnapshot, writeBatch, doc, increment, serverTimestamp, setDoc } from 'firebase/firestore';
+import { collection, writeBatch, doc, increment, serverTimestamp, setDoc, getDocs } from 'firebase/firestore';
 import { ArrowLeft, Wifi, ShoppingBag, Phone, MapPin, Wallet, CheckCircle2, ShieldCheck, HelpCircle, Gift } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import toast from 'react-hot-toast';
@@ -52,23 +52,25 @@ export function Drive() {
   }, [siteSettings, navigate]);
 
   useEffect(() => {
-    // Listen to real-time drive offers
-    const unsub = onSnapshot(collection(db, "drive_offers"), (snapshot) => {
-      const list: DriveOffer[] = [];
-      snapshot.forEach(docSnap => {
-        const data = docSnap.data();
-        if (data.status === 'active') {
-          list.push({ id: docSnap.id, ...data } as DriveOffer);
-        }
-      });
-      setOffers(list);
-      setLoading(false);
-    }, (error) => {
-      console.error("Failed to load drive offers:", error);
-      setLoading(false);
-    });
-
-    return unsub;
+    const fetchOffers = async () => {
+      try {
+        const snapshot = await getDocs(collection(db, "drive_offers"));
+        const list: DriveOffer[] = [];
+        snapshot.forEach(docSnap => {
+          const data = docSnap.data();
+          if (data.status === 'active') {
+            list.push({ id: docSnap.id, ...data } as DriveOffer);
+          }
+        });
+        setOffers(list);
+      } catch (error) {
+        console.error("Failed to load drive offers:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchOffers();
   }, []);
 
   // Import Sample Offers if none exist

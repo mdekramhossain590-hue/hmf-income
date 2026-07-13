@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Calculator, CheckCircle2, XCircle, History } from 'lucide-react';
-import { doc, updateDoc, increment, collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, setDoc } from 'firebase/firestore';
+import { triggerConfetti } from '../lib/confetti';
+import { doc, updateDoc, increment, collection, addDoc, serverTimestamp, query, orderBy, getDocs, getDoc, limit, setDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
+import { getCachedDoc, getCachedQuery } from '../lib/cache';
 import { useAuth } from '../components/AuthProvider';
 import { processReferralCommission } from '../lib/referral';
 import toast from 'react-hot-toast';
@@ -48,32 +50,30 @@ export function MathQuiz() {
     
     if (!auth.currentUser) return;
     
-    const q = query(
-      collection(db, `users/${auth.currentUser.uid}/mathHistory`),
-      orderBy("completedAt", "desc")
-    );
-    
-    const unsubscribeHistory = onSnapshot(q, (snapshot) => {
-      const history = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setMathHistory(history);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, `users/${auth.currentUser?.uid}/mathHistory`);
-    });
-
-    const unsubGameSettings = onSnapshot(doc(db, "settings", "games"), (docSnapshot) => {
-      if (docSnapshot.exists()) {
-        const data = docSnapshot.data();
-        setMathReq({
-          taskReq: data.mathTaskReq || 0,
-          referReq: data.mathReferReq || 0
-        });
+    const loadData = async () => {
+      try {
+        const q = query(
+          collection(db, `users/${auth.currentUser!.uid}/mathHistory`),
+          orderBy("completedAt", "desc"),
+          limit(20)
+        );
+        const snapshot = await getCachedQuery(q, `math_history_${auth.currentUser!.uid}`);
+        setMathHistory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        
+        const docSnapshot = await getCachedDoc(doc(db, "settings", "games"));
+        if (docSnapshot.exists()) {
+          const data = docSnapshot.data();
+          setMathReq({
+            taskReq: data.mathTaskReq || 0,
+            referReq: data.mathReferReq || 0
+          });
+        }
+      } catch (error) {
+        handleFirestoreError(error, OperationType.GET, `MathQuiz`);
       }
-    });
-
-    return () => {
-      unsubscribeHistory();
-      unsubGameSettings();
     };
+    
+    loadData();
   }, []);
 
   const hasMetRequirements = () => {
@@ -170,6 +170,7 @@ export function MathQuiz() {
       
       await refreshProfile();
       setMathLeft(prev => prev - 1);
+      triggerConfetti();
       toast.success(`Correct! You won ৳${reward} bonus.`);
       if (mathLeft - 1 > 0) {
         generateMath();

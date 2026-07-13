@@ -4,6 +4,7 @@ import { useLanguage } from '../components/LanguageProvider';
 import { useNavigate } from 'react-router-dom';
 import { doc, getDoc, collection, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
+import { getCachedDoc } from '../lib/cache';
 import { ShieldCheck, ArrowRight, CreditCard } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -28,12 +29,12 @@ export function Payment() {
 
     const fetchConfig = async () => {
       try {
-        const actSnap = await getDoc(doc(db, 'settings', 'activation'));
+        const actSnap = await getCachedDoc(doc(db, 'settings', 'activation'));
         if (actSnap.exists()) {
           setSettings(actSnap.data() as any);
         }
         
-        const depSnap = await getDoc(doc(db, 'settings', 'deposit'));
+        const depSnap = await getCachedDoc(doc(db, 'settings', 'deposit'));
         if (depSnap.exists()) {
           const data = depSnap.data();
           setDepositSettings({

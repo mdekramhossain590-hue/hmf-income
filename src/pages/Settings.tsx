@@ -86,8 +86,7 @@ export function Settings() {
         
         try {
           new window.Notification("Subscription Active! 🔔", {
-            body: "You will now receive desktop popup alerts when admins approve or reject your payments.",
-            icon: '/favicon.svg'
+            body: "You will now receive desktop popup alerts when admins approve or reject your payments."
           });
         } catch (err) {
           console.warn("Attempt to trigger preview notification failed:", err);

@@ -1,27 +1,32 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, HelpCircle, Mail, MessageCircle, Send, Globe } from 'lucide-react';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { ArrowLeft, HelpCircle, Mail, MessageCircle, Send, Globe, Shield } from 'lucide-react';
+import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { getCachedDoc } from '../lib/cache';
 
 export function Support() {
   const navigate = useNavigate();
   const [supportSettings, setSupportSettings] = useState({ email: '', whatsapp: '', telegram: '', facebook: '' });
 
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, "settings", "support"), (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        setSupportSettings({
-          email: data.email || 'support@example.com',
-          whatsapp: data.whatsapp || '',
-          telegram: data.telegram || '',
-          facebook: data.facebook || ''
-        });
+    const fetchSupport = async () => {
+      try {
+        const docSnap = await getCachedDoc(doc(db, "settings", "support"));
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setSupportSettings({
+            email: data.email || 'support@example.com',
+            whatsapp: data.whatsapp || '',
+            telegram: data.telegram || '',
+            facebook: data.facebook || ''
+          });
+        }
+      } catch (e) {
+        console.warn('Failed to load support settings');
       }
-    });
-
-    return () => unsub();
+    };
+    fetchSupport();
   }, []);
 
   const handleOpenLink = (url: string) => {
@@ -48,6 +53,16 @@ export function Support() {
           <ArrowLeft className="w-6 h-6" />
         </button>
         <h1 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight">Help & Support</h1>
+      </div>
+
+      <div className="bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-800/30 rounded-[20px] p-4 mb-6 flex items-start gap-4">
+        <div className="bg-emerald-100 dark:bg-emerald-900/30 p-2 rounded-xl text-emerald-600 dark:text-emerald-400">
+          <Shield className="w-6 h-6" />
+        </div>
+        <div>
+          <h3 className="text-sm font-bold text-slate-800 dark:text-white leading-tight">24/7 Verified Support</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">Our team is always here to assist you with secure and encrypted communication channels.</p>
+        </div>
       </div>
 
       <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm ring-1 ring-slate-100 dark:ring-slate-700/50 flex flex-col items-center mb-6 transition-colors relative overflow-hidden">

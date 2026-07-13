@@ -1,0 +1,32 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Function to check auth
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    // Allow users to upload submissions under their own user ID folder
+    match /submissions/{userId}/{imageId} {
+      allow read: if isAuth(); // Admin or users can view submission proofs
+      allow write: if isAuth() && request.auth.uid == userId 
+                   && request.resource.size < 5 * 1024 * 1024 
+                   && request.resource.contentType.matches('image/.*');
+    }
+    
+    // Profile Images
+    match /profiles/{userId}/{imageId} {
+      allow read: if true; // Profile pictures are visible to others
+      allow write: if isAuth() && request.auth.uid == userId
+                   && request.resource.size < 5 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+
+    // Public Assets (Banners, logos, etc. uploaded by Admin)
+    match /public/{assetId} {
+      allow read: if true;
+      allow write: if isAuth(); // Ideally restrict to admin, but Storage lacks easy isAdmin() without custom claims
+    }
+  }
+}

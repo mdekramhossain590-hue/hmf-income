@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { collection, query, where, onSnapshot, orderBy, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, doc, updateDoc, limit } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { Bell } from 'lucide-react';
 import { createRoot } from 'react-dom/client';
@@ -17,6 +17,9 @@ export function NotificationListener() {
 
     let pendingQueue: NotificationItem[] = [];
     let digestTimeout: NodeJS.Timeout | null = null;
+    let unsubscribe: (() => void) | null = null;
+    let isInitialLoad = true;
+    const seenIds = new Set<string>();
 
     const processQueue = () => {
       if (pendingQueue.length === 0) return;
@@ -26,10 +29,8 @@ export function NotificationListener() {
 
       if (items.length === 1) {
         const item = items[0];
-        // Process in-app notification toaster
         showToast(items, item.title, item.message, auth.currentUser!.uid);
 
-        // Build single browser native notifications
         if (typeof window !== 'undefined' && 'Notification' in window) {
           const appNotificationsEnabled = localStorage.getItem('app_notifications_enabled') !== 'false';
           const paymentPushSubscribed = localStorage.getItem('payment_status_notifications_subscribed') === 'true';
@@ -40,7 +41,6 @@ export function NotificationListener() {
               try {
                 new window.Notification(item.title, {
                   body: item.message,
-                  icon: '/favicon.svg',
                   tag: item.id,
                   silent: false
                 });
@@ -51,13 +51,11 @@ export function NotificationListener() {
           }
         }
       } else {
-        // Grouped digest for multiple notifications
         const title = `🔔 ${items.length} New Updates`;
         const combinedMessage = items.map(item => `• ${item.title}: ${item.message}`).join('\n');
         
         showToast(items, title, combinedMessage, auth.currentUser!.uid);
 
-        // Build real native browser push notification digest
         if (typeof window !== 'undefined' && 'Notification' in window) {
           const appNotificationsEnabled = localStorage.getItem('app_notifications_enabled') !== 'false';
           const paymentPushSubscribed = localStorage.getItem('payment_status_notifications_subscribed') === 'true';
@@ -71,7 +69,6 @@ export function NotificationListener() {
               try {
                 new window.Notification(`🔔 ${recentItems.length} New Alerts`, {
                   body: recentItems.map(item => `• ${item.title}: ${item.message}`).join('\n'),
-                  icon: '/favicon.svg',
                   tag: 'payment-digest-' + Date.now(),
                   silent: false
                 });
@@ -84,42 +81,57 @@ export function NotificationListener() {
       }
     };
 
-    // We only care about unread notifications that were just created to show a popup
     const q = query(
-      collection(db, 'users', auth.currentUser.uid, 'notifications'),
+      collection(db, 'users', auth.currentUser!.uid, 'notifications'),
       where('read', '==', false),
-      orderBy('createdAt', 'desc')
+      orderBy('createdAt', 'desc'),
+      limit(10)
     );
-    
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      let hasAdded = false;
-      snapshot.docChanges().forEach((change) => {
-        if (change.type === 'added') {
-          const data = change.doc.data();
-          const createdAt = data.createdAt?.toDate ? data.createdAt.toDate() : (data.createdAt ? new Date(data.createdAt) : null);
 
-          pendingQueue.push({
-            id: change.doc.id,
-            title: data.title || 'Notification',
-            message: data.message || '',
-            createdAt
+    try {
+      import('firebase/firestore').then(({ onSnapshot }) => {
+        unsubscribe = onSnapshot(q, (snapshot) => {
+          let hasAdded = false;
+
+          snapshot.docChanges().forEach((change) => {
+            if (change.type === 'added') {
+              const docSnap = change.doc;
+              if (seenIds.has(docSnap.id)) return;
+              seenIds.add(docSnap.id);
+
+              // Don't toast for old things on initial mount, just mark them conceptually seen
+              if (isInitialLoad) return; 
+
+              const data = docSnap.data();
+              const createdAt = data.createdAt?.toDate ? data.createdAt.toDate() : (data.createdAt ? new Date(data.createdAt) : null);
+              
+              pendingQueue.push({
+                id: docSnap.id,
+                title: data.title || 'Notification',
+                message: data.message || '',
+                createdAt
+              });
+              hasAdded = true;
+            }
           });
-          hasAdded = true;
-        }
-      });
 
-      if (hasAdded) {
-        if (digestTimeout) clearTimeout(digestTimeout);
-        digestTimeout = setTimeout(processQueue, 400); // 400ms buffer to merge simultaneous notification snapshots
-      }
-    }, (error) => {
-      // Just console error if it fails to avoid breaking loops
-      console.error("Notification listener error:", error);
-    });
+          if (isInitialLoad) {
+            isInitialLoad = false;
+          } else if (hasAdded) {
+            if (digestTimeout) clearTimeout(digestTimeout);
+            digestTimeout = setTimeout(processQueue, 400);
+          }
+        }, (error) => {
+          console.warn("Notification listener error:", error);
+        });
+      });
+    } catch(err) {
+      console.warn("Failed to set up notification listener", err);
+    }
 
     return () => {
-      unsubscribe();
       if (digestTimeout) clearTimeout(digestTimeout);
+      if (unsubscribe) unsubscribe();
     };
   }, []);
 

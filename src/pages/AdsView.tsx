@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthProvider';
 import { useNavigate } from 'react-router-dom';
 import { MonitorPlay, ArrowLeft, ExternalLink, Save, Loader2 } from 'lucide-react';
-import { doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { getCachedDoc } from '../lib/cache';
 import toast from 'react-hot-toast';
 
 export function AdsView() {
@@ -21,21 +22,23 @@ export function AdsView() {
   const [editData, setEditData] = useState({ description: '', link: '' });
 
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, "settings", "adsView"), (docSnapshot) => {
-      if (docSnapshot.exists()) {
-        const data = docSnapshot.data() as {description: string, link: string};
-        setAdData({ description: data.description || '', link: data.link || '' });
-        setEditData({ description: data.description || '', link: data.link || '' });
-      } else {
-        setEditData({ description: adData.description, link: adData.link });
+    const loadAds = async () => {
+      try {
+        const docSnapshot = await getCachedDoc(doc(db, "settings", "adsView"));
+        if (docSnapshot.exists()) {
+          const data = docSnapshot.data() as {description: string, link: string};
+          setAdData({ description: data.description || '', link: data.link || '' });
+          setEditData({ description: data.description || '', link: data.link || '' });
+        } else {
+          setEditData({ description: adData.description, link: adData.link });
+        }
+      } catch (error) {
+        handleFirestoreError(error, OperationType.GET, 'settings/adsView');
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'settings/adsView');
-      setLoading(false);
-    });
-
-    return () => unsub();
+    };
+    loadAds();
   }, []);
 
   const handleSave = async () => {

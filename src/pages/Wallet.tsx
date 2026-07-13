@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthProvider';
-import { collection, query, orderBy, onSnapshot, doc, writeBatch, increment, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, doc, writeBatch, increment, serverTimestamp, getDocs, getDoc, limit } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
+import { getCachedDoc, getCachedQuery } from '../lib/cache';
 import { BarChart, Bar, ReferenceLine, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { useLanguage } from '../components/LanguageProvider';
 import { useSearchParams } from 'react-router-dom';
-import { History, ArrowUpRight, ArrowDownLeft, Copy, Wallet as WalletIcon, TrendingUp, ArrowRightLeft, Zap } from 'lucide-react';
+import { History, ArrowUpRight, ArrowDownLeft, Copy, Wallet as WalletIcon, TrendingUp, ArrowRightLeft, Zap, Shield } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -56,6 +57,7 @@ export function Wallet() {
 
   const [withdrawSettings, setWithdrawSettings] = useState({ mainMin: 50, mainFee: 0, bonusMin: 50, bonusFee: 0, referralMin: 50, referralFee: 0, tasksMin: 50, tasksFee: 0, customAmounts: "110, 210, 310, 410, 510" });
   const [depositSettings, setDepositSettings] = useState({ bkashNumber: '017XX-XXXXXX', nagadNumber: '017XX-XXXXXX', minDeposit: 100, maxDeposit: 25000, bkashEnabled: true, nagadEnabled: true, bkashQrUrl: '', nagadQrUrl: '' });
+  const [partnerSettings, setPartnerSettings] = useState({ withdrawEnabled: true });
 
   useEffect(() => {
     if (!auth.currentUser) return;
@@ -65,51 +67,58 @@ export function Wallet() {
       orderBy("createdAt", "desc")
     );
     
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const historyItems = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setTransactions(historyItems);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, `users/${auth.currentUser?.uid}/transactions`);
-    });
-
-    const unsubSettings = onSnapshot(doc(db, "settings", "withdraw"), (docSnapshot) => {
-      if (docSnapshot.exists()) {
-        const data = docSnapshot.data();
-        setWithdrawSettings({
-          mainMin: data.mainMin || 50,
-          mainFee: data.mainFee || 0,
-          bonusMin: data.bonusMin || 50,
-          bonusFee: data.bonusFee || 0,
-          referralMin: data.referralMin || 50,
-          referralFee: data.referralFee || 0,
-          tasksMin: data.tasksMin || 50,
-          tasksFee: data.tasksFee || 0,
-          customAmounts: data.customAmounts || "110, 210, 310, 410, 510"
-        });
+    const loadData = async () => {
+      try {
+        const q = query(
+          collection(db, "users", auth.currentUser!.uid, "transactions"),
+          orderBy("createdAt", "desc"),
+          limit(50)
+        );
+        const sn = await getCachedQuery(q, `wallet_tx_${auth.currentUser!.uid}`);
+        setTransactions(sn.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        
+        const [wSnap, dSnap, pSnap] = await Promise.all([
+          getCachedDoc(doc(db, "settings", "withdraw")),
+          getCachedDoc(doc(db, "settings", "deposit")),
+          getCachedDoc(doc(db, "settings", "partner"))
+        ]);
+        
+        if (wSnap.exists()) {
+          const data = wSnap.data();
+          setWithdrawSettings({
+            mainMin: data.mainMin || 50,
+            mainFee: data.mainFee || 0,
+            bonusMin: data.bonusMin || 50,
+            bonusFee: data.bonusFee || 0,
+            referralMin: data.referralMin || 50,
+            referralFee: data.referralFee || 0,
+            tasksMin: data.tasksMin || 50,
+            tasksFee: data.tasksFee || 0,
+            customAmounts: data.customAmounts || "110, 210, 310, 410, 510"
+          });
+        }
+        if (dSnap.exists()) {
+          const data = dSnap.data();
+          setDepositSettings({
+            bkashNumber: data.bkashNumber || '017XX-XXXXXX',
+            nagadNumber: data.nagadNumber || '017XX-XXXXXX',
+            minDeposit: data.minDeposit !== undefined ? data.minDeposit : 100,
+            maxDeposit: data.maxDeposit !== undefined ? data.maxDeposit : 25000,
+            bkashEnabled: data.bkashEnabled !== false,
+            nagadEnabled: data.nagadEnabled !== false,
+            bkashQrUrl: data.bkashQrUrl || '',
+            nagadQrUrl: data.nagadQrUrl || ''
+          });
+        }
+        if (pSnap.exists()) {
+          const data = pSnap.data();
+          setPartnerSettings({ withdrawEnabled: data.withdrawEnabled !== false });
+        }
+      } catch (error) {
+        handleFirestoreError(error, OperationType.GET, `Wallet`);
       }
-    });
-
-    const unsubDepositSettings = onSnapshot(doc(db, "settings", "deposit"), (docSnapshot) => {
-      if (docSnapshot.exists()) {
-        const data = docSnapshot.data();
-        setDepositSettings({
-          bkashNumber: data.bkashNumber || '017XX-XXXXXX',
-          nagadNumber: data.nagadNumber || '017XX-XXXXXX',
-          minDeposit: data.minDeposit !== undefined ? data.minDeposit : 100,
-          maxDeposit: data.maxDeposit !== undefined ? data.maxDeposit : 25000,
-          bkashEnabled: data.bkashEnabled !== false,
-          nagadEnabled: data.nagadEnabled !== false,
-          bkashQrUrl: data.bkashQrUrl || '',
-          nagadQrUrl: data.nagadQrUrl || ''
-        });
-      }
-    });
-
-    return () => {
-      unsubscribe();
-      unsubSettings();
-      unsubDepositSettings();
     };
+    loadData();
   }, []);
 
   const [depositAmount, setDepositAmount] = useState('');
@@ -181,10 +190,17 @@ export function Wallet() {
     e.preventDefault();
     if (!auth.currentUser) return;
     
+    if (selectedWallet === 'partner' && !partnerSettings.withdrawEnabled) {
+      toast.error('Partner withdrawals are currently disabled.');
+      return;
+    }
+
     let currentBal = 0;
     if (selectedWallet === 'main') currentBal = profile?.balances?.main || 0;
     else if (selectedWallet === 'bonus') currentBal = profile?.balances?.bonus || 0;
     else if (selectedWallet === 'referral') currentBal = profile?.balances?.referral || 0;
+    else if (selectedWallet === 'partner') currentBal = profile?.balances?.partner || 0;
+    else if (selectedWallet === 'gift') currentBal = profile?.balances?.gift || 0;
     else currentBal = profile?.balances?.tasks?.[selectedWallet] || 0;
 
     const amount = parseFloat(withdrawAmount);
@@ -198,6 +214,8 @@ export function Wallet() {
     if (selectedWallet === 'main') minAmount = withdrawSettings.mainMin;
     else if (selectedWallet === 'bonus') minAmount = withdrawSettings.bonusMin;
     else if (selectedWallet === 'referral') minAmount = withdrawSettings.referralMin;
+    else if (selectedWallet === 'partner') minAmount = 50; // default partner min
+    else if (selectedWallet === 'gift') minAmount = 50; // default gift min
     else minAmount = withdrawSettings.tasksMin;
 
     if (amount < minAmount) {
@@ -231,6 +249,8 @@ export function Wallet() {
       if (selectedWallet === 'main') updateData["balances.main"] = increment(-amount);
       else if (selectedWallet === 'bonus') updateData["balances.bonus"] = increment(-amount);
       else if (selectedWallet === 'referral') updateData["balances.referral"] = increment(-amount);
+      else if (selectedWallet === 'partner') updateData["balances.partner"] = increment(-amount);
+      else if (selectedWallet === 'gift') updateData["balances.gift"] = increment(-amount);
       else updateData[`balances.tasks.${selectedWallet}`] = increment(-amount);
       
       batch.update(userRef, updateData);
@@ -239,6 +259,8 @@ export function Wallet() {
       if (selectedWallet === 'main') feePercent = withdrawSettings.mainFee;
       else if (selectedWallet === 'bonus') feePercent = withdrawSettings.bonusFee;
       else if (selectedWallet === 'referral') feePercent = withdrawSettings.referralFee;
+      else if (selectedWallet === 'partner') feePercent = 0;
+      else if (selectedWallet === 'gift') feePercent = 0;
       else feePercent = withdrawSettings.tasksFee;
 
       const fee = (amount * feePercent) / 100;
@@ -337,23 +359,28 @@ export function Wallet() {
            <h3 className="text-4xl font-display font-black tracking-tight mt-1">৳ {profile?.balances?.main?.toFixed(2) || '0.00'}</h3>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 mb-4">
+        <div className="grid grid-cols-3 gap-3 mb-4">
            <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-[1.25rem] p-4 text-white shadow-lg shadow-emerald-500/20 relative overflow-hidden border border-emerald-400/30">
              <div className="absolute top-0 left-0 w-20 h-20 bg-white opacity-10 blur-xl rounded-full pointer-events-none"></div>
              <p className="text-[10px] font-bold opacity-90 mb-1 uppercase tracking-widest text-emerald-50 text-center">Bonus</p>
-             <h3 className="text-2xl font-display font-black tracking-tight text-center">৳ {profile?.balances?.bonus?.toFixed(2) || '0.00'}</h3>
+             <h3 className="text-xl font-display font-black tracking-tight text-center">৳ {profile?.balances?.bonus?.toFixed(2) || '0.00'}</h3>
            </div>
            <div className="bg-gradient-to-br from-purple-500 to-violet-600 rounded-[1.25rem] p-4 text-white shadow-lg shadow-purple-500/20 relative overflow-hidden border border-purple-400/30">
              <div className="absolute bottom-0 right-0 w-20 h-20 bg-white opacity-10 blur-xl rounded-full pointer-events-none"></div>
              <p className="text-[10px] font-bold opacity-90 mb-1 uppercase tracking-widest text-purple-50 text-center">Referral</p>
-             <h3 className="text-2xl font-display font-black tracking-tight text-center">৳ {profile?.balances?.referral?.toFixed(2) || '0.00'}</h3>
+             <h3 className="text-xl font-display font-black tracking-tight text-center">৳ {profile?.balances?.referral?.toFixed(2) || '0.00'}</h3>
+           </div>
+           <div className="bg-gradient-to-br from-rose-500 to-pink-600 rounded-[1.25rem] p-4 text-white shadow-lg shadow-rose-500/20 relative overflow-hidden border border-rose-400/30">
+             <div className="absolute bottom-0 right-0 w-20 h-20 bg-white opacity-10 blur-xl rounded-full pointer-events-none"></div>
+             <p className="text-[10px] font-bold opacity-90 mb-1 uppercase tracking-widest text-rose-50 text-center">Gift</p>
+             <h3 className="text-xl font-display font-black tracking-tight text-center">৳ {profile?.balances?.gift?.toFixed(2) || '0.00'}</h3>
            </div>
         </div>
 
         <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-[1.5rem] p-4 shadow-sm border border-slate-100 dark:border-slate-700">
           <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-3 ml-1 uppercase tracking-widest text-center">Task Earnings</p>
           <div className="flex overflow-x-auto gap-3 pb-2 no-scrollbar px-1 items-center">
-            {['Facebook', 'Gmail', 'Instagram', 'Sell Accounts', 'Microjob', 'Typing', 'Watch Ads', 'Other'].map((taskName) => {
+            {['Facebook', 'Gmail', 'Instagram', 'Review', 'Sell Accounts', 'Microjob', 'Typing', 'Watch Ads', 'Other'].map((taskName) => {
               const balance = profile?.balances?.tasks?.[taskName] || 0;
               return (
                 <div key={taskName} className="bg-slate-50 dark:bg-slate-900/50 rounded-[1rem] p-3 min-w-[110px] text-center flex-shrink-0 relative overflow-hidden border border-slate-200 dark:border-slate-700/50">
@@ -501,7 +528,9 @@ export function Wallet() {
                 <option value="main">Main Wallet (৳{profile?.balances?.main?.toFixed(2) || '0.00'})</option>
                 <option value="bonus">Bonus (৳{profile?.balances?.bonus?.toFixed(2) || '0.00'})</option>
                 <option value="referral">Referral (৳{profile?.balances?.referral?.toFixed(2) || '0.00'})</option>
-                {['Facebook', 'Gmail', 'Instagram', 'Sell Accounts', 'Microjob', 'Typing', 'Watch Ads', 'Other'].map((taskName) => {
+                <option value="partner">Partner (৳{profile?.balances?.partner?.toFixed(2) || '0.00'})</option>
+                <option value="gift">Gift Wallet (৳{profile?.balances?.gift?.toFixed(2) || '0.00'})</option>
+                {['Facebook', 'Gmail', 'Instagram', 'Review', 'Sell Accounts', 'Microjob', 'Typing', 'Watch Ads', 'Other'].map((taskName) => {
                   const balance = profile?.balances?.tasks?.[taskName] || 0;
                   return (
                     <option key={taskName} value={taskName}>{taskName} (৳{balance.toFixed(2)})</option>
@@ -622,6 +651,13 @@ export function Wallet() {
             <button type="submit" className="w-full bg-indigo-600 dark:bg-indigo-500 text-white font-bold py-4 rounded-xl shadow-lg mt-4 hover:bg-indigo-700 dark:hover:bg-indigo-600 transition active:scale-[0.98] text-base">
               {t('request_withdraw')}
             </button>
+            
+            {/* Trust Info */}
+            <div className="flex flex-col items-center gap-1.5 mt-5 px-4 pt-1 opacity-70 hover:opacity-100 transition-opacity">
+               <Shield className="w-5 h-5 text-emerald-500" />
+               <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest leading-none">Your withdrawals are 100% secure</p>
+               <p className="text-[9px] font-semibold text-slate-400 dark:text-slate-500 leading-none">Powered by standard SSL encryption</p>
+            </div>
           </form>
         </motion.div>
       )}

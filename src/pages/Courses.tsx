@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { useAuth } from '../components/AuthProvider';
-import { collection, onSnapshot, writeBatch, doc } from 'firebase/firestore';
+import { collection, writeBatch, doc, getDocs } from 'firebase/firestore';
 import { ArrowLeft, BookOpen, Search, Play, ExternalLink, Sparkles, HelpCircle, Layers, CheckCircle2, ChevronRight, Video } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import toast from 'react-hot-toast';
@@ -80,12 +80,13 @@ export function Courses() {
   }, [siteSettings, navigate]);
 
   useEffect(() => {
-    // Only subscribe to courses once we verify the user session exists to prevent permission errors
-    setLoading(true);
-    let unsub: (() => void) | undefined;
-
-    const startListener = () => {
-      unsub = onSnapshot(collection(db, "courses"), (snapshot) => {
+    // Only fetch courses once we verify the user session exists to prevent permission errors
+    let isMounted = true;
+    const fetchCourses = async () => {
+      setLoading(true);
+      try {
+        const snapshot = await getDocs(collection(db, "courses"));
+        if (!isMounted) return;
         const list: Course[] = [];
         snapshot.forEach(docSnap => {
           const data = docSnap.data();
@@ -94,24 +95,24 @@ export function Courses() {
           }
         });
         setCourses(list);
-        setLoading(false);
-      }, (error) => {
+      } catch (error) {
         console.error("Failed to load courses:", error);
-        setLoading(false);
-      });
+      } finally {
+        if (isMounted) setLoading(false);
+      }
     };
 
     const unsubAuth = auth.onAuthStateChanged((user) => {
       if (user) {
-        if (!unsub) startListener();
+        fetchCourses();
       } else {
         setLoading(false);
       }
     });
 
     return () => {
+      isMounted = false;
       unsubAuth();
-      if (unsub) unsub();
     };
   }, []);
 

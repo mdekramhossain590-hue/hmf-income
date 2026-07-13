@@ -1,5 +1,6 @@
 import { doc, getDoc, updateDoc, increment, collection, addDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db } from './firebase';
+import { getCachedDoc } from './cache';
 
 export async function processReferralCommission(userId: string, amountEarned: number, type: string) {
   if (!amountEarned || amountEarned <= 0) return;
@@ -15,7 +16,7 @@ export async function processReferralCommission(userId: string, amountEarned: nu
     }
     
     // Get the referral settings for percentage
-    const refDoc = await getDoc(doc(db, "settings", "referral"));
+    const refDoc = await getCachedDoc(doc(db, "settings", "referral"));
     let gen1 = 0, gen2 = 0, gen3 = 0;
     if (refDoc.exists()) {
       const data = refDoc.data();
@@ -94,7 +95,7 @@ export async function processRegistrationReferral(userId: string) {
     }
 
     let gen1 = 10, gen2 = 0, gen3 = 0;
-    const refDoc = await getDoc(doc(db, "settings", "referral"));
+    const refDoc = await getCachedDoc(doc(db, "settings", "referral"));
     if (refDoc && refDoc.exists()) {
       const data = refDoc.data();
       gen1 = data.fixedBonus || 0;
