@@ -1,5 +1,5 @@
 import { useLocation, useNavigate, useOutlet } from 'react-router-dom';
-import { Home, Briefcase, Wallet, User as UserIcon, Send } from 'lucide-react';
+import { Home, Briefcase, Wallet, User as UserIcon, Send, HelpCircle } from 'lucide-react';
 import * as Tabs from '@radix-ui/react-tabs';
 import { cn } from '../lib/utils';
 import { useAuth } from './AuthProvider';
@@ -60,7 +60,14 @@ export function Layout() {
         <>
           <WelcomePopup />
           <Onboarding />
-          <div className="fixed bottom-[90px] right-5 z-50 sm:right-[calc(50%-220px)] pointer-events-auto">
+          <div className="fixed bottom-[90px] right-5 z-50 sm:right-[calc(50%-220px)] pointer-events-auto flex flex-col gap-3">
+            <button
+              onClick={() => navigate('/support')}
+              className="w-14 h-14 bg-gradient-to-tr from-rose-500 to-pink-500 text-white rounded-full flex items-center justify-center shadow-[0_8px_30px_rgba(244,63,94,0.5)] hover:scale-110 hover:-translate-y-1 active:scale-95 transition-all duration-300 ring-4 ring-white/30 dark:ring-slate-800/80"
+              aria-label="Support"
+            >
+              <HelpCircle className="w-6 h-6" />
+            </button>
             <a
               href={siteSettings?.telegramUrl || "https://t.me/"}
               target="_blank"

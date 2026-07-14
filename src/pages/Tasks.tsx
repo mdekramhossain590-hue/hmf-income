@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { History, List, MessageCircle, Video, Copy, Send, Key, ThumbsUp, Mail, Camera, Monitor, Smartphone, MonitorPlay, Heart, Star, User, Music, Globe, Hash, Briefcase, ArrowLeft, ChevronRight, Shield } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../components/AuthProvider';
-import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, limit, where } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { getCachedQuery } from '../lib/cache';
 import { useLanguage } from '../components/LanguageProvider';
@@ -50,12 +50,18 @@ export function Tasks() {
     const loadData = async () => {
       try {
         const q = query(
-          collection(db, "users", auth.currentUser!.uid, "tasks"),
-          orderBy("completedAt", "desc"),
-          limit(50)
+          collection(db, "submissions"),
+          where("userId", "==", auth.currentUser!.uid),
+          limit(100)
         );
         const taskSnap = await getCachedQuery(q, `tasks_history_${auth.currentUser!.uid}`);
-        setTaskHistory(taskSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        const historyData = taskSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+        historyData.sort((a, b) => {
+          const aTime = a.submittedAt?.toMillis?.() || 0;
+          const bTime = b.submittedAt?.toMillis?.() || 0;
+          return bTime - aTime;
+        });
+        setTaskHistory(historyData.slice(0, 50));
         
         const jobsQuery = query(collection(db, "jobs"), orderBy("createdAt", "desc"), limit(100));
         const jobSnap = await getCachedQuery(jobsQuery, "jobs_active_list");
@@ -217,8 +223,20 @@ export function Tasks() {
                 ) : (
                   filteredJobs.map((job) => {
                     const Icon = getIcon(job.icon);
+                    const userSubmission = taskHistory.find((h: any) => h.jobId === job.id);
                     return (
-                      <div key={job.id} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm hover:shadow-md ring-1 ring-slate-100 dark:ring-slate-700/50 flex flex-col items-center text-center transition-all">
+                      <div key={job.id} className="relative bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm hover:shadow-md ring-1 ring-slate-100 dark:ring-slate-700/50 flex flex-col items-center text-center transition-all overflow-hidden">
+                        {userSubmission && (
+                          <div className="absolute top-0 right-0">
+                             <span className={`text-[8px] px-2 py-0.5 rounded-bl-lg font-black uppercase tracking-widest ${
+                               userSubmission.status === 'approved' ? 'bg-emerald-500 text-white' :
+                               userSubmission.status === 'rejected' ? 'bg-red-500 text-white' :
+                               'bg-amber-500 text-white'
+                             }`}>
+                               {userSubmission.status || 'pending'}
+                             </span>
+                          </div>
+                        )}
                         <div className={`w-12 h-12 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700/50 flex items-center justify-center mb-3 text-indigo-500`}>
                           <Icon className="w-6 h-6" />
                         </div>
@@ -260,16 +278,31 @@ export function Tasks() {
             taskHistory.map((historyItem) => (
               <div key={historyItem.id} className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 flex justify-between items-center">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 text-green-600 flex items-center justify-center rounded-full">
+                  <div className={`w-10 h-10 flex items-center justify-center rounded-full ${
+                    historyItem.status === 'approved' ? 'bg-green-100 dark:bg-green-900/30 text-green-600' :
+                    historyItem.status === 'rejected' ? 'bg-red-100 dark:bg-red-900/30 text-red-600' :
+                    'bg-orange-100 dark:bg-orange-900/30 text-orange-600'
+                  }`}>
                     <List className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="text-[15px] font-display font-bold text-gray-800 dark:text-white">{historyItem.title}</h4>
-                    <p className="text-xs text-gray-500">{historyItem.completedAt?.toDate().toLocaleString() || 'Just now'}</p>
+                    <h4 className="text-[15px] font-display font-bold text-gray-800 dark:text-white line-clamp-1">{historyItem.title}</h4>
+                    <p className="text-xs text-gray-500">{(historyItem.submittedAt || historyItem.completedAt)?.toDate().toLocaleString() || 'Just now'}</p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-sm font-display font-black text-green-600 dark:text-green-400">+৳{historyItem.reward}</p>
+                <div className="text-right flex flex-col items-end">
+                  <p className={`text-sm font-display font-black ${
+                    historyItem.status === 'approved' ? 'text-green-600 dark:text-green-400' :
+                    historyItem.status === 'rejected' ? 'text-red-500 line-through' :
+                    'text-orange-500'
+                  }`}>+৳{historyItem.reward}</p>
+                  <span className={`text-[10px] mt-1 px-2 py-0.5 rounded-md font-bold uppercase tracking-wider ${
+                    historyItem.status === 'approved' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                    historyItem.status === 'rejected' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
+                    'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
+                  }`}>
+                    {historyItem.status || 'pending'}
+                  </span>
                 </div>
               </div>
             ))

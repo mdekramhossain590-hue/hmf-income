@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './components/AuthProvider';
 import { Layout } from './components/Layout';
 import { Auth } from './pages/Auth';
 import { Dashboard } from './pages/Dashboard';
+import { ActivityHistory } from './pages/ActivityHistory';
 import { Tasks } from './pages/Tasks';
 import { Reviews } from './pages/Reviews';
 import { TaskDetail } from './pages/TaskDetail';
@@ -134,6 +135,7 @@ export default function App() {
           
           <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/activity" element={<ActiveGuard><ActivityHistory /></ActiveGuard>} />
             <Route path="/tasks" element={<ActiveGuard><Tasks /></ActiveGuard>} />
             <Route path="/post-job" element={<ActiveGuard><PostJob /></ActiveGuard>} />
             <Route path="/reviews" element={<ActiveGuard><Reviews /></ActiveGuard>} />

@@ -245,14 +245,26 @@ export function Dashboard() {
           "tasks",
         );
         const tasksQuery = query(
-          tasksRef,
-          orderBy("completedAt", "desc"),
-          limit(5),
+          collection(db, "submissions"),
+          where("userId", "==", auth.currentUser!.uid),
+          limit(20)
         );
         const taskSnapshot = await getCachedQuery(
           tasksQuery,
           `dashboard_tasks_${auth.currentUser!.uid}`,
         );
+        
+        // Mock the snapshot behavior to sort locally
+        const docs = taskSnapshot.docs;
+        docs.sort((a, b) => {
+          const aData = a.data();
+          const bData = b.data();
+          const aTime = aData.submittedAt?.toMillis?.() || 0;
+          const bTime = bData.submittedAt?.toMillis?.() || 0;
+          return bTime - aTime;
+        });
+        const limitedDocs = docs.slice(0, 5);
+        taskSnapshot.forEach = (cb) => limitedDocs.forEach(cb);
         const taskItems: any[] = [];
         taskSnapshot.forEach((docSnap) => {
           taskItems.push({ id: docSnap.id, type: "task", ...docSnap.data() });
@@ -279,10 +291,11 @@ export function Dashboard() {
           return { ...t, date: d };
         }),
       ...userTasks.map((t) => {
-        const d = t.completedAt?.toDate
-          ? t.completedAt.toDate()
-          : t.completedAt
-            ? new Date(t.completedAt)
+        const timeField = t.submittedAt || t.completedAt;
+        const d = timeField?.toDate
+          ? timeField.toDate()
+          : timeField
+            ? new Date(timeField)
             : new Date(0);
         // We ensure a 'task' type to match styling logic, but keep original type for display if needed
         return { ...t, date: d, _originalType: t.type, type: "task" };
@@ -1841,9 +1854,9 @@ export function Dashboard() {
             <Activity className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
             {t("recent_activity")}
           </h3>
-          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-            {language === "Bengali" ? "রিয়েল-টাইম আপডেট" : "Real-time Updates"}
-          </span>
+          <Link to="/activity" className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300">
+            {language === "Bengali" ? "সব দেখুন" : "View All"}
+          </Link>
         </div>
 
         <div className="space-y-3 relative z-10">
@@ -1873,12 +1886,25 @@ export function Dashboard() {
               if (isTask) {
                 title = activity.title || t("completed_task_activity");
                 rewardStr = `+৳${displayAmount}`;
-                badgeColor =
-                  "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20 dark:text-emerald-400";
-                IconComponent = CheckCircle;
-                statusLabel = language === "Bengali" ? "অনুমোদিত" : "Approved";
-                statusColor =
-                  "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30";
+                
+                const taskStatus = activity.status || 'pending';
+                if (taskStatus === 'approved') {
+                  badgeColor = "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20 dark:text-emerald-400";
+                  IconComponent = CheckCircle;
+                  statusLabel = language === "Bengali" ? "অনুমোদিত" : "Approved";
+                  statusColor = "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30";
+                } else if (taskStatus === 'rejected') {
+                  badgeColor = "bg-red-50 text-red-600 dark:bg-red-950/20 dark:text-red-400";
+                  IconComponent = XCircle;
+                  statusLabel = language === "Bengali" ? "বাতিল" : "Rejected";
+                  statusColor = "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30";
+                  rewardStr = `+৳0`;
+                } else {
+                  badgeColor = "bg-amber-50 text-amber-600 dark:bg-amber-950/20 dark:text-amber-400";
+                  IconComponent = Clock;
+                  statusLabel = language === "Bengali" ? "অপেক্ষমান" : "Pending";
+                  statusColor = "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30";
+                }
               } else {
                 // Transaction
                 if (isWithdraw) {

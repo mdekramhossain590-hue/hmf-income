@@ -146,14 +146,23 @@ export function TaskDetail() {
           }
         }
 
+        // Temporary workaround to avoid index requirement
         const q = query(
           collection(db, "submissions"),
-          where("jobId", "==", id),
-          where("userId", "==", auth.currentUser.uid),
+          where("userId", "==", auth.currentUser.uid)
         );
         const subSnap = await getDocs(q);
-        setSubmissionCount(subSnap.size);
-        if (!subSnap.empty) {
+        const filteredDocs = subSnap.docs.filter((doc) => doc.data().jobId === id);
+        
+        // Mock subSnap with only filtered docs for existing logic
+        const mockSnap = {
+          size: filteredDocs.length,
+          empty: filteredDocs.length === 0,
+          docs: filteredDocs,
+          forEach: (cb: any) => filteredDocs.forEach(cb)
+        } as any;
+        setSubmissionCount(mockSnap.size);
+        if (!mockSnap.empty) {
           setPreviousSubmission({
             id: subSnap.docs[0].id,
             ...subSnap.docs[0].data(),
@@ -198,12 +207,15 @@ export function TaskDetail() {
 
         const dailyQuery = query(
           collection(db, "submissions"),
-          where("userId", "==", auth.currentUser.uid),
-          where("submittedAt", ">=", twentyFourHoursAgo),
+          where("userId", "==", auth.currentUser.uid)
         );
         const dailySnap = await getDocs(dailyQuery);
-
-        if (dailySnap.size >= siteSettings.dailyTaskLimit) {
+        const recentCount = dailySnap.docs.filter(d => {
+          const t = d.data().submittedAt;
+          const time = t?.toMillis ? t.toMillis() : (t?.seconds ? t.seconds * 1000 : 0);
+          return time >= twentyFourHoursAgo.getTime();
+        }).length;
+        if (recentCount >= siteSettings.dailyTaskLimit) {
           toast.error(
             `Daily task limit reached (${siteSettings.dailyTaskLimit}). Please try again later.`,
           );

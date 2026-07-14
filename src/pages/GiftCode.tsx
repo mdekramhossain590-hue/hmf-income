@@ -5,7 +5,7 @@ import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import toast from 'react-hot-toast';
 import { motion } from 'motion/react';
 import { Gift, Sparkles } from 'lucide-react';
-import confetti from 'canvas-confetti';
+import { triggerRealisticConfetti } from '../lib/confetti';
 
 export function GiftCode() {
   const { profile, refreshProfile } = useAuth();
@@ -95,12 +95,7 @@ export function GiftCode() {
 
       await batch.commit();
 
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 },
-        colors: ['#8b5cf6', '#3b82f6', '#10b981']
-      });
+      triggerRealisticConfetti();
 
       toast.success(`You received ৳${amount} from the gift code!`);
       setCode('');
