@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { History, List, MessageCircle, Video, Copy, Send, Key, ThumbsUp, Mail, Camera, Monitor, Smartphone, MonitorPlay, Heart, Star, User, Music, Globe, Hash, Briefcase, ArrowLeft, ChevronRight, Shield } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { History, Loader2, RefreshCw, List, MessageCircle, Video, Copy, Send, Key, ThumbsUp, Mail, Camera, Monitor, Smartphone, MonitorPlay, Heart, Star, User, Music, Globe, Hash, Briefcase, ArrowLeft, ChevronRight, Shield } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../components/AuthProvider';
 import { collection, getDocs, query, orderBy, limit, where } from 'firebase/firestore';
@@ -42,19 +42,21 @@ export function Tasks() {
   const [selectedCategory, setSelectedCategory] = useState<string>(initCategory);
   const [viewingCategory, setViewingCategory] = useState<string | null>(null);
   const { t } = useLanguage();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [pullStartY, setPullStartY] = useState(0);
+  const [pullMoveY, setPullMoveY] = useState(0);
 
-  useEffect(() => {
+  // Fetch History
+  const loadData = async (forceRefresh = false) => {
     if (!auth.currentUser) return;
-    
-    // Fetch History
-    const loadData = async () => {
       try {
+      if (forceRefresh) setIsRefreshing(true);
         const q = query(
           collection(db, "submissions"),
           where("userId", "==", auth.currentUser!.uid),
           limit(100)
         );
-        const taskSnap = await getCachedQuery(q, `tasks_history_${auth.currentUser!.uid}`);
+        const taskSnap = forceRefresh ? await getDocs(q) : await getCachedQuery(q, `tasks_history_${auth.currentUser!.uid}`);
         const historyData = taskSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
         historyData.sort((a, b) => {
           const aTime = a.submittedAt?.toMillis?.() || 0;
@@ -64,14 +66,44 @@ export function Tasks() {
         setTaskHistory(historyData.slice(0, 50));
         
         const jobsQuery = query(collection(db, "jobs"), orderBy("createdAt", "desc"), limit(100));
-        const jobSnap = await getCachedQuery(jobsQuery, "jobs_active_list");
+        const jobSnap = forceRefresh ? await getDocs(jobsQuery) : await getCachedQuery(jobsQuery, "jobs_active_list");
         setJobs(jobSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter((j: any) => j.status === 'active'));
       } catch (error) {
         handleFirestoreError(error, OperationType.GET, 'jobs or tasks');
+      } finally {
+        if (forceRefresh) setIsRefreshing(false);
       }
-    };
+  };
+
+  useEffect(() => {
     loadData();
   }, []);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (window.scrollY <= 0) {
+      setPullStartY(e.touches[0].clientY);
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (pullStartY > 0 && window.scrollY <= 0) {
+      const currentY = e.touches[0].clientY;
+      const diff = currentY - pullStartY;
+      if (diff > 0) {
+        setPullMoveY(Math.min(diff, 100));
+        // if (e.cancelable) e.preventDefault(); // can't preventDefault easily here due to passive listener
+      }
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (pullMoveY > 60 && !isRefreshing) {
+      playTapSound();
+      loadData(true);
+    }
+    setPullStartY(0);
+    setPullMoveY(0);
+  };
 
   const startTask = (jobId: string) => {
     navigate(`/tasks/${jobId}`);
@@ -100,7 +132,22 @@ export function Tasks() {
   };
 
   return (
-    <div className="pt-6 px-4 pb-20">
+    <div 
+      className="pt-6 px-4 pb-20 min-h-screen"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* Pull to refresh indicator */}
+      <div 
+        className="flex justify-center items-center overflow-hidden transition-all duration-300"
+        style={{ height: pullMoveY > 0 ? `${pullMoveY}px` : (isRefreshing ? '60px' : '0px') }}
+      >
+        <div className={`flex items-center justify-center w-10 h-10 rounded-full bg-white dark:bg-slate-800 shadow-md ${isRefreshing ? 'animate-spin' : ''}`}
+             style={{ transform: `rotate(${pullMoveY * 3}deg)` }}>
+          <RefreshCw className={`w-5 h-5 text-indigo-500 ${isRefreshing ? '' : 'opacity-70'}`} />
+        </div>
+      </div>
       <h2 className="text-2xl font-display font-black mb-4 tracking-tight text-slate-800 dark:text-white text-center">{t('my_tasks')}</h2>
       
       {/* Trust Banner Banner */}

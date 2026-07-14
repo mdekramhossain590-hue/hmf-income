@@ -4,6 +4,9 @@ import confetti from 'canvas-confetti';
  * Triggers a simple standard confetti burst from the bottom center.
  */
 export function triggerConfetti() {
+  if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
+    window.navigator.vibrate([100, 50, 100]);
+  }
   confetti({
     particleCount: 80,
     spread: 60,
@@ -16,6 +19,9 @@ export function triggerConfetti() {
  * Triggers a premium realistic confetti explosion with varied velocities and decays.
  */
 export function triggerRealisticConfetti() {
+  if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
+    window.navigator.vibrate([100, 50, 100]);
+  }
   const count = 150;
   const defaults = {
     origin: { y: 0.7 },
