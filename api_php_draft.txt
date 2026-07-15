@@ -1,0 +1,23 @@
+<?php
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type, Authorization");
+
+if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
+    http_response_code(200);
+    exit();
+}
+
+require 'db.php';
+
+$data = json_decode(file_get_contents("php://input"), true);
+$action = isset($_GET['action']) ? $_GET['action'] : (isset($data['action']) ? $data['action'] : '');
+
+$response = ["success" => false, "message" => "Invalid action"];
+
+switch ($action) {
+    // ---- AUTH & USERS ----
+    case 'login':
+        // Expects: email, password
+        break;
+}

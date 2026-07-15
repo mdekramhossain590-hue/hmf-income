@@ -1,0 +1,24 @@
+আপনার `api.php` কোড ঠিক আছে এবং আমি অ্যাপে তা কানেক্ট করে দিয়েছি। এখন অ্যাপটি সরাসরি আপনার ওয়েবসাইটের (hmfincome.site) ডেটাবেস থেকে চলবে।
+
+তবে, আপনার `api.php` কোডটি সঠিকভাবে কাজ করার জন্য আপনাকে আপনার cPanel এর **phpMyAdmin**-এ গিয়ে আপনার ডেটাবেসে (`hmfincom__db`) ২ টি নতুন টেবিল তৈরি করতে হবে।
+
+দয়া করে phpMyAdmin এ গিয়ে `SQL` ট্যাবে ক্লিক করে নিচের কোডটি পেস্ট করে **Go** বাটনে ক্লিক করুন:
+
+```sql
+CREATE TABLE auth_users (
+    uid VARCHAR(128) PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE firestore_documents (
+    collection_name VARCHAR(255) NOT NULL,
+    doc_id VARCHAR(255) NOT NULL,
+    data LONGTEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (collection_name, doc_id)
+);
+```
+
+এই টেবিল দুটি তৈরি হয়ে গেলেই অ্যাপটি পুরোপুরি আপনার হোস্টিংয়ের ডেটাবেস থেকে ডাটা সেভ এবং রিড করা শুরু করবে!
