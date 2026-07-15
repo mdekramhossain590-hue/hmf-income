@@ -11,10 +11,11 @@ import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { 
   collection, query, where, getDocs, doc, setDoc, writeBatch, increment, serverTimestamp 
 } from 'firebase/firestore';
-import { triggerRealisticConfetti } from '../lib/confetti';
+import { Celebration } from '../components/Celebration';
 import toast from 'react-hot-toast';
 
 export function PostJob() {
+  const [showCelebration, setShowCelebration] = useState(false);
   const navigate = useNavigate();
   const { profile, refreshProfile } = useAuth();
   const { t } = useLanguage();
@@ -135,7 +136,7 @@ export function PostJob() {
 
       await batch.commit();
       
-      triggerRealisticConfetti();
+      setShowCelebration(true);
       toast.success('Job posted successfully! Waiting for admin approval.');
       
       // Reset form
@@ -194,6 +195,7 @@ export function PostJob() {
 
   return (
     <div className="pt-6 px-4 pb-24">
+      <Celebration isVisible={showCelebration} onComplete={() => setShowCelebration(false)} />
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <button 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Calculator, CheckCircle2, XCircle, History } from 'lucide-react';
-import { triggerConfetti } from '../lib/confetti';
+import { Celebration } from '../components/Celebration';
 import { doc, updateDoc, increment, collection, addDoc, serverTimestamp, query, orderBy, getDocs, getDoc, limit, setDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { getCachedDoc, getCachedQuery } from '../lib/cache';
@@ -18,6 +18,7 @@ export function MathQuiz() {
   const [operator, setOperator] = useState('+');
   const [answer, setAnswer] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
   const [mathReq, setMathReq] = useState({ taskReq: 0, referReq: 0 });
 
   const generateMath = () => {
@@ -170,7 +171,7 @@ export function MathQuiz() {
       
       await refreshProfile();
       setMathLeft(prev => prev - 1);
-      triggerConfetti();
+      setShowCelebration(true);
       toast.success(`Correct! You won ৳${reward} bonus.`);
       if (mathLeft - 1 > 0) {
         generateMath();
@@ -185,6 +186,7 @@ export function MathQuiz() {
 
   return (
     <div className="pt-6 px-4 pb-20 text-center relative max-w-md mx-auto">
+      <Celebration isVisible={showCelebration} onComplete={() => setShowCelebration(false)} />
       
       <h2 className="text-2xl font-black mb-2 text-slate-800 dark:text-white tracking-tight">Math Quiz</h2>
       <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 font-medium">Solve math to earn daily bonus!</p>

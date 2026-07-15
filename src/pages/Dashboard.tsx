@@ -21,6 +21,7 @@ import {
   getCountFromServer, where,
 } from "firebase/firestore";
 import { ActivationPopup } from "../components/ActivationPopup";
+import { Celebration } from "../components/Celebration";
 import { motion, AnimatePresence } from "motion/react";
 import { playTapSound, playSuccessSound } from "../lib/sound";
 import { useTheme } from "../components/ThemeProvider";
@@ -29,6 +30,7 @@ import toast from "react-hot-toast";
 import { deferredPrompt, clearPwaPrompt, onPwaPrompt } from "../pwa";
 
 export function Dashboard() {
+  const [showCelebration, setShowCelebration] = useState(false);
   const {
     profile,
     user,
@@ -1116,7 +1118,7 @@ export function Dashboard() {
                 });
                 
                 await batch.commit();
-                triggerRealisticConfetti();
+                setShowCelebration(true);
                 toast.success(`৳${partnerSettings.dailyBonus} daily partner bonus claimed!`);
               } catch (err) {
                 console.error(err);
@@ -1857,6 +1859,7 @@ export function Dashboard() {
         </div>
       </div>
 
+      <Celebration isVisible={showCelebration} onComplete={() => setShowCelebration(false)} />
       {showActivationPopup && (
         <ActivationPopup onClose={() => setShowActivationPopup(false)} />
       )}

@@ -5,12 +5,14 @@ import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import toast from 'react-hot-toast';
 import { motion } from 'motion/react';
 import { Gift, Sparkles } from 'lucide-react';
+import { Celebration } from '../components/Celebration';
 import { triggerRealisticConfetti } from '../lib/confetti';
 
 export function GiftCode() {
   const { profile, refreshProfile } = useAuth();
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
 
   const handleClaim = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,7 +97,7 @@ export function GiftCode() {
 
       await batch.commit();
 
-      triggerRealisticConfetti();
+      setShowCelebration(true);
 
       toast.success(`You received ৳${amount} from the gift code!`);
       setCode('');
@@ -111,6 +113,7 @@ export function GiftCode() {
 
   return (
     <div className="pt-6 px-4 pb-24">
+      <Celebration isVisible={showCelebration} onComplete={() => setShowCelebration(false)} />
       <h2 className="text-2xl font-display font-black mb-6 tracking-tight text-slate-800 dark:text-white text-center">Gift Code</h2>
       
       <motion.div 

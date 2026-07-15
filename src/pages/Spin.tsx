@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { MapPin, CheckCircle2, XCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { triggerConfetti } from '../lib/confetti';
+import { Celebration } from '../components/Celebration';
 import { doc, updateDoc, increment, collection, addDoc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { getCachedDoc } from '../lib/cache';
@@ -76,6 +76,7 @@ const loseSound = () => {
 const Confetti = () => {
   return (
     <div className="absolute top-1/2 left-1/2 w-0 h-0 z-50 pointer-events-none">
+      
       {[...Array(30)].map((_, i) => {
         const colors = ['bg-red-500', 'bg-[#ff8a00]', 'bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-pink-500'];
         const isCircle = i % 2 === 0;
@@ -101,6 +102,7 @@ const Confetti = () => {
 };
 
 export function Spin() {
+  const [showCelebration, setShowCelebration] = useState(false);
   const { refreshProfile, profile, siteSettings } = useAuth();
   const [spinsLeft, setSpinsLeft] = useState(5);
   const [isSpinning, setIsSpinning] = useState(false);
@@ -223,7 +225,7 @@ export function Spin() {
 
           await processReferralCommission(auth.currentUser!.uid, reward, 'Spin');
 
-          triggerConfetti();
+          setShowCelebration(true);
           toast.success(`Congratulations! You won ৳${reward} bonus.`);
         } else {
           loseSound();
