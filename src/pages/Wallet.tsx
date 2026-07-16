@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthProvider';
-import { collection, query, orderBy, doc, writeBatch, increment, serverTimestamp, getDocs, getDoc, limit } from 'firebase/firestore';
+import { collection, query, orderBy, doc, writeBatch, increment, serverTimestamp, getDocs, getDoc, limit } from '@/src/lib/mock-firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { getCachedDoc, getCachedQuery } from '../lib/cache';
 import { BarChart, Bar, ReferenceLine, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';

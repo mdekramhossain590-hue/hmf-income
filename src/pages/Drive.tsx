@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../components/AuthProvider';
-import { collection, writeBatch, doc, increment, serverTimestamp, setDoc, getDocs } from 'firebase/firestore';
+import { collection, writeBatch, doc, increment, serverTimestamp, setDoc, getDocs } from '@/src/lib/mock-firestore';
 import { ArrowLeft, Wifi, ShoppingBag, Phone, MapPin, Wallet, CheckCircle2, ShieldCheck, HelpCircle, Gift } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import toast from 'react-hot-toast';

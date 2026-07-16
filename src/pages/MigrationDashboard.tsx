@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useAuth } from '../components/AuthProvider';
 import { auth as currentAuth } from '../lib/firebase';
 import { initializeApp, getApps } from 'firebase/app';
-import { getFirestore, collection, getDocs, writeBatch, doc, query, limit, initializeFirestore } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, doc, query, limit, initializeFirestore } from 'firebase/firestore';
+import { collection as newCollection, doc as newDoc, writeBatch } from '../lib/mock-firestore';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { ShieldAlert, Play, CheckCircle, Database, AlertCircle, RefreshCw, ArrowLeft, X, Settings2, Sliders, AlertTriangle, Lock } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -21,24 +22,15 @@ const oldFirebaseConfig = {
 };
 
 // NEW FIREBASE CONFIG (from user's instructions)
-const newFirebaseConfig = {
-  apiKey: "AIzaSyAxHUsTMyrfmd0gnaKS-LXXc_qnB7zqP5Q",
-  authDomain: "hmf-income-app.firebaseapp.com",
-  projectId: "hmf-income-app",
-  storageBucket: "hmf-income-app.firebasestorage.app",
-  messagingSenderId: "1008180221188",
-  appId: "1:1008180221188:web:428ac4e198cbb88794ec51",
-  measurementId: "G-WJX5EBBL41"
-};
 
 // Initialize Apps safely
 const oldApp = getApps().find(app => app.name === 'oldApp') || initializeApp(oldFirebaseConfig, 'oldApp');
 const oldDb = initializeFirestore(oldApp, {}, "ai-studio-061b739b-1578-427e-8b07-b4943bc71d87");
 const oldAuth = getAuth(oldApp);
 
-const newApp = getApps().find(app => app.name === 'newApp') || initializeApp(newFirebaseConfig, 'newApp');
-const newDb = getFirestore(newApp);
-const newAuth = getAuth(newApp);
+const newApp = {};
+const newDb = {}; // Mock db object
+const newAuth = { currentUser: { email: "admin@hmfincome.site" } };
 
 const COLLECTIONS_TO_MIGRATE = [
   'users',
@@ -133,7 +125,7 @@ export function MigrationDashboard() {
     }
 
     try {
-      const destColl = collection(newDb, 'settings');
+      const destColl = newCollection(newDb, 'settings');
       await getDocs(destColl);
       addLog("✅ Verified reading from Target Database (hmf-income-app).");
     } catch (e: any) {
@@ -146,7 +138,7 @@ export function MigrationDashboard() {
     addLog("Step 2: Checking write permissions on destination project...");
     const testDocId = "migration_write_test_temp";
     try {
-      const testDocRef = doc(newDb, 'settings', testDocId);
+      const testDocRef = newDoc(newDb, 'settings', testDocId);
       const batch = writeBatch(newDb);
       batch.set(testDocRef, {
         testedBy: newAuth.currentUser?.email || 'unknown',
@@ -176,13 +168,13 @@ export function MigrationDashboard() {
       if (snapshot.empty) return;
 
       console.log(`[PWA Migration] User ${userId}: migrating ${snapshot.size} logs in subcollection '${subcollName}'`);
-      const newSubCollRef = collection(newDb, `users/${userId}/${subcollName}`);
+      const newSubCollRef = newCollection(newDb, `users/${userId}/${subcollName}`);
       
       let batch = writeBatch(newDb);
       let batchCount = 0;
 
       for (const d of snapshot.docs) {
-        batch.set(doc(newSubCollRef, d.id), d.data());
+        batch.set(newDoc(newSubCollRef, d.id), d.data());
         batchCount++;
 
         if (batchCount === 500) {
@@ -226,14 +218,14 @@ export function MigrationDashboard() {
         return;
       }
 
-      const newCollRef = collection(newDb, collectionName);
+      const newCollRef = newCollection(newDb, collectionName);
       
       let count = 0;
       let batch = writeBatch(newDb);
       let batchCount = 0;
 
       for (const d of snapshot.docs) {
-        batch.set(doc(newCollRef, d.id), d.data());
+        batch.set(newDoc(newCollRef, d.id), d.data());
         count++;
         batchCount++;
 
@@ -410,7 +402,7 @@ export function MigrationDashboard() {
       return;
     }
     try {
-      const { sendPasswordResetEmail } = await import('firebase/auth');
+      const { sendPasswordResetEmail } = await import('@/src/lib/mock-auth');
       await sendPasswordResetEmail(oldAuth, email);
       toast.success(`সোর্স অ্যাপের পাসওয়ার্ড রিসেট লিংক ${email} এ পাঠানো হয়েছে। ইমেইল চেক করে নতুন পাসওয়ার্ড সেট করুন।`);
     } catch (err: any) {
@@ -425,7 +417,7 @@ export function MigrationDashboard() {
       return;
     }
     try {
-      const { sendPasswordResetEmail } = await import('firebase/auth');
+      const { sendPasswordResetEmail } = await import('@/src/lib/mock-auth');
       await sendPasswordResetEmail(newAuth, email);
       toast.success(`টার্গেট অ্যাপের পাসওয়ার্ড রিসেট লিংক ${email} এ পাঠানো হয়েছে। ইমেইল চেক করে টার্গেট পাসওয়ার্ড সেট করুন।`);
     } catch (err: any) {

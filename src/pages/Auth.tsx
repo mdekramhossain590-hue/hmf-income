@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, AuthProvider as FirebaseAuthProvider } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp, collection, query, where, getDocs, updateDoc, increment, addDoc, getDoc } from 'firebase/firestore';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, AuthProvider as FirebaseAuthProvider } from '@/src/lib/mock-auth';
+import { doc, setDoc, serverTimestamp, collection, query, where, getDocs, updateDoc, increment, addDoc, getDoc } from '@/src/lib/mock-firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { processRegistrationReferral } from '../lib/referral';
 import { useAuth } from '../components/AuthProvider';

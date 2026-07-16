@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { MapPin, CheckCircle2, XCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Celebration } from '../components/Celebration';
-import { doc, updateDoc, increment, collection, addDoc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
+import { doc, updateDoc, increment, collection, addDoc, serverTimestamp, getDoc, setDoc } from '@/src/lib/mock-firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { getCachedDoc } from '../lib/cache';
 import { useAuth } from '../components/AuthProvider';

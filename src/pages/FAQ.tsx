@@ -28,7 +28,7 @@ export function FAQ() {
   const [dynamicFaqs, setDynamicFaqs] = useState<any[]>([]);
 
   useEffect(() => {
-    import('firebase/firestore').then(({ doc }) => {
+    import('@/src/lib/mock-firestore').then(({ doc }) => {
       import('../lib/firebase').then(({ db }) => {
         import('../lib/cache').then(({ getCachedDoc }) => {
           getCachedDoc(doc(db, "settings", "faqs")).then((docSnap) => {

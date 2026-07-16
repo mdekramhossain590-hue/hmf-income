@@ -18,17 +18,33 @@ export const signOut = (auth: any) => {
 };
 
 export const signInWithEmailAndPassword = async (auth: any, email: string, pass: string) => {
-  const res = await callApi('auth_login', { email, password: pass });
-  const user = { uid: res.uid, email: res.email };
-  localStorage.setItem('mock_user', JSON.stringify(user));
-  return { user };
+  try {
+    const res = await callApi('auth_login', { email, password: pass });
+    const user = { uid: res.uid, email: res.email };
+    localStorage.setItem('mock_user', JSON.stringify(user));
+    window.location.reload();
+    return { user };
+  } catch (err: any) {
+    if (err.message?.includes('User-not-found') || err.message?.includes('Invalid password')) {
+      err.code = 'auth/invalid-credential';
+    }
+    throw err;
+  }
 };
 
 export const createUserWithEmailAndPassword = async (auth: any, email: string, pass: string) => {
-  const res = await callApi('auth_register', { email, password: pass });
-  const user = { uid: res.uid, email: res.email };
-  localStorage.setItem('mock_user', JSON.stringify(user));
-  return { user };
+  try {
+    const res = await callApi('auth_register', { email, password: pass });
+    const user = { uid: res.uid, email: res.email };
+    localStorage.setItem('mock_user', JSON.stringify(user));
+    window.location.reload();
+    return { user };
+  } catch (err: any) {
+    if (err.message?.includes('already in use')) {
+      err.code = 'auth/email-already-in-use';
+    }
+    throw err;
+  }
 };
 
 export const signInWithPopup = async () => {

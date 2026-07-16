@@ -19,7 +19,7 @@ import {
   deleteDoc,
   getDocs,
   getCountFromServer, where,
-} from "firebase/firestore";
+} from '@/src/lib/mock-firestore';
 import { ActivationPopup } from "../components/ActivationPopup";
 import { Celebration } from "../components/Celebration";
 import { motion, AnimatePresence } from "motion/react";
@@ -83,7 +83,7 @@ export function Dashboard() {
     if (!uid) return;
     const fetchReferralCount = async () => {
       try {
-        const { getCountFromServer, query, collection, where } = await import('firebase/firestore');
+        const { getCountFromServer, query, collection, where } = await import('@/src/lib/mock-firestore');
         const snap = await getCountFromServer(query(collection(db, "users", uid, "referrals")));
         setActualReferralsCount(snap.data().count);
       } catch (error) {
@@ -1101,7 +1101,7 @@ export function Dashboard() {
               try {
                 const batch = writeBatch(db);
                 // import serverTimestamp from firestore:
-                const { serverTimestamp, increment } = await import('firebase/firestore');
+                const { serverTimestamp, increment } = await import('@/src/lib/mock-firestore');
                 
                 batch.update(doc(db, "users", auth.currentUser.uid), {
                   "balances.partner": increment(partnerSettings.dailyBonus),

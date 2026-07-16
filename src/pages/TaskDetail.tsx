@@ -26,7 +26,7 @@ import {
   query,
   where,
   getDocs,
-} from "firebase/firestore";
+} from '@/src/lib/mock-firestore';
 import { db, handleFirestoreError, OperationType, auth } from "../lib/firebase";
 import { getCachedDoc, getCachedQuery } from "../lib/cache";
 import { FullPageLoader } from "../components/LoadingSpinner";

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthProvider';
 import { useLanguage } from '../components/LanguageProvider';
 import { useNavigate } from 'react-router-dom';
-import { doc, getDoc, collection, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, collection, writeBatch, serverTimestamp } from '@/src/lib/mock-firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { getCachedDoc } from '../lib/cache';
 import { ShieldCheck, ArrowRight, CreditCard } from 'lucide-react';

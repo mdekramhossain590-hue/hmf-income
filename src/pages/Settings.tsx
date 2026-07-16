@@ -5,7 +5,7 @@ import { useTheme } from '../components/ThemeProvider';
 import { useAuth } from '../components/AuthProvider';
 import { useLanguage } from '../components/LanguageProvider';
 import { db } from '../lib/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc } from '@/src/lib/mock-firestore';
 import { toast } from 'react-hot-toast';
 
 export function Settings() {

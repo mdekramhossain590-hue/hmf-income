@@ -1,4 +1,4 @@
-import { getDoc, getDocs, DocumentReference, DocumentSnapshot, Query, QuerySnapshot } from "firebase/firestore";
+import { getDoc, getDocs, DocumentReference, DocumentSnapshot, Query, QuerySnapshot } from '@/src/lib/mock-firestore';
 
 const docCache = new Map<string, { snap: DocumentSnapshot, timestamp: number }>();
 const queryCache = new Map<string, { snap: QuerySnapshot, timestamp: number }>();

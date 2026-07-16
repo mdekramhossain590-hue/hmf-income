@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Copy, Link as LinkIcon, MessageCircle, Send, Users, History, BarChart3, TrendingUp, Coins, Calendar, DollarSign, Layers, Shield } from 'lucide-react';
 import { useAuth } from '../components/AuthProvider';
 import { useLanguage } from '../components/LanguageProvider';
-import { collection, where, getCountFromServer, query, orderBy, getDoc, doc, getDocs, limit } from 'firebase/firestore';
+import { collection, where, getCountFromServer, query, orderBy, getDoc, doc, getDocs, limit } from '@/src/lib/mock-firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { getCachedQuery, getCachedDoc } from '../lib/cache';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -18,7 +18,7 @@ export function Refer() {
     if (!uid) return;
     const fetchReferralCount = async () => {
       try {
-        const { getCountFromServer, query, collection, where } = await import('firebase/firestore');
+        const { getCountFromServer, query, collection, where } = await import('@/src/lib/mock-firestore');
         const snap = await getCountFromServer(query(collection(db, "users", uid, "referrals")));
         setActualReferralsCount(snap.data().count);
       } catch (error) {

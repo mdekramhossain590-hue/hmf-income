@@ -1,4 +1,4 @@
-import { Timestamp } from "firebase/firestore";
+import { Timestamp } from '@/src/lib/mock-firestore';
 
 export interface GiftCode {
   id?: string;

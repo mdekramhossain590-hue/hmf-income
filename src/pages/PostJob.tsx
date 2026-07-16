@@ -10,7 +10,7 @@ import { useLanguage } from '../components/LanguageProvider';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { 
   collection, query, where, getDocs, doc, setDoc, writeBatch, increment, serverTimestamp 
-} from 'firebase/firestore';
+} from '@/src/lib/mock-firestore';
 import { Celebration } from '../components/Celebration';
 import toast from 'react-hot-toast';
 

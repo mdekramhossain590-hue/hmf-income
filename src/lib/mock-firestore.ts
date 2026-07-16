@@ -122,7 +122,8 @@ export const getDocs = async (queryRef: any) => {
     empty: docs.length === 0,
     size: docs.length,
     docs,
-    forEach: (cb: any) => docs.forEach(cb)
+    forEach: (cb: any) => docs.forEach(cb),
+    docChanges: () => docs.map((d: any) => ({ type: 'added', doc: d }))
   };
 };
 

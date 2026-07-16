@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { collection, query, where, getDocs, orderBy, doc, updateDoc, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, doc, updateDoc, limit } from '@/src/lib/mock-firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { Bell } from 'lucide-react';
 import { createRoot } from 'react-dom/client';
@@ -89,7 +89,7 @@ export function NotificationListener() {
     );
 
     try {
-      import('firebase/firestore').then(({ onSnapshot }) => {
+      import('@/src/lib/mock-firestore').then(({ onSnapshot }) => {
         unsubscribe = onSnapshot(q, (snapshot) => {
           let hasAdded = false;
 
