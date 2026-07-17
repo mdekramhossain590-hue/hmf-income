@@ -1,4 +1,4 @@
-import { doc, getDoc, updateDoc, increment, collection, addDoc, serverTimestamp, setDoc } from '@/src/lib/mock-firestore';
+import { doc, getDoc, updateDoc, increment, collection, addDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import { getCachedDoc } from './cache';
 
@@ -14,6 +14,8 @@ export async function processReferralCommission(userId: string, amountEarned: nu
     if (!currentReferCode || currentReferCode === 'none') {
       return;
     }
+    // Sanitize the code
+    currentReferCode = currentReferCode.replace(/[\u200B-\u200D\uFEFF\s]/g, '').trim();
     
     // Get the referral settings for percentage
     const refDoc = await getCachedDoc(doc(db, "settings", "referral"));
@@ -29,7 +31,7 @@ export async function processReferralCommission(userId: string, amountEarned: nu
     
     if (percents.every(p => p <= 0)) return;
     
-    const { query, where, getDocs } = await import('@/src/lib/mock-firestore');
+    const { query, where, getDocs } = await import('firebase/firestore');
     
     const sourceUserEmail = userDoc.data().email;
 
@@ -74,7 +76,7 @@ export async function processReferralCommission(userId: string, amountEarned: nu
       }
       
       // Move to next generation
-      currentReferCode = referrerData.usedReferCode;
+      currentReferCode = referrerData.usedReferCode ? referrerData.usedReferCode.replace(/[\u200B-\u200D\uFEFF\s]/g, '').trim() : '';
     }
   } catch (error) {
     console.error("Error processing referral commission:", error);
@@ -93,6 +95,8 @@ export async function processRegistrationReferral(userId: string) {
     if (!currentReferCode || currentReferCode === 'none') {
       return;
     }
+    // Sanitize the code to remove any zero-width spaces or whitespace
+    currentReferCode = currentReferCode.replace(/[\u200B-\u200D\uFEFF\s]/g, '').trim();
 
     let gen1 = 10, gen2 = 0, gen3 = 0;
     const refDoc = await getCachedDoc(doc(db, "settings", "referral"));
@@ -104,7 +108,7 @@ export async function processRegistrationReferral(userId: string) {
     }
     
     const bonuses = [gen1, gen2, gen3];
-    const { query, where, getDocs } = await import('@/src/lib/mock-firestore');
+    const { query, where, getDocs } = await import('firebase/firestore');
     
     for (let level = 0; level < 3; level++) {
       if (!currentReferCode || currentReferCode === 'none') break;
@@ -119,31 +123,35 @@ export async function processRegistrationReferral(userId: string) {
       const referrerId = referrerDoc.id;
       const referrerData = referrerDoc.data();
       
-      if (fixedBonus > 0) {
-        await addDoc(collection(db, `users/${referrerId}/referrals`), {
-          referredEmail: userData.email,
-          referredName: userData.fullName || 'Anonymous',
-          bonusEarned: fixedBonus,
-          level: level + 1,
-          createdAt: serverTimestamp()
-        });
+      // Always record the referral
+      await addDoc(collection(db, `users/${referrerId}/referrals`), {
+        referredEmail: userData.email,
+        referredName: userData.fullName || 'Anonymous',
+        bonusEarned: fixedBonus,
+        level: level + 1,
+        createdAt: serverTimestamp()
+      });
 
-        await updateDoc(doc(db, "users", referrerId), {
-          "balances.referral": increment(fixedBonus),
-          totalReferrals: increment(level === 0 ? 1 : 0)
-        });
-        
-        const leaderboardRef = doc(db, 'leaderboard', referrerId);
-        await setDoc(leaderboardRef, {
-          fullName: referrerData.fullName || 'User',
-          referrals: increment(level === 0 ? 1 : 0),
-          bonus: increment(0),
-          totalIncome: increment(fixedBonus),
-          updatedAt: serverTimestamp()
-        }, { merge: true });
+      const userUpdates: any = {
+        totalReferrals: increment(level === 0 ? 1 : 0)
+      };
+
+      if (fixedBonus > 0) {
+        userUpdates["balances.referral"] = increment(fixedBonus);
       }
       
-      currentReferCode = referrerData.usedReferCode;
+      await updateDoc(doc(db, "users", referrerId), userUpdates);
+      
+      const leaderboardRef = doc(db, 'leaderboard', referrerId);
+      await setDoc(leaderboardRef, {
+        fullName: referrerData.fullName || 'User',
+        referrals: increment(level === 0 ? 1 : 0),
+        bonus: increment(0),
+        totalIncome: increment(fixedBonus),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
+      currentReferCode = referrerData.usedReferCode ? referrerData.usedReferCode.replace(/[\u200B-\u200D\uFEFF\s]/g, '').trim() : '';
     }
 
     // Mark as paid

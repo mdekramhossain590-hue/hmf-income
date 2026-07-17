@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, AuthProvider as FirebaseAuthProvider } from '@/src/lib/mock-auth';
-import { doc, setDoc, serverTimestamp, collection, query, where, getDocs, updateDoc, increment, addDoc, getDoc } from '@/src/lib/mock-firestore';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
+import { doc, setDoc, serverTimestamp, collection, query, where, getDocs, updateDoc, increment, addDoc, getDoc } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { processRegistrationReferral } from '../lib/referral';
 import { useAuth } from '../components/AuthProvider';
@@ -136,7 +136,7 @@ export function Auth() {
         fullName: displayName,
         email: userEmail,
         myReferCode: myReferCode,
-        usedReferCode: referCode ? referCode.trim() : "none",
+        usedReferCode: referCode ? referCode.replace(/[\u200B-\u200D\uFEFF\s]/g, '').trim() : "none",
         balances: { main: 0, bonus: 10, referral: 0, partner: 0 },
         role: userRole,
         isActive: initialIsActive,
@@ -252,7 +252,7 @@ export function Auth() {
               type="text"
               placeholder="Referral Code (Optional)"
               value={referCode}
-              onChange={(e) => setReferCode(e.target.value)}
+              onChange={(e) => setReferCode(e.target.value.replace(/[\u200B-\u200D\uFEFF\s]/g, '').trim())}
               className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 text-base text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
             />
           )}

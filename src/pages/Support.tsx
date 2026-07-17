@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, HelpCircle, Mail, MessageCircle, Send, Globe, Shield } from 'lucide-react';
-import { doc, getDoc } from '@/src/lib/mock-firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { getCachedDoc } from '../lib/cache';
 

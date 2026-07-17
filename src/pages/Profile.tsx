@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Check, ChevronRight, HeadphonesIcon, LineChart, ShieldHalf, LogOut, Moon, Camera, Loader2, Edit2, Copy, Link, User, RefreshCw } from 'lucide-react';
-import { signOut } from '@/src/lib/mock-auth';
-import { doc, updateDoc } from '@/src/lib/mock-firestore';
+import { signOut } from 'firebase/auth';
+import { doc, updateDoc } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { uploadImageOrFallback } from '../lib/imageUpload';
 import { useAuth } from '../components/AuthProvider';

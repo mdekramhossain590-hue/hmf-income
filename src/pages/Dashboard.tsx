@@ -19,7 +19,7 @@ import {
   deleteDoc,
   getDocs,
   getCountFromServer, where,
-} from '@/src/lib/mock-firestore';
+} from 'firebase/firestore';
 import { ActivationPopup } from "../components/ActivationPopup";
 import { Celebration } from "../components/Celebration";
 import { motion, AnimatePresence } from "motion/react";
@@ -76,22 +76,33 @@ export function Dashboard() {
     linkText?: string;
   } | null>(null);
   const { t, language } = useLanguage();
-  const [actualReferralsCount, setActualReferralsCount] = useState<number>(profile?.totalReferrals || 0);
+    const [actualReferralsCount, setActualReferralsCount] = useState<number>(profile?.totalReferrals || 0);
 
   useEffect(() => {
     const uid = user?.uid;
     if (!uid) return;
-    const fetchReferralCount = async () => {
+    const fetchCount = async () => {
       try {
-        const { getCountFromServer, query, collection, where } = await import('@/src/lib/mock-firestore');
+        const { getCountFromServer, query, collection } = await import('firebase/firestore');
         const snap = await getCountFromServer(query(collection(db, "users", uid, "referrals")));
-        setActualReferralsCount(snap.data().count);
+        const realCount = snap.data().count;
+        setActualReferralsCount(Math.max(realCount, profile?.totalReferrals || 0));
+        
+        if (realCount > (profile?.totalReferrals || 0)) {
+           const { doc, updateDoc } = await import('firebase/firestore');
+           await updateDoc(doc(db, "users", uid), { totalReferrals: realCount });
+        }
       } catch (error) {
-        console.error("Failed to fetch actual referral count:", error);
+        console.error("Failed to fetch referral count:", error);
       }
     };
-    fetchReferralCount();
-  }, [user?.uid]);
+    fetchCount();
+  }, [user?.uid, profile?.totalReferrals]);
+
+
+
+
+
 
   const [dbNotifications, setDbNotifications] = useState<any[]>([]);
   const [showNotificationCenter, setShowNotificationCenter] = useState(false);
@@ -181,7 +192,7 @@ export function Dashboard() {
             const totalIncome = main + bonus + ref + taskSum;
             
             estimatedPaid += totalIncome;
-            estimatedTasks += currentTasksCount + Number(data.referralCount || 0);
+            estimatedTasks += currentTasksCount + Number(data.totalReferrals || 0);
 
             return {
               id: doc.id,
@@ -1101,7 +1112,7 @@ export function Dashboard() {
               try {
                 const batch = writeBatch(db);
                 // import serverTimestamp from firestore:
-                const { serverTimestamp, increment } = await import('@/src/lib/mock-firestore');
+                const { serverTimestamp, increment } = await import('firebase/firestore');
                 
                 batch.update(doc(db, "users", auth.currentUser.uid), {
                   "balances.partner": increment(partnerSettings.dailyBonus),

@@ -26,7 +26,7 @@ import {
   query,
   where,
   getDocs,
-} from '@/src/lib/mock-firestore';
+} from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from "../lib/firebase";
 import { getCachedDoc, getCachedQuery } from "../lib/cache";
 import { FullPageLoader } from "../components/LoadingSpinner";
@@ -103,6 +103,7 @@ export function TaskDetail() {
       setProofFile(file);
       setProofImage(""); // Clear URL if file is selected
       const reader = new FileReader();
+      reader.onerror = () => { console.error("FileReader error", reader.error); };
       reader.onloadend = () => {
         setImagePreview(reader.result as string);
       };

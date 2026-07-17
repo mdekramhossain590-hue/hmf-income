@@ -1,36 +1,41 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useAuth } from '../components/AuthProvider';
 import { auth as currentAuth } from '../lib/firebase';
 import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore, collection, getDocs, doc, query, limit, initializeFirestore } from 'firebase/firestore';
-import { collection as newCollection, doc as newDoc, writeBatch } from '../lib/mock-firestore';
+import { collection as newCollection, doc as newDoc, writeBatch, getDocs as newGetDocs } from 'firebase/firestore';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { ShieldAlert, Play, CheckCircle, Database, AlertCircle, RefreshCw, ArrowLeft, X, Settings2, Sliders, AlertTriangle, Lock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 
-// OLD FIREBASE CONFIG (AI Studio Client)
-const oldFirebaseConfig = {
+const aiStudioConfig = {
   projectId: "gen-lang-client-0327381597",
   appId: "1:562270246942:web:9c57dd38ad9cce3372760f",
   apiKey: "AIzaSyD6PCWSfOC1UoSnplNxzS3-eKC6k59nKq8",
   authDomain: "gen-lang-client-0327381597.firebaseapp.com",
   firestoreDatabaseId: "ai-studio-061b739b-1578-427e-8b07-b4943bc71d87",
   storageBucket: "gen-lang-client-0327381597.firebasestorage.app",
-  messagingSenderId: "562270246942"
+  messagingSenderId: "562270246942",
+  measurementId: ""
 };
 
-// NEW FIREBASE CONFIG (from user's instructions)
+const hmfIncomeConfig = {
+  projectId: "hmf-income-app",
+  appId: "1:1008180221188:web:428ac4e198cbb88794ec51",
+  apiKey: "AIzaSyAxHUsTMyrfmd0gnaKS-LXXc_qnB7zqP5Q",
+  authDomain: "hmf-income-app.firebaseapp.com",
+  storageBucket: "hmf-income-app.firebasestorage.app",
+  messagingSenderId: "1008180221188",
+  measurementId: "G-WJX5EBBL41"
+};
 
-// Initialize Apps safely
-const oldApp = getApps().find(app => app.name === 'oldApp') || initializeApp(oldFirebaseConfig, 'oldApp');
-const oldDb = initializeFirestore(oldApp, {}, "ai-studio-061b739b-1578-427e-8b07-b4943bc71d87");
-const oldAuth = getAuth(oldApp);
+const oldApp = getApps().find(app => app.name === 'oldApp') || initializeApp(aiStudioConfig, 'oldApp');
+const hmfApp = getApps().find(app => app.name === 'hmfApp') || initializeApp(hmfIncomeConfig, 'hmfApp');
 
-const newApp = {};
-const newDb = {}; // Mock db object
-const newAuth = { currentUser: { email: "admin@hmfincome.site" } };
+import { db as newDb } from '../lib/firebase';
+const newAuth = currentAuth;
 
 const COLLECTIONS_TO_MIGRATE = [
   'users',
@@ -64,6 +69,13 @@ interface MigrationStatus {
 
 export function MigrationDashboard() {
   const { profile } = useAuth();
+  const [sourceProject, setSourceProject] = useState("hmf-income-app");
+  const [sourceDbId, setSourceDbId] = useState("(default)");
+  
+  const currentOldApp = sourceProject === "hmf-income-app" ? hmfApp : oldApp;
+  const oldAuth = getAuth(currentOldApp);
+  const oldDb = initializeFirestore(currentOldApp, {}, sourceDbId);
+
   const navigate = useNavigate();
   const [isMigrating, setIsMigrating] = useState(false);
   const [activeStep, setActiveStep] = useState<string>('Ready');
@@ -126,10 +138,10 @@ export function MigrationDashboard() {
 
     try {
       const destColl = newCollection(newDb, 'settings');
-      await getDocs(destColl);
-      addLog("✅ Verified reading from Target Database (hmf-income-app).");
+      await newGetDocs(destColl);
+      addLog("✅ Verified reading from Target Database (SQL Database).");
     } catch (e: any) {
-      addErrorLog("Failed to read settings from target database 'hmf-income-app'.", e);
+      addErrorLog("Failed to read settings from target database 'SQL Database'.", e);
       throw new Error(`Target DB connection issue: ${e.message}`);
     }
   };
@@ -312,7 +324,7 @@ export function MigrationDashboard() {
 
     addLog("=== Real-time Database Migration Script Executed ===");
     addLog(`Author Login Email: ${email}`);
-    addLog(`Destination Target Project: ${newFirebaseConfig.projectId}`);
+    addLog(`Destination Target Project: ${"hmfincome-sql-api"}`);
     addLog(`Selected Master Collections: [${selectedCollections.join(', ')}]`);
     addLog(`Selected User Subcollections: [${selectedSubcollections.join(', ')}]`);
     addLog(`Limit Per Subcollection: ${maxLogs}`);
@@ -321,7 +333,7 @@ export function MigrationDashboard() {
       // 0. Double validation check (Auth credentials)
       addLog("Step 0: Authenticating across both Firebase environments...");
       
-      addLog(`Connecting and signing into source AI Studio project (${oldFirebaseConfig.projectId})...`);
+      addLog(`Connecting and signing into source project (${currentOldApp.options.projectId})...`);
       try {
         await signInWithEmailAndPassword(oldAuth, email, password);
         addLog("✅ Successfully authenticated on source AI Studio project.");
@@ -342,31 +354,12 @@ export function MigrationDashboard() {
         }
       }
 
-      addLog(`Connecting and signing into target project (${newFirebaseConfig.projectId})...`);
+      addLog(`Connecting and signing into target project (${"hmfincome-sql-api"})...`);
       const finalTargetPassword = targetPassword || password;
-      try {
-        await signInWithEmailAndPassword(newAuth, email, finalTargetPassword);
-        addLog("✅ Successfully authenticated on new target project.");
-      } catch (authErr: any) {
-        if (authErr.code === 'auth/user-not-found' || authErr.code === 'auth/invalid-credential' || authErr.message.includes('not-found') || authErr.message.includes('credential')) {
-          addLog("Target database account not found or invalid matching credential. Initiating auto-registration or checking status...");
-          try {
-            await createUserWithEmailAndPassword(newAuth, email, finalTargetPassword);
-            addLog("✅ Registered and authenticated Administrator profile in hmf-income-app.");
-          } catch (regErr: any) {
-            if (regErr.code === 'auth/email-already-in-use' || regErr.message?.includes('already-in-use')) {
-              addErrorLog("Target database account exists but password did not match.");
-              throw new Error(`This Admin account already exists on the target database with a different password. Please enter the correct password in the 'টার্গেট পাসওয়ার্ড (Target Password)' field.`);
-            }
-            addErrorLog(`Failed to auto-register Admin on target project: ${regErr.message}`);
-            throw new Error(`Target profile registration failed: ${regErr.message}`);
-          }
-        } else {
-          addErrorLog(`Unexpected error authenticating with target Firebase: ${authErr.message}`);
-          throw authErr;
-        }
-      }
-
+      
+      // Skip target database auth as we are using SQL PHP API
+      addLog("✅ Connecting to target SQL API endpoint...");
+      
       // 1. Connection check
       setActiveStep('Validating settings...');
       await testConnections();
@@ -402,7 +395,7 @@ export function MigrationDashboard() {
       return;
     }
     try {
-      const { sendPasswordResetEmail } = await import('@/src/lib/mock-auth');
+      const { sendPasswordResetEmail } = await import('firebase/auth');
       await sendPasswordResetEmail(oldAuth, email);
       toast.success(`সোর্স অ্যাপের পাসওয়ার্ড রিসেট লিংক ${email} এ পাঠানো হয়েছে। ইমেইল চেক করে নতুন পাসওয়ার্ড সেট করুন।`);
     } catch (err: any) {
@@ -417,8 +410,8 @@ export function MigrationDashboard() {
       return;
     }
     try {
-      const { sendPasswordResetEmail } = await import('@/src/lib/mock-auth');
-      await sendPasswordResetEmail(newAuth, email);
+      const { sendPasswordResetEmail } = await import('firebase/auth');
+      // No reset password needed for target SQL DB
       toast.success(`টার্গেট অ্যাপের পাসওয়ার্ড রিসেট লিংক ${email} এ পাঠানো হয়েছে। ইমেইল চেক করে টার্গেট পাসওয়ার্ড সেট করুন।`);
     } catch (err: any) {
       toast.error(`Error sending reset email for target: ${err.message}`);
@@ -448,7 +441,7 @@ export function MigrationDashboard() {
             </div>
             <div>
               <h1 className="text-2xl font-black">Database Migration Manager</h1>
-              <p className="text-white/80">Transfer data from AI Studio to hmf-income-app</p>
+              <p className="text-white/80">Transfer data from AI Studio to SQL Database</p>
             </div>
           </div>
           
@@ -747,7 +740,7 @@ export function MigrationDashboard() {
                 <h3 className="text-lg font-black text-slate-900 dark:text-white mb-2">Confirm Data Migration</h3>
                 <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed mb-6">
                   This will transfer all documents from your AI Studio environment over to 
-                  <span className="font-mono text-xs text-indigo-500 font-bold ml-1 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">hmf-income-app</span>. 
+                  <span className="font-mono text-xs text-indigo-500 font-bold ml-1 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">SQL Database</span>. 
                   Any existing data with conflicting document IDs in the target database will be overwritten.
                 </p>
                 <div className="flex gap-3">

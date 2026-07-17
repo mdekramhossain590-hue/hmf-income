@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calculator, CheckCircle2, XCircle, History } from 'lucide-react';
 import { Celebration } from '../components/Celebration';
-import { doc, updateDoc, increment, collection, addDoc, serverTimestamp, query, orderBy, getDocs, getDoc, limit, setDoc } from '@/src/lib/mock-firestore';
+import { doc, updateDoc, increment, collection, addDoc, serverTimestamp, query, orderBy, getDocs, getDoc, limit, setDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { getCachedDoc, getCachedQuery } from '../lib/cache';
 import { useAuth } from '../components/AuthProvider';

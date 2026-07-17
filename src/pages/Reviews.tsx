@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { History, List, Star, Shield } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthProvider';
-import { collection, query, orderBy, limit, getDocs } from '@/src/lib/mock-firestore';
+import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { getCachedQuery } from '../lib/cache';
 import { useLanguage } from '../components/LanguageProvider';

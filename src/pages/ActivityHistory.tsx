@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, orderBy, limit, getDocs, where } from '@/src/lib/mock-firestore';
+import { collection, query, orderBy, limit, getDocs, where } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { getCachedQuery } from '../lib/cache';
 import { Activity, CheckCircle, Clock, XCircle, ArrowDownCircle, ArrowUpCircle } from 'lucide-react';

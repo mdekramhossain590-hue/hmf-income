@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../components/AuthProvider';
-import { doc, getDoc, updateDoc, increment, arrayUnion, serverTimestamp, writeBatch, collection } from '@/src/lib/mock-firestore';
+import { doc, getDoc, updateDoc, increment, arrayUnion, serverTimestamp, writeBatch, collection } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import toast from 'react-hot-toast';
 import { motion } from 'motion/react';

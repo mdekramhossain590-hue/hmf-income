@@ -1,11 +1,21 @@
-import { initializeApp } from "./mock-app";
-import { getAuth } from "./mock-auth";
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "./mock-firestore";
+import { initializeApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
 import toast from "react-hot-toast";
 
-const app = initializeApp({});
+const firebaseConfig = {
+  projectId: "hmf-income-app",
+  appId: "1:1008180221188:web:428ac4e198cbb88794ec51",
+  apiKey: "AIzaSyAxHUsTMyrfmd0gnaKS-LXXc_qnB7zqP5Q",
+  authDomain: "hmf-income-app.firebaseapp.com",
+  storageBucket: "hmf-income-app.firebasestorage.app",
+  messagingSenderId: "1008180221188",
+  measurementId: "G-WJX5EBBL41"
+};
+
+const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = initializeFirestore();
+export const db = getFirestore(app);
 
 export enum OperationType {
   CREATE = 'create',
@@ -14,13 +24,6 @@ export enum OperationType {
   LIST = 'list',
   GET = 'get',
   WRITE = 'write',
-}
-
-interface FirestoreErrorInfo {
-  error: string;
-  operationType: OperationType;
-  path: string | null;
-  authInfo: any;
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {

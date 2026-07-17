@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Copy, Link as LinkIcon, MessageCircle, Send, Users, History, BarChart3, TrendingUp, Coins, Calendar, DollarSign, Layers, Shield } from 'lucide-react';
 import { useAuth } from '../components/AuthProvider';
 import { useLanguage } from '../components/LanguageProvider';
-import { collection, where, getCountFromServer, query, orderBy, getDoc, doc, getDocs, limit } from '@/src/lib/mock-firestore';
+import { collection, where, getCountFromServer, query, orderBy, getDoc, doc, getDocs, limit } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { getCachedQuery, getCachedDoc } from '../lib/cache';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -11,22 +11,33 @@ import toast from 'react-hot-toast';
 export function Refer() {
   const { profile, user } = useAuth();
   const { t, language } = useLanguage();
-  const [actualReferralsCount, setActualReferralsCount] = useState<number>(profile?.totalReferrals || 0);
+    const [actualReferralsCount, setActualReferralsCount] = useState<number>(profile?.totalReferrals || 0);
 
   useEffect(() => {
     const uid = user?.uid;
     if (!uid) return;
-    const fetchReferralCount = async () => {
+    const fetchCount = async () => {
       try {
-        const { getCountFromServer, query, collection, where } = await import('@/src/lib/mock-firestore');
+        const { getCountFromServer, query, collection } = await import('firebase/firestore');
         const snap = await getCountFromServer(query(collection(db, "users", uid, "referrals")));
-        setActualReferralsCount(snap.data().count);
+        const realCount = snap.data().count;
+        setActualReferralsCount(Math.max(realCount, profile?.totalReferrals || 0));
+        
+        if (realCount > (profile?.totalReferrals || 0)) {
+           const { doc, updateDoc } = await import('firebase/firestore');
+           await updateDoc(doc(db, "users", uid), { totalReferrals: realCount });
+        }
       } catch (error) {
-        console.error("Failed to fetch actual referral count:", error);
+        console.error("Failed to fetch referral count:", error);
       }
     };
-    fetchReferralCount();
-  }, [user?.uid]);
+    fetchCount();
+  }, [user?.uid, profile?.totalReferrals]);
+
+
+
+
+
   const [referrals, setReferrals] = useState<any[]>([]);
     const [referralBonus, setReferralBonus] = useState(10);
   const [partnerSettings, setPartnerSettings] = useState({ requiredReferrals: 10, dailyBonus: 100, enabled: true });

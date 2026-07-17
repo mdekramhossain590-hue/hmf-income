@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Trophy, Medal, Crown, Star, TrendingUp, User } from 'lucide-react';
-import { collection, query, orderBy, limit, getDocs } from '@/src/lib/mock-firestore';
+import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { getCachedQuery } from '../lib/cache';
 import { LoadingSpinner } from '../components/LoadingSpinner';
@@ -36,7 +36,7 @@ export function Leaderboard() {
               fullName: data.fullName || "User",
               photoURL: data.photoURL || null,
               totalIncome,
-              referrals: Number(data.referralCount || 0),
+              referrals: Number(data.referralCount || data.totalReferrals || 0),
               bonus
             };
           } catch (err) {

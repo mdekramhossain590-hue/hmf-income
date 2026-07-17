@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { onAuthStateChanged, User, signOut } from '@/src/lib/mock-auth';
-import { doc, getDoc, updateDoc, setDoc } from '@/src/lib/mock-firestore';
+import { onAuthStateChanged, User, signOut } from 'firebase/auth';
+import { doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { getCachedDoc } from '../lib/cache';
 import { useLanguage } from './LanguageProvider';
@@ -24,6 +24,7 @@ export interface UserProfile {
   permissions?: string[];
   isActive?: boolean;
   totalReferrals?: number;
+  referralCount?: number;
   partnerClaimedAt?: any;
   totalTasksCompleted?: number;
   isBlocked?: boolean;

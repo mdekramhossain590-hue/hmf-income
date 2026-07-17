@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { doc, getDoc } from '@/src/lib/mock-firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { getCachedDoc } from '../lib/cache';
 import { X, Send, ArrowRight, BellRing } from 'lucide-react';

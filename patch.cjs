@@ -1,23 +1,70 @@
 const fs = require('fs');
-let code = fs.readFileSync('src/pages/MigrationDashboard.tsx', 'utf8');
+let code = fs.readFileSync('src/lib/referral.ts', 'utf8');
 
-code = code.replace(
-  `import { getFirestore, collection, getDocs, writeBatch, doc, query, limit, initializeFirestore } from 'firebase/firestore';`,
-  `import { getFirestore, collection, getDocs, doc, query, limit, initializeFirestore } from 'firebase/firestore';\nimport { collection as newCollection, doc as newDoc, writeBatch } from '../lib/mock-firestore';`
-);
+const target = `      const referrerData = referrerDoc.data();
+      
+      if (fixedBonus > 0) {
+        await addDoc(collection(db, \`users/\${referrerId}/referrals\`), {
+          referredEmail: userData.email,
+          referredName: userData.fullName || 'Anonymous',
+          bonusEarned: fixedBonus,
+          level: level + 1,
+          createdAt: serverTimestamp()
+        });
 
-code = code.replace(
-  `const newDb = getFirestore(newApp);`,
-  `const newDb = {}; // Mock db object`
-);
+        await updateDoc(doc(db, "users", referrerId), {
+          "balances.referral": increment(fixedBonus),
+          totalReferrals: increment(level === 0 ? 1 : 0)
+        });
+        
+        const leaderboardRef = doc(db, 'leaderboard', referrerId);
+        await setDoc(leaderboardRef, {
+          fullName: referrerData.fullName || 'User',
+          referrals: increment(level === 0 ? 1 : 0),
+          bonus: increment(0),
+          totalIncome: increment(fixedBonus),
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      }
+      
+      currentReferCode = referrerData.usedReferCode;`;
 
-// We need to replace collection(newDb, ...) with newCollection(newDb, ...)
-// and doc(newDb, ...) or doc(newSubCollRef, ...) with newDoc(...)
-code = code.replace(/collection\(newDb/g, 'newCollection(newDb');
-code = code.replace(/doc\(newDb/g, 'newDoc(newDb');
-code = code.replace(/doc\(newSubCollRef/g, 'newDoc(newSubCollRef');
-code = code.replace(/doc\(newCollRef/g, 'newDoc(newCollRef');
-// Also doc(newDb, 'settings', testDocId)
-code = code.replace(/doc\(newDb,\s*'settings'/g, "newDoc(newDb, 'settings'");
+const replacement = `      const referrerData = referrerDoc.data();
+      
+      // Always record the referral
+      await addDoc(collection(db, \`users/\${referrerId}/referrals\`), {
+        referredEmail: userData.email,
+        referredName: userData.fullName || 'Anonymous',
+        bonusEarned: fixedBonus,
+        level: level + 1,
+        createdAt: serverTimestamp()
+      });
 
-fs.writeFileSync('src/pages/MigrationDashboard.tsx', code);
+      const userUpdates: any = {
+        totalReferrals: increment(level === 0 ? 1 : 0)
+      };
+
+      if (fixedBonus > 0) {
+        userUpdates["balances.referral"] = increment(fixedBonus);
+      }
+      
+      await updateDoc(doc(db, "users", referrerId), userUpdates);
+      
+      const leaderboardRef = doc(db, 'leaderboard', referrerId);
+      await setDoc(leaderboardRef, {
+        fullName: referrerData.fullName || 'User',
+        referrals: increment(level === 0 ? 1 : 0),
+        bonus: increment(0),
+        totalIncome: increment(fixedBonus),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
+      currentReferCode = referrerData.usedReferCode;`;
+
+if (code.includes(target)) {
+    code = code.replace(target, replacement);
+    fs.writeFileSync('src/lib/referral.ts', code);
+    console.log("Patched successfully.");
+} else {
+    console.log("Target not found.");
+}

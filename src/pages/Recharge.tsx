@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthProvider';
 import { useNavigate } from 'react-router-dom';
 import { Smartphone, ArrowLeft, Send, Wallet } from 'lucide-react';
-import { collection, doc, writeBatch, increment, serverTimestamp, getDoc } from '@/src/lib/mock-firestore';
+import { collection, doc, writeBatch, increment, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { getCachedDoc } from '../lib/cache';
 import toast from 'react-hot-toast';

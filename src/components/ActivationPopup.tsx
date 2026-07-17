@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from './AuthProvider';
 import { useNavigate } from 'react-router-dom';
-import { doc, getDoc, updateDoc, increment } from '@/src/lib/mock-firestore';
+import { doc, getDoc, updateDoc, increment } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { getCachedDoc } from '../lib/cache';
 import { processRegistrationReferral } from '../lib/referral';
