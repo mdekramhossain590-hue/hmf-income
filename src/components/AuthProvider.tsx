@@ -191,11 +191,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
+    let unsubscribeProfile: any = null;
+
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       setUser(user);
       if (user) {
         await refreshProfile(user.uid);
+        
+        // Setup real-time listener
+        try {
+          unsubscribeProfile = onSnapshot(doc(db, 'users', user.uid), (docSnap) => {
+            if (docSnap.exists()) {
+              const data = docSnap.data();
+              
+              setProfile(prev => {
+                if (!prev) return data;
+                // Preserve deviceId if it was just added locally and not yet synced back
+                return { ...data, deviceId: data.deviceId || prev.deviceId };
+              });
+              
+              try {
+                localStorage.setItem(`profile_${user.uid}`, JSON.stringify(data));
+              } catch(e) {}
+            }
+          }, (err) => {
+             console.warn("Profile snapshot error", err);
+          });
+        } catch (e) {
+          console.warn("Could not set up onSnapshot", e);
+        }
+
       } else {
+        if (unsubscribeProfile) {
+          unsubscribeProfile();
+          unsubscribeProfile = null;
+        }
         setProfile(null);
       }
       setLoading(false);
@@ -248,6 +278,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       unsubscribeAuth();
+      if (unsubscribeProfile) unsubscribeProfile();
       clearTimeout(loadingFallback);
     };
   }, []);

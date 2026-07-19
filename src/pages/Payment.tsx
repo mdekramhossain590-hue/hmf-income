@@ -4,6 +4,7 @@ import { useLanguage } from '../components/LanguageProvider';
 import { useNavigate } from 'react-router-dom';
 import { doc, getDoc, collection, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
+import { processRegistrationReferral } from '../lib/referral';
 import { getCachedDoc } from '../lib/cache';
 import { ShieldCheck, ArrowRight, CreditCard } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -67,6 +68,7 @@ export function Payment() {
       const batch = writeBatch(db);
       batch.update(doc(db, 'users', auth.currentUser.uid), { isActive: true });
       await batch.commit();
+      await processRegistrationReferral(auth.currentUser.uid);
       await refreshProfile();
       toast.success("Account activated automatically!");
       navigate('/');

@@ -114,7 +114,7 @@ export function ActivationPopup({ onClose }: { onClose: () => void }) {
                 <div>
                   <span className="block text-[10px] font-black text-slate-400 dark:text-slate-555 uppercase tracking-widest">Activation Mode</span>
                   <span className="text-sm font-bold text-slate-800 dark:text-slate-300">
-                    {settings.mode === 'paid' ? 'Paid Activation (ফি)' : 'Instant Trial (ফ্রি)'}
+                    {settings.mode === 'paid' ? 'Paid Activation (ফি)' : 'Free Activation (ফ্রি)'}
                   </span>
                 </div>
                 <div className="text-right">
@@ -137,13 +137,17 @@ export function ActivationPopup({ onClose }: { onClose: () => void }) {
               <div className="space-y-2.5">
                 <button
                   onClick={() => {
-                    navigate('/payment');
-                    onClose();
+                    if (settings.mode === 'paid') {
+                      navigate('/payment');
+                      onClose();
+                    } else {
+                      handleActivate();
+                    }
                   }}
                   disabled={activating}
                   className="w-full flex items-center justify-center gap-2 py-4 rounded-[18px] text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-600/10 bg-indigo-600 hover:bg-indigo-550 text-white transition-all active:scale-[0.98] disabled:opacity-75"
                 >
-                  <ShieldCheck className="w-4 h-4" /> Act Now / পেমেন্ট করুন
+                  {settings.mode === 'paid' ? <><ShieldCheck className="w-4 h-4" /> Act Now / পেমেন্ট করুন</> : <><ShieldCheck className="w-4 h-4" /> Activate for Free</>}
                   <ChevronRight className="w-4 h-4" />
                 </button>
 

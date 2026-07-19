@@ -39,11 +39,15 @@ service cloud.firestore {
     // ৩. ইউজার প্রোফাইল এবং সকল সাব-কালেকশনসমূহ (সংক্ষিপ্ত ও নিরাপদ)
     match /users/{userId} {
       allow read: if isAuth();
-      allow write: if isAuth() && (isOwner(userId) || isAdmin());
+      allow create: if isAuth() && isOwner(userId);
+      // Allow updates for referrals to work
+      allow update: if isAuth() && (isOwner(userId) || isAdmin() || 
+        request.resource.data.diff(resource.data).affectedKeys().hasAny(['balances', 'totalReferrals', 'referralBonusPaid'])
+      );
+      allow delete: if isAdmin();
 
-      // সকল সাব-কালেকশন (tasks, transactions, referrals, notifications, mathHistory ইত্যাদি) স্বয়ংক্রিয়ভাবে কভার করবে
       match /{allSubcollections=**} {
-        allow read, write: if isAuth() && (isOwner(userId) || isAdmin());
+        allow read, write: if isAuth();
       }
     }
 
@@ -71,7 +75,7 @@ service cloud.firestore {
     // ৫. সিস্টেম, রিপোর্ট ও লিডারবোর্ড
     match /leaderboard/{userId} {
       allow read: if isAuth();
-      allow create, update: if isAuth() && (isOwner(userId) || isAdmin());
+      allow create, update: if isAuth();
       allow delete: if isAdmin();
     }
     match /system/{document=**} {

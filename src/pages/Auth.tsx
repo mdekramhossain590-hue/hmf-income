@@ -136,7 +136,7 @@ export function Auth() {
         fullName: displayName,
         email: userEmail,
         myReferCode: myReferCode,
-        usedReferCode: referCode ? referCode.replace(/[\u200B-\u200D\uFEFF\s]/g, '').trim() : "none",
+        usedReferCode: referCode ? referCode.replace(/[\u200B-\u200D\uFEFF\s]/g, '').trim().toUpperCase() : "none",
         balances: { main: 0, bonus: 10, referral: 0, partner: 0 },
         role: userRole,
         isActive: initialIsActive,

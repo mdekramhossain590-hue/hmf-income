@@ -57,6 +57,22 @@ export function Dashboard() {
 
 
 
+
+  useEffect(() => {
+    const checkMissedReferral = async () => {
+      if (profile && profile.isActive && !profile.referralBonusPaid && profile.usedReferCode && profile.usedReferCode !== 'none') {
+        console.log("Retrying missed referral processing...");
+        try {
+          await processRegistrationReferral(auth.currentUser!.uid);
+          await refreshProfile();
+        } catch(e) {
+          console.error(e);
+        }
+      }
+    };
+    checkMissedReferral();
+  }, [profile?.isActive, profile?.referralBonusPaid, profile?.usedReferCode]);
+
   useEffect(() => {
     // Show PWA prompt if available on load
     const unsubscribe = onPwaPrompt((prompt) => {
@@ -1027,7 +1043,7 @@ export function Dashboard() {
                   ) : (
                     <h1 className="text-2xl sm:text-4xl font-display font-black tracking-tight text-white mt-1 leading-none">
                       {showBalance
-                        ? `৳ ${((profile?.balances?.main || 0) + (profile?.balances?.bonus || 0) + (profile?.balances?.referral || 0) + (profile?.balances?.gift || 0) + Object.values(profile?.balances?.tasks || {}).reduce((a, b) => (a as number) + (b as number), 0)).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                        ? `৳ ${((profile?.balances?.main || 0) + (profile?.balances?.bonus || 0) + (profile?.balances?.referral || 0) + (profile?.balances?.gift || 0) + (profile?.balances?.partner || 0) + Object.values(profile?.balances?.tasks || {}).reduce((a, b) => (a as number) + (b as number), 0)).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                         : "৳ ••••••"}
                     </h1>
                   )}
@@ -1129,6 +1145,7 @@ export function Dashboard() {
                 });
                 
                 await batch.commit();
+                if (refreshProfile) await refreshProfile();
                 setShowCelebration(true);
                 toast.success(`৳${partnerSettings.dailyBonus} daily partner bonus claimed!`);
               } catch (err) {

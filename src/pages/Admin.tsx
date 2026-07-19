@@ -231,6 +231,167 @@ export function AdminPanel() {
     } catch(e) { console.warn("Error loading data:", e); }
   }, [isAdmin, activeTab]);
 
+  const handleDeleteDuplicateAdmins = async () => {
+    try {
+      toast.success("Delete admins started...");
+      console.log("Delete admins started");
+    
+    
+    toast.loading("Finding and deleting accounts...");
+      const { query, collection, where, getDocs, deleteDoc, doc } = await import('firebase/firestore');
+      
+      const q = query(
+        collection(db, "users"),
+        where("email", "==", "mdekramhossain590@gmail.com")
+      );
+      
+      const snapshot = await getDocs(q);
+      let deleted = 0;
+      let kept = 0;
+      
+      for (const userDoc of snapshot.docs) {
+        const data = userDoc.data();
+        if (data.myReferCode === "NN743526") {
+          kept++;
+        } else {
+          await deleteDoc(doc(db, "users", userDoc.id));
+          deleted++;
+        }
+      }
+      
+      toast.dismiss(loadingToast);
+      toast.success(`Successfully deleted ${deleted} duplicate admin accounts. Kept ${kept} account.`);
+      loadData(true);
+    } catch (e) {
+      toast.dismiss(loadingToast);
+      toast.error("Failed to delete accounts.");
+      console.error(e);
+    }
+  };
+
+  const handleFixOldReferrals = async () => {
+    try {
+      toast.success("Fix referrals started...");
+      console.log("Fix referrals started");
+      const loadingToast = toast.loading("Finding and processing old referrals...");
+      const { query, collection, where, getDocs, updateDoc, doc, serverTimestamp, increment, setDoc, addDoc } = await import('firebase/firestore');
+      
+      // Get referral settings
+      const { getDoc } = await import('firebase/firestore');
+      const settingsDoc = await getDoc(doc(db, "settings", "referral"));
+      let gen1 = 10, gen2 = 0, gen3 = 0;
+      if (settingsDoc.exists()) {
+        const data = settingsDoc.data();
+        gen1 = data.fixedBonus || 0;
+        gen2 = data.gen2FixedBonus || 0;
+        gen3 = data.gen3FixedBonus || 0;
+      }
+      const bonuses = [gen1, gen2, gen3];
+
+      // Query all users to avoid index requirements
+      const q = query(collection(db, "users"));
+      const snapshot = await getDocs(q);
+      let processed = 0;
+      let alreadyPaid = 0;
+      let logMsg = "";
+      
+      for (const userDoc of snapshot.docs) {
+        const data = userDoc.data();
+        
+        if (data.usedReferCode && data.usedReferCode !== 'none') {
+          const sanitizedCode = data.usedReferCode.replace(/[\u200B-\u200D\uFEFF\s]/g, '').trim().toUpperCase();
+          
+          if (data.usedReferCode !== sanitizedCode) {
+            await updateDoc(doc(db, "users", userDoc.id), { usedReferCode: sanitizedCode });
+          }
+
+          // Check if referrer actually received the referral
+          const referrerQuery = query(collection(db, "users"), where("myReferCode", "==", sanitizedCode));
+          const referrerSnapshot = await getDocs(referrerQuery);
+          
+          if (!referrerSnapshot.empty) {
+            const referrerDoc = referrerSnapshot.docs[0];
+            const referrerId = referrerDoc.id;
+            
+            // Allow matching by email or just checking if they've been paid
+            let missed = false;
+            
+            if (data.email) {
+              const refSubQuery = query(collection(db, `users/${referrerId}/referrals`), where("referredEmail", "==", data.email));
+              const refSubSnapshot = await getDocs(refSubQuery);
+              if (refSubSnapshot.empty) missed = true;
+            } else {
+              missed = !data.referralBonusPaid;
+            }
+            
+            if (missed) {
+               console.log("Found missed referral for user:", data.email || userDoc.id, "referred by", sanitizedCode);
+               
+               // Manually process it directly here so it never fails
+               let currentReferCode = sanitizedCode;
+               for (let level = 0; level < 3; level++) {
+                  if (!currentReferCode || currentReferCode === 'none') break;
+                  const fixedBonus = bonuses[level];
+                  
+                  const refQ = query(collection(db, "users"), where("myReferCode", "==", currentReferCode));
+                  const refSnap = await getDocs(refQ);
+                  if (refSnap.empty) break;
+                  
+                  const rDoc = refSnap.docs[0];
+                  const rId = rDoc.id;
+                  const rData = rDoc.data();
+                  
+                  // Add to subcollection if level 1 (or all levels depending on logic)
+                  await addDoc(collection(db, `users/${rId}/referrals`), {
+                    referredEmail: data.email || 'No Email',
+                    referredName: data.fullName || 'Anonymous',
+                    bonusEarned: fixedBonus,
+                    level: level + 1,
+                    createdAt: serverTimestamp()
+                  });
+                  
+                  const userUpdates = {
+                    totalReferrals: increment(level === 0 ? 1 : 0)
+                  };
+                  if (fixedBonus > 0) {
+                    userUpdates["balances.referral"] = increment(fixedBonus);
+                  }
+                  await updateDoc(doc(db, "users", rId), userUpdates);
+                  
+                  const leaderboardRef = doc(db, 'leaderboard', rId);
+                  await setDoc(leaderboardRef, {
+                    fullName: rData.fullName || 'User',
+                    referrals: increment(level === 0 ? 1 : 0),
+                    bonus: increment(0),
+                    totalIncome: increment(fixedBonus),
+                    updatedAt: serverTimestamp()
+                  }, { merge: true });
+                  
+                  currentReferCode = rData.usedReferCode ? rData.usedReferCode.replace(/[\u200B-\u200D\uFEFF\s]/g, '').trim().toUpperCase() : '';
+               }
+               
+               await updateDoc(doc(db, "users", userDoc.id), { referralBonusPaid: true });
+               processed++;
+               continue;
+            }
+          }
+        }
+        
+        if (data.referralBonusPaid) {
+          alreadyPaid++;
+        }
+      }
+      
+      toast.dismiss(loadingToast);
+      toast.success(`Successfully processed ${processed} missed referrals (skipped ${alreadyPaid} valid).`);
+      loadData(true);
+    } catch (e) {
+      toast.dismiss(loadingToast);
+      toast.error("Failed to process old referrals: " + e.message);
+      console.error(e);
+    }
+  };
+
   useEffect(() => {
     if (!isAdmin) return;
     
@@ -2497,10 +2658,25 @@ export function AdminPanel() {
 
       {activeTab === 'users' && (
         <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 px-1">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 px-1">
             <h3 className="font-black dark:text-white flex items-center gap-2 uppercase tracking-tight text-sm">
               <Users className="w-4 h-4 text-indigo-500" /> Database Entities ({userList.length})
             </h3>
+            
+                        <button
+              type="button"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteDuplicateAdmins(); }}
+              className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold"
+            >
+              Delete Duplicate Admins
+            </button>
+            <button
+              type="button"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleFixOldReferrals(); }}
+              className="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold"
+            >
+              Fix Old Referrals
+            </button>
             
             <div className="relative w-full sm:w-72">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">

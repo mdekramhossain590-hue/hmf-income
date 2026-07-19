@@ -15,7 +15,7 @@ export async function processReferralCommission(userId: string, amountEarned: nu
       return;
     }
     // Sanitize the code
-    currentReferCode = currentReferCode.replace(/[\u200B-\u200D\uFEFF\s]/g, '').trim();
+    currentReferCode = currentReferCode.replace(/[\u200B-\u200D\uFEFF\s]/g, '').trim().toUpperCase();
     
     // Get the referral settings for percentage
     const refDoc = await getCachedDoc(doc(db, "settings", "referral"));
@@ -39,8 +39,11 @@ export async function processReferralCommission(userId: string, amountEarned: nu
       if (!currentReferCode || currentReferCode === 'none') break;
       const percentage = percents[level];
       
-      const q = query(collection(db, "users"), where("myReferCode", "==", currentReferCode));
-      const querySnapshot = await getDocs(q);
+      
+    const q = query(collection(db, "users"), where("myReferCode", "==", currentReferCode));
+    const querySnapshot = await getDocs(q);
+    console.log("Query for refer code:", currentReferCode, " empty:", querySnapshot.empty);
+
       
       if (querySnapshot.empty) break;
       
@@ -85,10 +88,13 @@ export async function processReferralCommission(userId: string, amountEarned: nu
 
 export async function processRegistrationReferral(userId: string) {
   try {
-    const userDoc = await getDoc(doc(db, "users", userId));
-    if (!userDoc.exists()) return;
     
+    const userDoc = await getDoc(doc(db, "users", userId));
+    console.log("processRegistrationReferral started for userId:", userId, " exists:", userDoc.exists());
+    if (!userDoc.exists()) return;
     const userData = userDoc.data();
+    console.log("userData.referralBonusPaid:", userData.referralBonusPaid, " usedReferCode:", userData.usedReferCode);
+
     if (userData.referralBonusPaid) return; // Already paid
     
     let currentReferCode = userData.usedReferCode;
@@ -96,7 +102,7 @@ export async function processRegistrationReferral(userId: string) {
       return;
     }
     // Sanitize the code to remove any zero-width spaces or whitespace
-    currentReferCode = currentReferCode.replace(/[\u200B-\u200D\uFEFF\s]/g, '').trim();
+    currentReferCode = currentReferCode.replace(/[\u200B-\u200D\uFEFF\s]/g, '').trim().toUpperCase();
 
     let gen1 = 10, gen2 = 0, gen3 = 0;
     const refDoc = await getCachedDoc(doc(db, "settings", "referral"));
