@@ -75,7 +75,7 @@ export function PostJob() {
 
   const handlePostJob = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auth.currentUser || !profile) return;
+    if (!auth.currentUser || !profile || isSubmitting) return;
 
     if (reward < 1) {
       toast.error('Minimum reward per task is ৳1.00');

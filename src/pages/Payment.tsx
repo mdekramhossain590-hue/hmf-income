@@ -58,7 +58,7 @@ export function Payment() {
   }, [profile, navigate]);
 
   const handleFreeActivation = async () => {
-    if (!auth.currentUser) return;
+    if (!auth.currentUser || submitting) return;
     if (settings.mode !== 'free') {
       toast.error("Free activation is currently disabled.");
       return;
@@ -81,7 +81,7 @@ export function Payment() {
 
   const handlePayment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auth.currentUser) return;
+    if (!auth.currentUser || submitting) return;
     if (!paymentMethod || !paymentAccount || !paymentTrx) {
       toast.error('Please fill all fields');
       return;
@@ -89,6 +89,18 @@ export function Payment() {
 
     setSubmitting(true);
     try {
+      const { query, collection, where, getDocs } = await import('firebase/firestore');
+      const q = query(
+        collection(db, "users", auth.currentUser.uid, "transactions"),
+        where("type", "==", "activation"),
+        where("status", "==", "pending")
+      );
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        toast.error("You already have a pending activation request.");
+        setSubmitting(false);
+        return;
+      }
       const batch = writeBatch(db);
       
       const newTransactionRef = doc(collection(db, "users", auth.currentUser.uid, "transactions"));

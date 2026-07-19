@@ -72,7 +72,7 @@ export function Profile() {
   };
 
   const handleSaveName = async () => {
-    if (!newName.trim() || !auth.currentUser) return;
+    if (!newName.trim() || !auth.currentUser || savingName) return;
     
     setSavingName(true);
     try {

@@ -42,7 +42,7 @@ export function Recharge() {
 
   const handleRecharge = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auth.currentUser) return;
+    if (!auth.currentUser || loading) return;
     
     let currentBal = 0;
     if (selectedWallet === 'main') currentBal = profile?.balances?.main || 0;

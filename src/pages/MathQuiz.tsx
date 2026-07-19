@@ -95,6 +95,7 @@ export function MathQuiz() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     if (!hasMetRequirements()) {
       toast.error(`You need at least ${mathReq.taskReq} tasks completed and ${mathReq.referReq} referrals to do math quiz.`);
       return;

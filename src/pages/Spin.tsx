@@ -152,6 +152,7 @@ export function Spin() {
   const gradientStops = rewards.map((_, i) => `${colors[i % colors.length]} ${i * sliceDegree}deg ${(i + 1) * sliceDegree}deg`).join(', ');
 
   const spinWheel = async () => {
+    if (isSpinning) return;
     if (!hasMetRequirements()) {
       toast.error(`You need at least ${spinReq.taskReq} tasks completed and ${spinReq.referReq} referrals to spin.`);
       return;

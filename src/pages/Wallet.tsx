@@ -129,10 +129,12 @@ export function Wallet() {
   const [withdrawMethod, setWithdrawMethod] = useState('');
   const [withdrawAccount, setWithdrawAccount] = useState('');
   const [showConfirmWithdraw, setShowConfirmWithdraw] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleDeposit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auth.currentUser) return;
+    if (!auth.currentUser || isSubmitting) return;
+    setIsSubmitting(true);
     const amount = parseFloat(depositAmount);
     
     if (isNaN(amount) || amount < depositSettings.minDeposit || amount > depositSettings.maxDeposit) {
@@ -183,12 +185,15 @@ export function Wallet() {
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `payment_requests`);
       toast.error("Error processing deposit.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleWithdraw = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auth.currentUser) return;
+    if (!auth.currentUser || isSubmitting) return;
+    setIsSubmitting(true);
     
     if (selectedWallet === 'partner' && !partnerSettings.withdrawEnabled) {
       toast.error('Partner withdrawals are currently disabled.');
@@ -795,12 +800,12 @@ export function Wallet() {
                 >
                   <div className="flex items-center gap-3">
                     <div className={`w-12 h-12 flex items-center justify-center rounded-2xl shadow-inner ${
-                      tx.type === 'withdraw' ? 'bg-rose-50 text-rose-500 dark:bg-rose-900/20 dark:text-rose-400' : 'bg-emerald-50 text-emerald-500 dark:bg-emerald-900/20 dark:text-emerald-400'
+                      tx.type === 'withdraw' || tx.type === 'activation' ? 'bg-rose-50 text-rose-500 dark:bg-rose-900/20 dark:text-rose-400' : 'bg-emerald-50 text-emerald-500 dark:bg-emerald-900/20 dark:text-emerald-400'
                     }`}>
-                      {tx.type === 'withdraw' ? <ArrowUpRight className="w-6 h-6" /> : <ArrowDownLeft className="w-6 h-6" />}
+                      {tx.type === 'withdraw' || tx.type === 'activation' ? <ArrowUpRight className="w-6 h-6" /> : <ArrowDownLeft className="w-6 h-6" />}
                     </div>
                     <div>
-                      <h4 className="text-sm font-bold text-slate-800 dark:text-white capitalize">{tx.type}</h4>
+                      <h4 className="text-sm font-bold text-slate-800 dark:text-white capitalize">{tx.type.replace('_', ' ')}</h4>
                       <p className="text-[11px] font-medium text-slate-500 mt-0.5 tracking-wide">{tx.createdAt?.toDate().toLocaleDateString() || 'Pending'}</p>
                       <div className="flex items-center gap-1.5 mt-1 bg-slate-50 dark:bg-slate-900/45 px-2 py-0.5 rounded-lg border border-slate-100 dark:border-slate-800">
                         <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 select-all">
@@ -821,9 +826,9 @@ export function Wallet() {
                   </div>
                   <div className="text-right">
                     <p className={`text-base font-black tracking-tight ${
-                      tx.type === 'withdraw' ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'
+                      tx.type === 'withdraw' || tx.type === 'activation' ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'
                     }`}>
-                      {tx.type === 'withdraw' ? '-' : '+'}৳{tx.amount?.toFixed(2)}
+                      {tx.type === 'withdraw' || tx.type === 'activation' ? '-' : '+'}৳{tx.amount?.toFixed(2)}
                     </p>
                     {tx.status === 'pending' && <p className="text-[10px] text-amber-500 font-bold uppercase mt-1 tracking-wider bg-amber-50 dark:bg-amber-900/30 px-2 py-0.5 rounded-full inline-block">Pending</p>}
                     {tx.status === 'approved' && <p className="text-[10px] text-emerald-500 font-bold uppercase mt-1 tracking-wider bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full inline-block">Approved</p>}

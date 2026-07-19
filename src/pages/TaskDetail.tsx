@@ -153,20 +153,24 @@ export function TaskDetail() {
           where("userId", "==", auth.currentUser.uid)
         );
         const subSnap = await getDocs(q);
+        
         const filteredDocs = subSnap.docs.filter((doc) => doc.data().jobId === id);
         
-        // Mock subSnap with only filtered docs for existing logic
-        const mockSnap = {
-          size: filteredDocs.length,
-          empty: filteredDocs.length === 0,
-          docs: filteredDocs,
-          forEach: (cb: any) => filteredDocs.forEach(cb)
-        } as any;
-        setSubmissionCount(mockSnap.size);
-        if (!mockSnap.empty) {
+        // Sort to get the most recent one
+        filteredDocs.sort((a, b) => {
+          const tA = a.data().submittedAt?.toMillis ? a.data().submittedAt.toMillis() : 0;
+          const tB = b.data().submittedAt?.toMillis ? b.data().submittedAt.toMillis() : 0;
+          return tB - tA;
+        });
+
+        // Only count active ones towards the user limit
+        const activeDocs = filteredDocs.filter((doc) => doc.data().status !== 'rejected');
+        setSubmissionCount(activeDocs.length);
+        
+        if (filteredDocs.length > 0) {
           setPreviousSubmission({
-            id: subSnap.docs[0].id,
-            ...subSnap.docs[0].data(),
+            id: filteredDocs[0].id,
+            ...filteredDocs[0].data(),
           });
         }
       } catch (error) {
@@ -190,6 +194,11 @@ export function TaskDetail() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!auth.currentUser) return;
+
+    if (previousSubmission && previousSubmission.status === 'pending') {
+      toast.error("You already have a pending submission for this task.");
+      return;
+    }
 
     // Check per-job user limit
     if (job.userLimit && job.userLimit > 0) {
@@ -274,6 +283,7 @@ export function TaskDetail() {
   };
 
   const confirmSubmit = async () => {
+    if (submitting) return;
     setSubmitting(true);
     setUploadProgress(0);
     setErrorMsg(null);
@@ -537,7 +547,8 @@ export function TaskDetail() {
         {/* Submission Form */}
         {(!job.allowedCompletions ||
             submissionCount < job.allowedCompletions) &&
-          (!job.userLimit || submissionCount < job.userLimit) ? (
+          (!job.userLimit || submissionCount < job.userLimit) &&
+          previousSubmission?.status !== "pending" ? (
           <form
             onSubmit={handleSubmit}
             className="bg-white dark:bg-slate-800 rounded-[24px] shadow-sm border border-slate-100 dark:border-slate-700/50 p-6 space-y-5"
@@ -1027,7 +1038,8 @@ export function TaskDetail() {
       {/* Submission Form Area */}
       {(!job.allowedCompletions ||
         submissionCount < job.allowedCompletions) &&
-        (!job.userLimit || submissionCount < job.userLimit) ? (
+        (!job.userLimit || submissionCount < job.userLimit) &&
+        previousSubmission?.status !== "pending" ? (
         <div className="mt-8">
           <h3 className="font-bold text-gray-800 dark:text-white mb-4">
             {previousSubmission ? "Submit Another Proof" : "Submit Proof"}

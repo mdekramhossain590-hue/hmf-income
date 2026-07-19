@@ -136,7 +136,37 @@ export function ActivityHistory() {
                 statusColor = "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30";
               }
             } else {
-              if (isWithdraw) {
+              if (activity._originalType === 'partner_bonus') {
+                title = language === "Bengali" ? "পার্টনার বোনাস" : "Partner Bonus";
+                rewardStr = `+৳${displayAmount}`;
+                badgeColor = "bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-400";
+                IconComponent = CheckCircle;
+                statusLabel = language === "Bengali" ? "সম্পন্ন" : "Completed";
+                statusColor = "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30";
+              } else if (activity._originalType === 'activation') {
+                title = language === "Bengali" ? "অ্যাকাউন্ট অ্যাক্টিভেশন" : "Account Activation";
+                rewardStr = `-৳${displayAmount}`;
+                badgeColor = "bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400";
+                IconComponent = CheckCircle;
+                const aStatus = activity.status || 'completed';
+                if (aStatus === 'pending') {
+                  statusLabel = language === "Bengali" ? "অপেক্ষমান" : "Pending";
+                  statusColor = "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30";
+                } else if (aStatus === 'rejected') {
+                  statusLabel = language === "Bengali" ? "বাতিল" : "Rejected";
+                  statusColor = "text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/30";
+                } else {
+                  statusLabel = language === "Bengali" ? "সম্পন্ন" : "Completed";
+                  statusColor = "text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/30";
+                }
+              } else if (activity._originalType === 'gift_claim') {
+                title = language === "Bengali" ? "গিফট কোড ক্লেইম" : "Gift Code Claim";
+                rewardStr = `+৳${displayAmount}`;
+                badgeColor = "bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400";
+                IconComponent = CheckCircle;
+                statusLabel = language === "Bengali" ? "সম্পন্ন" : "Completed";
+                statusColor = "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30";
+              } else if (isWithdraw) {
                 title = language === "Bengali" ? "টাকা উত্তোলন" : "Withdrawal";
                 rewardStr = `-৳${displayAmount}`;
                 

@@ -36,6 +36,7 @@ export function Drive() {
   const [activeTab, setActiveTab] = useState<'Grameenphone' | 'Robi' | 'Banglalink' | 'Airtel' | 'Teletalk'>('Grameenphone');
   const [offers, setOffers] = useState<DriveOffer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Purchase Modal State
   const [selectedOffer, setSelectedOffer] = useState<DriveOffer | null>(null);
@@ -144,7 +145,8 @@ export function Drive() {
 
   const handlePurchaseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auth.currentUser || !selectedOffer) return;
+    if (!auth.currentUser || !selectedOffer || isSubmitting) return;
+    setIsSubmitting(true);
 
     // Clean mobile number (strip non-digits and strip leading country code if any)
     let cleanedNumber = mobileNumber.replace(/\D/g, '');

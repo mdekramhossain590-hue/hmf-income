@@ -16,7 +16,7 @@ export function GiftCode() {
 
   const handleClaim = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auth.currentUser) return;
+    if (!auth.currentUser || loading) return;
     if (code.trim().length < 5) {
       toast.error('Invalid Gift Code');
       return;

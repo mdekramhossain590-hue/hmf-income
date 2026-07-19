@@ -31,6 +31,7 @@ import { deferredPrompt, clearPwaPrompt, onPwaPrompt } from "../pwa";
 
 export function Dashboard() {
   const [showCelebration, setShowCelebration] = useState(false);
+  const [claimingPartner, setClaimingPartner] = useState(false);
   const {
     profile,
     user,
@@ -1109,8 +1110,10 @@ export function Dashboard() {
           </div>
           
           <button
+            disabled={claimingPartner}
             onClick={async () => {
               if (!auth.currentUser) return;
+              if (claimingPartner) return;
               if ((actualReferralsCount) < partnerSettings.requiredReferrals) {
                 toast.error(`You need at least ${partnerSettings.requiredReferrals} referrals to claim.`);
                 return;
@@ -1126,6 +1129,7 @@ export function Dashboard() {
               }
               
               try {
+                setClaimingPartner(true);
                 const batch = writeBatch(db);
                 // import serverTimestamp from firestore:
                 const { serverTimestamp, increment } = await import('firebase/firestore');
@@ -1151,6 +1155,8 @@ export function Dashboard() {
               } catch (err) {
                 console.error(err);
                 toast.error("Failed to claim bonus.");
+              } finally {
+                setClaimingPartner(false);
               }
             }}
             className="w-full bg-indigo-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-indigo-600/20 active:scale-95 transition-all text-xs"
