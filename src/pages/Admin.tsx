@@ -316,12 +316,20 @@ export function AdminPanel() {
             // Allow matching by email or just checking if they've been paid
             let missed = false;
             
-            if (data.email) {
-              const refSubQuery = query(collection(db, `users/${referrerId}/referrals`), where("referredEmail", "==", data.email));
-              const refSubSnapshot = await getDocs(refSubQuery);
-              if (refSubSnapshot.empty) missed = true;
+            // Only process if the user is ACTIVE!
+            if (data.isActive) {
+              if (data.email) {
+                const refSubQuery = query(collection(db, `users/${referrerId}/referrals`), where("referredEmail", "==", data.email));
+                const refSubSnapshot = await getDocs(refSubQuery);
+                if (refSubSnapshot.empty) missed = true;
+              } else {
+                missed = !data.referralBonusPaid;
+              }
             } else {
-              missed = !data.referralBonusPaid;
+              // If user is INACTIVE but referralBonusPaid is true, fix it so they can be processed later when they activate!
+              if (data.referralBonusPaid) {
+                await updateDoc(doc(db, "users", userDoc.id), { referralBonusPaid: false });
+              }
             }
             
             if (missed) {

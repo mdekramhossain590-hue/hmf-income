@@ -128,7 +128,7 @@ export function Refer() {
 
   // Calculate key performance statistics
   const totalReferralsCount = actualReferralsCount;
-  const totalReferralEarnings = profile?.balances?.referral || 0;
+  const totalReferralEarnings = referrals.reduce((sum, r) => sum + (Number(r.bonusEarned) || 10), 0);
   const averageEarnedPerReferral = totalReferralsCount > 0 ? (totalReferralEarnings / totalReferralsCount) : 0;
 
   const getMonthlyData = () => {
@@ -159,7 +159,7 @@ export function Refer() {
       const year = date.getFullYear();
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const monthKey = `${year}-${month}`;
-      const bonus = Number(ref.bonusEarned) || 0;
+      const bonus = Number(ref.bonusEarned) || 10;
 
       if (monthsData[monthKey]) {
         monthsData[monthKey].count += 1;
@@ -524,7 +524,7 @@ export function Refer() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-black text-green-600 dark:text-green-400">+৳{ref.bonusEarned || 0}</p>
+                  <p className="text-sm font-black text-green-600 dark:text-green-400">+৳{ref.bonusEarned || 10}</p>
                   <p className="text-[9px] text-slate-400 uppercase font-bold">{t('earned')}</p>
                 </div>
               </div>
