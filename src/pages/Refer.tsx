@@ -55,7 +55,8 @@ export function Refer() {
         const q = query(
           collection(db, "users", auth.currentUser!.uid, "referrals")
         );
-        const snapshot = await getCachedQuery(q, `referrals_${auth.currentUser!.uid}`);
+        const { getDocs } = await import('firebase/firestore');
+        const snapshot = await getDocs(q);
         const refs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         refs.sort((a: any, b: any) => {
           const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
@@ -127,7 +128,7 @@ export function Refer() {
 
   // Calculate key performance statistics
   const totalReferralsCount = actualReferralsCount;
-  const totalReferralEarnings = referrals.reduce((sum, r) => sum + (Number(r.bonusEarned) || 0), 0);
+  const totalReferralEarnings = profile?.balances?.referral || 0;
   const averageEarnedPerReferral = totalReferralsCount > 0 ? (totalReferralEarnings / totalReferralsCount) : 0;
 
   const getMonthlyData = () => {
@@ -514,7 +515,7 @@ export function Refer() {
                     </h4>
                     <div className="flex items-center gap-2 mt-0.5">
                       <p className="text-[10px] text-gray-500 font-medium">
-                        {t('reg_date')}: {ref.createdAt?.toDate ? ref.createdAt.toDate().toLocaleString() : (ref.createdAt ? new Date(ref.createdAt).toLocaleString() : 'Just now')}
+                        {t('reg_date')}: {ref.createdAt?.toDate ? new Intl.DateTimeFormat(language === 'Bengali' ? 'bn-BD' : 'en-US', { year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true }).format(ref.createdAt.toDate()) : (ref.createdAt ? new Intl.DateTimeFormat(language === 'Bengali' ? 'bn-BD' : 'en-US', { year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true }).format(new Date(ref.createdAt)) : 'Just now')}
                       </p>
                       <span className="text-[10px] px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-md font-bold uppercase">
                         Gen {ref.level || 1}
