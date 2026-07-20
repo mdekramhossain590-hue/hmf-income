@@ -259,11 +259,11 @@ export function AdminPanel() {
         }
       }
       
-      toast.dismiss(loadingToast);
+      // // // 
       toast.success(`Successfully deleted ${deleted} duplicate admin accounts. Kept ${kept} account.`);
       loadData(true);
     } catch (e) {
-      toast.dismiss(loadingToast);
+      // 
       toast.error("Failed to delete accounts.");
       console.error(e);
     }
@@ -350,7 +350,7 @@ export function AdminPanel() {
                     createdAt: serverTimestamp()
                   });
                   
-                  const userUpdates = {
+                  const userUpdates: any = {
                     totalReferrals: increment(level === 0 ? 1 : 0)
                   };
                   if (fixedBonus > 0) {
@@ -382,12 +382,12 @@ export function AdminPanel() {
         }
       }
       
-      toast.dismiss(loadingToast);
+      // 
       toast.success(`Successfully processed ${processed} missed referrals (skipped ${alreadyPaid} valid).`);
       loadData(true);
     } catch (e) {
-      toast.dismiss(loadingToast);
-      toast.error("Failed to process old referrals: " + e.message);
+      // 
+      toast.error("Failed to process old referrals: " + (e as any).message);
       console.error(e);
     }
   };

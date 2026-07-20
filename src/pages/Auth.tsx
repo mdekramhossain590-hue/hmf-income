@@ -30,7 +30,7 @@ export function Auth() {
   const { refreshProfile, siteSettings } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.formEvent ? e.formEvent.preventDefault() : e.preventDefault();
+    e.preventDefault();
     setLoading(true);
 
     try {

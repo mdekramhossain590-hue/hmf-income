@@ -1,12 +1,13 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User, signOut } from 'firebase/auth';
-import { doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { getCachedDoc } from '../lib/cache';
 import { useLanguage } from './LanguageProvider';
 import { ShieldAlert, LogOut } from 'lucide-react';
 
 export interface UserProfile {
+  uid?: string;
   fullName: string;
   email: string;
   photoURL?: string;
@@ -23,6 +24,7 @@ export interface UserProfile {
   role: string;
   permissions?: string[];
   isActive?: boolean;
+  referralBonusPaid?: boolean;
   totalReferrals?: number;
   referralCount?: number;
   partnerClaimedAt?: any;
@@ -35,6 +37,8 @@ export interface SiteSettings {
   siteName?: string;
   logoUrl?: string;
   telegramUrl?: string;
+  adsViewLink?: string;
+  adsViewText?: string;
   dailyTaskLimit?: number;
   driveOffersEnabled?: boolean;
   coursesEnabled?: boolean;
@@ -200,7 +204,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         // Setup real-time listener
         try {
-          unsubscribeProfile = onSnapshot(doc(db, 'users', user.uid), (docSnap) => {
+          unsubscribeProfile = onSnapshot(doc(db, 'users', user.uid), (docSnap: any) => {
             if (docSnap.exists()) {
               const data = docSnap.data();
               
@@ -214,7 +218,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 localStorage.setItem(`profile_${user.uid}`, JSON.stringify(data));
               } catch(e) {}
             }
-          }, (err) => {
+          }, (err: any) => {
              console.warn("Profile snapshot error", err);
           });
         } catch (e) {

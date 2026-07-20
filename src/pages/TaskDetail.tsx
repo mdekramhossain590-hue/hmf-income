@@ -150,7 +150,7 @@ export function TaskDetail() {
         // Temporary workaround to avoid index requirement
         const q = query(
           collection(db, "submissions"),
-          where("userId", "==", auth.currentUser.uid)
+          where("userId", "==", auth.currentUser?.uid || "")
         );
         const subSnap = await getDocs(q);
         
@@ -318,8 +318,8 @@ export function TaskDetail() {
 
       const subData = {
         jobId: job.id,
-        userId: auth.currentUser.uid,
-        userEmail: (auth.currentUser.email || "Unknown").slice(0, 150),
+        userId: auth.currentUser?.uid || "",
+        userEmail: (auth.currentUser?.email || "Unknown").slice(0, 150),
         title: (job.title || "Untitled Task").slice(0, 150),
         jobType: (job.type || "Other").slice(0, 50),
         reward: Number(job.reward) || 0,

@@ -53,12 +53,16 @@ export function Refer() {
     const loadReferrals = async () => {
       try {
         const q = query(
-          collection(db, "users", auth.currentUser!.uid, "referrals"),
-          orderBy("createdAt", "desc"),
-          limit(20)
+          collection(db, "users", auth.currentUser!.uid, "referrals")
         );
         const snapshot = await getCachedQuery(q, `referrals_${auth.currentUser!.uid}`);
-        setReferrals(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        const refs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        refs.sort((a: any, b: any) => {
+          const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+          const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+          return timeB - timeA;
+        });
+        setReferrals(refs);
         
         const [refDoc, pDoc] = await Promise.all([
           getCachedDoc(doc(db, "settings", "referral")),
@@ -510,7 +514,7 @@ export function Refer() {
                     </h4>
                     <div className="flex items-center gap-2 mt-0.5">
                       <p className="text-[10px] text-gray-500 font-medium">
-                        {t('reg_date')}: {ref.createdAt?.toDate ? ref.createdAt.toDate().toLocaleDateString() : 'Just now'}
+                        {t('reg_date')}: {ref.createdAt?.toDate ? ref.createdAt.toDate().toLocaleString() : (ref.createdAt ? new Date(ref.createdAt).toLocaleString() : 'Just now')}
                       </p>
                       <span className="text-[10px] px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-md font-bold uppercase">
                         Gen {ref.level || 1}
@@ -519,7 +523,7 @@ export function Refer() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-black text-green-600 dark:text-green-400">+৳{ref.bonusEarned}</p>
+                  <p className="text-sm font-black text-green-600 dark:text-green-400">+৳{ref.bonusEarned || 0}</p>
                   <p className="text-[9px] text-slate-400 uppercase font-bold">{t('earned')}</p>
                 </div>
               </div>
