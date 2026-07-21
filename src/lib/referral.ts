@@ -104,7 +104,7 @@ export async function processRegistrationReferral(userId: string) {
     // Sanitize the code to remove any zero-width spaces or whitespace
     currentReferCode = currentReferCode.replace(/[\u200B-\u200D\uFEFF\s]/g, '').trim().toUpperCase();
 
-    let gen1 = 10, gen2 = 0, gen3 = 0;
+    let gen1 = 5, gen2 = 3, gen3 = 1;
     const refDoc = await getCachedDoc(doc(db, "settings", "referral"));
     if (refDoc && refDoc.exists()) {
       const data = refDoc.data();

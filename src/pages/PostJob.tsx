@@ -24,7 +24,7 @@ export function PostJob() {
   const [description, setDescription] = useState('');
   const [link, setLink] = useState('');
   const [category, setCategory] = useState('Facebook');
-  const [reward, setReward] = useState(2); // Minimum 2 Taka per job
+  const [reward, setReward] = useState(3); // Minimum 3 Taka per job
   const [slots, setSlots] = useState(10); // Minimum 10 slots
   const [selectedProofs, setSelectedProofs] = useState<string[]>(['text']);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -77,8 +77,8 @@ export function PostJob() {
     e.preventDefault();
     if (!auth.currentUser || !profile || isSubmitting) return;
 
-    if (reward < 1) {
-      toast.error('Minimum reward per task is ৳1.00');
+    if (reward < 3) {
+      toast.error('Minimum reward per task is ৳3.00');
       return;
     }
     if (slots < 5) {
@@ -313,11 +313,11 @@ export function PostJob() {
               </label>
               <input 
                 type="number" 
-                min="1" 
+                min="3" 
                 step="0.5"
                 required 
                 value={reward} 
-                onChange={e => setReward(Math.max(1, parseFloat(e.target.value) || 0))} 
+                onChange={e => setReward(Math.max(3, parseFloat(e.target.value) || 0))} 
                 className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-black text-indigo-600 dark:text-indigo-400" 
               />
             </div>

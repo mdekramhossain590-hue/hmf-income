@@ -45,7 +45,7 @@ export function AdminPanel() {
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [paymentRequests, setPaymentRequests] = useState<any[]>([]);
   const [spinRewards, setSpinRewards] = useState<number[]>([1, 2, 5, 10, 0, 50, 100, 0]);
-  const [referralSettings, setReferralSettings] = useState({ fixedBonus: 10, gen2FixedBonus: 0, gen3FixedBonus: 0, gen1Percent: 0, gen2Percent: 0, gen3Percent: 0 });
+  const [referralSettings, setReferralSettings] = useState({ fixedBonus: 5, gen2FixedBonus: 3, gen3FixedBonus: 1, gen1Percent: 0, gen2Percent: 0, gen3Percent: 0 });
   const [bannerSettings, setBannerSettings] = useState({ text: 'Welcome to HMF Income! Complete tasks and earn money daily.', link: '#' });
   const [gameSettings, setGameSettings] = useState({ spinTaskReq: 0, spinReferReq: 0, mathTaskReq: 0, mathReferReq: 0 });
   const [partnerSettings, setPartnerSettings] = useState({ requiredReferrals: 10, dailyBonus: 100, enabled: true, withdrawEnabled: true });
@@ -90,7 +90,7 @@ export function AdminPanel() {
   const [newJob, setNewJob] = useState({
     title: '',
     description: '',
-    reward: 10,
+    reward: 3,
     link: '',
     type: 'Facebook',
     icon: 'MessageCircle', // hardcode or select
@@ -128,7 +128,7 @@ export function AdminPanel() {
 
   const handleCancelEditJob = () => {
     setNewJob({
-      title: '', description: '', reward: 10, link: '', type: 'Facebook', icon: 'MessageCircle', color: 'text-blue-500', bg: 'bg-blue-100', requiredProofs: ['text'], allowedCompletions: 1, userLimit: 1, deadline: '', isAccountSell: false, todaysPassword: '', reviewComments: []
+      title: '', description: '', reward: 3, link: '', type: 'Facebook', icon: 'MessageCircle', color: 'text-blue-500', bg: 'bg-blue-100', requiredProofs: ['text'], allowedCompletions: 1, userLimit: 1, deadline: '', isAccountSell: false, todaysPassword: '', reviewComments: []
     });
     setEditingJobId(null);
   };
@@ -231,80 +231,101 @@ export function AdminPanel() {
     } catch(e) { console.warn("Error loading data:", e); }
   }, [isAdmin, activeTab]);
 
-  const handleDeleteDuplicateAdmins = async () => {
+    const handleDeleteDuplicateAdmins = async () => {
     try {
       toast.success("Delete admins started...");
-      console.log("Delete admins started");
-    
-    
-    toast.loading("Finding and deleting accounts...");
+      toast.loading("Finding and deleting accounts...");
       const { query, collection, where, getDocs, deleteDoc, doc } = await import('firebase/firestore');
       
-      const q = query(
-        collection(db, "users"),
-        where("email", "==", "mdekramhossain590@gmail.com")
-      );
-      
-      const snapshot = await getDocs(q);
       let deleted = 0;
       let kept = 0;
       
-      for (const userDoc of snapshot.docs) {
-        const data = userDoc.data();
+      const adminUsers = userList.filter(u => u.email === "mdekramhossain590@gmail.com");
+      
+      for (const user of adminUsers) {
+        const data = user;
         if (data.myReferCode === "NN743526") {
-          kept++;
+           kept++;
         } else {
-          await deleteDoc(doc(db, "users", userDoc.id));
-          deleted++;
+           await deleteDoc(doc(db, "users", user.id)).catch(()=>{});
+           await deleteDoc(doc(db, "leaderboard", user.id)).catch(()=>{});
+           deleted++;
         }
       }
       
-      // // // 
-      toast.success(`Successfully deleted ${deleted} duplicate admin accounts. Kept ${kept} account.`);
+      toast.dismiss();
+      toast.success(`Deleted ${deleted} duplicates, kept ${kept} original.`);
       loadData(true);
-    } catch (e) {
-      // 
-      toast.error("Failed to delete accounts.");
-      console.error(e);
+    } catch (e: any) {
+      toast.error(e.message);
     }
   };
 
   const handleFixBonusAmounts = async () => {
     try {
       toast.success("Fixing bonus amounts started...");
-      const { collectionGroup, getDocs, updateDoc, doc, increment, setDoc } = await import('firebase/firestore');
-      const q = collectionGroup(db, 'referrals');
-      const snap = await getDocs(q);
-      let fixedCount = 0;
+      const { collection, getDocs, updateDoc, doc, increment, setDoc } = await import('firebase/firestore');
       
-      for (const rDoc of snap.docs) {
-        const data = rDoc.data();
-        const pathParts = rDoc.ref.path.split('/');
-        const userId = pathParts[1];
-        
-        let diff = 0;
-        let newBonus = 0;
-        
-        if (data.level === 1 && data.bonusEarned === 20) {
-          diff = 10; newBonus = 10;
-        } else if (data.level === 2 && data.bonusEarned === 10) {
-          diff = 5; newBonus = 5;
-        } else if (data.level === 3 && data.bonusEarned === 5) {
-          diff = 2; newBonus = 3;
-        }
-        
-        if (diff > 0) {
-           await updateDoc(rDoc.ref, { bonusEarned: newBonus });
-           await updateDoc(doc(db, "users", userId), {
-             "balances.referral": increment(-diff)
-           });
-           await setDoc(doc(db, "leaderboard", userId), {
-             totalIncome: increment(-diff)
-           }, { merge: true });
-           fixedCount++;
+      let fixedCount = 0;
+      let permissionErrors = 0;
+      
+      for (const user of userList) {
+        const userId = user.id;
+        try {
+          const refSnap = await getDocs(collection(db, `users/${userId}/referrals`));
+          
+          for (const rDoc of refSnap.docs) {
+            const data = rDoc.data();
+            let diff = 0;
+            let newBonus = 0;
+            
+            if (data.level === 1 && data.bonusEarned > 5) {
+              diff = data.bonusEarned - 5; newBonus = 5;
+            } else if (data.level === 2 && data.bonusEarned > 3) {
+              diff = data.bonusEarned - 3; newBonus = 3;
+            } else if (data.level === 3 && data.bonusEarned > 1) {
+              diff = data.bonusEarned - 1; newBonus = 1;
+            }
+            
+            if (diff > 0) {
+               let updated = false;
+               try {
+                 await updateDoc(rDoc.ref, { bonusEarned: newBonus });
+                 updated = true;
+               } catch(err) {
+                 console.warn("Could not fix ref doc", err);
+                 permissionErrors++;
+               }
+               
+               try {
+                 await updateDoc(doc(db, "users", userId), {
+                   "balances.referral": increment(-diff)
+                 });
+                 await setDoc(doc(db, "leaderboard", userId), {
+                   totalIncome: increment(-diff)
+                 }, { merge: true });
+                 if (!updated) updated = true; 
+               } catch (err) {
+                  console.warn("Could not fix user balance", err);
+               }
+               
+               if (updated) fixedCount++;
+            }
+          }
+        } catch (e) {
+           permissionErrors++;
+           console.error("Failed for user", userId, e);
         }
       }
-      toast.success(`Fixed ${fixedCount} referrals!`);
+      
+      if (fixedCount > 0) {
+        toast.success(`Fixed ${fixedCount} referrals!`);
+        loadData(true);
+      } else if (permissionErrors > 0) {
+        toast.error(`Permission denied on ${permissionErrors} operations.`);
+      } else {
+        toast.success("No referrals needed fixing.");
+      }
     } catch (e: any) {
       toast.error(e.message);
     }
@@ -649,7 +670,7 @@ export function AdminPanel() {
         });
         toast.success('Job created.');
       }
-      setNewJob({ title: '', description: '', reward: 10, link: '', type: 'Facebook', icon: 'MessageCircle', color: 'text-blue-500', bg: 'bg-blue-100', requiredProofs: ['text'], allowedCompletions: 1, userLimit: 1, deadline: '', isAccountSell: false, todaysPassword: '', reviewComments: [] });
+      setNewJob({ title: '', description: '', reward: 3, link: '', type: 'Facebook', icon: 'MessageCircle', color: 'text-blue-500', bg: 'bg-blue-100', requiredProofs: ['text'], allowedCompletions: 1, userLimit: 1, deadline: '', isAccountSell: false, todaysPassword: '', reviewComments: [] });
       await loadData(true);
     } catch (err) {
       handleFirestoreError(err, editingJobId ? OperationType.UPDATE : OperationType.CREATE, 'jobs');

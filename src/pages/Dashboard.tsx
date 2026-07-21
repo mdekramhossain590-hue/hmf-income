@@ -162,6 +162,7 @@ export function Dashboard() {
 
   const [userTx, setUserTx] = useState<any[]>([]);
   const [userTasks, setUserTasks] = useState<any[]>([]);
+  const [userReferrals, setUserReferrals] = useState<any[]>([]);
   const [topLeaders, setTopLeaders] = useState<any[]>([]);
   const [currentLeaderIndex, setCurrentLeaderIndex] = useState(0);
 
@@ -301,6 +302,27 @@ export function Dashboard() {
           taskItems.push({ id: docSnap.id, type: "task", ...docSnap.data() });
         });
         setUserTasks(taskItems);
+
+        // Fetch user referrals
+        const refQuery = query(
+          collection(db, "users", auth.currentUser!.uid, "referrals"),
+          orderBy("createdAt", "desc"),
+          limit(5)
+        );
+        const refSnapshot = await getCachedQuery(
+          refQuery,
+          `dashboard_ref_${auth.currentUser!.uid}`
+        );
+        const refItems: any[] = [];
+        refSnapshot.forEach((docSnap) => {
+          refItems.push({
+            id: docSnap.id,
+            type: "referral",
+            ...docSnap.data(),
+          });
+        });
+        setUserReferrals(refItems);
+
       } catch (e) {
         console.warn("Error fetching activity:", e);
       }
@@ -308,6 +330,17 @@ export function Dashboard() {
 
     fetchActivity();
   }, [auth.currentUser?.uid]);
+
+  
+    const getRefBonus = (ref: any) => {
+    let raw = ref.bonusEarned !== undefined ? Number(ref.bonusEarned) : 0;
+    if (raw > 0) {
+       return raw;
+    }
+    if (ref.level === 3) return 0;
+    if (ref.level === 2) return 3;
+    return 5;
+  };
 
   const getCombinedActivity = () => {
     const combined = [
@@ -331,10 +364,20 @@ export function Dashboard() {
         // We ensure a 'task' type to match styling logic, but keep original type for display if needed
         return { ...t, date: d, _originalType: t.type, type: "task" };
       }),
+      ...userReferrals.map((t) => {
+        const d = t.createdAt?.toDate
+          ? t.createdAt.toDate()
+          : t.createdAt
+            ? new Date(t.createdAt)
+            : new Date(0);
+        return { ...t, date: d, _originalType: t.type, type: "referral" };
+      }),
     ];
+
     combined.sort((a, b) => b.date.getTime() - a.date.getTime());
     return combined.slice(0, 5);
   };
+
 
   const unreadCount = dbNotifications.filter((n) => !n.read).length;
 
@@ -1747,8 +1790,9 @@ export function Dashboard() {
           ) : (
             getCombinedActivity().map((activity) => {
               const isTask = activity.type === "task";
-              const isWithdraw = !isTask && activity.type === "withdraw";
-              const isDeposit = !isTask && activity.type === "deposit";
+              const isReferral = activity.type === "referral";
+              const isWithdraw = !isTask && !isReferral && activity.type === "withdraw";
+              const isDeposit = !isTask && !isReferral && activity.type === "deposit";
 
               let title = "";
               let rewardStr = "";
@@ -1758,11 +1802,21 @@ export function Dashboard() {
               let statusColor = "";
 
               // Fix reward value formatting by falling back
-              const displayAmount = parseFloat(
-                activity.reward || activity.amount || 0,
+              let displayAmount = parseFloat(
+                activity.reward || activity.amount || activity.bonusEarned || 0,
               ).toFixed(2);
+              if (isReferral) {
+                displayAmount = getRefBonus(activity).toFixed(2);
+              }
 
-              if (isTask) {
+              if (isReferral) {
+                title = (language === "Bengali" ? "রেফারেল: " : "Referral: ") + (activity.referredName || activity.referredEmail?.split("@")[0] || "User");
+                rewardStr = `+৳${displayAmount}`;
+                badgeColor = "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20 dark:text-emerald-400";
+                IconComponent = CheckCircle;
+                statusLabel = language === "Bengali" ? "সম্পন্ন" : "Completed";
+                statusColor = "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30";
+              } else if (isTask) {
                 title = activity.title || t("completed_task_activity");
                 rewardStr = `+৳${displayAmount}`;
                 

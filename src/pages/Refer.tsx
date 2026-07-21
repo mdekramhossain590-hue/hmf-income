@@ -129,10 +129,13 @@ export function Refer() {
   // Calculate key performance statistics
   const totalReferralsCount = actualReferralsCount;
   const getRefBonus = (ref: any) => {
-    if (ref.bonusEarned !== undefined && Number(ref.bonusEarned) > 0) return Number(ref.bonusEarned);
-    if (ref.level === 3) return 3;
-    if (ref.level === 2) return 5;
-    return 10;
+    let raw = ref.bonusEarned !== undefined ? Number(ref.bonusEarned) : 0;
+    if (raw > 0) {
+       return raw;
+    }
+    if (ref.level === 3) return 0;
+    if (ref.level === 2) return 3;
+    return 5;
   };
 
   const totalReferralEarnings = profile?.balances?.referral || 0;
@@ -514,7 +517,7 @@ export function Refer() {
               <div key={ref.id} className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 flex justify-between items-center group hover:border-indigo-200 dark:hover:border-indigo-900/50 transition-colors">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 font-bold text-xs ring-1 ring-slate-200 dark:ring-slate-600">
-                    {ref.referredName?.charAt(0) || ref.referredEmail?.charAt(0) || '?'}
+                    {ref.referredName?.charAt(0) || ref.referredEmail?.charAt(0) || 'U'}
                   </div>
                   <div>
                     <h4 className="text-sm font-bold text-gray-800 dark:text-white truncate max-w-[140px]">

@@ -11,6 +11,16 @@ export function ActivityHistory() {
   const [loading, setLoading] = useState(true);
   const { t, language } = useLanguage();
 
+  const getRefBonus = (ref: any) => {
+    let raw = ref.bonusEarned !== undefined ? Number(ref.bonusEarned) : 0;
+    if (raw > 0) {
+       return raw;
+    }
+    if (ref.level === 3) return 0;
+    if (ref.level === 2) return 3;
+    return 5;
+  };
+
   useEffect(() => {
     if (!auth.currentUser) return;
 
@@ -47,6 +57,24 @@ export function ActivityHistory() {
           });
         });
 
+        
+        // Fetch referrals
+        const refQuery = query(
+          collection(db, "users", auth.currentUser!.uid, "referrals"),
+          orderBy("createdAt", "desc"),
+          limit(100)
+        );
+        const refSnapshot = await getCachedQuery(refQuery, `activity_ref_${auth.currentUser!.uid}`);
+        
+        const refItems: any[] = [];
+        refSnapshot.forEach((docSnap) => {
+          refItems.push({
+            id: docSnap.id,
+            type: "referral",
+            ...docSnap.data(),
+          });
+        });
+
         const combined = [
           ...txItems.map((t) => {
             const d = t.createdAt?.toDate ? t.createdAt.toDate() : t.createdAt ? new Date(t.createdAt) : new Date(0);
@@ -55,6 +83,10 @@ export function ActivityHistory() {
           ...subItems.map((t) => {
             const timeField = t.submittedAt || t.completedAt;
             const d = timeField?.toDate ? timeField.toDate() : timeField ? new Date(timeField) : new Date(0);
+            return { ...t, date: d, _originalType: t.type };
+          }),
+          ...refItems.map((t) => {
+            const d = t.createdAt?.toDate ? t.createdAt.toDate() : t.createdAt ? new Date(t.createdAt) : new Date(0);
             return { ...t, date: d, _originalType: t.type };
           }),
         ];
@@ -101,8 +133,9 @@ export function ActivityHistory() {
         ) : (
           activities.map((activity, index) => {
             const isTask = activity.type === "task";
-            const isWithdraw = !isTask && activity._originalType === "withdraw";
-            const isDeposit = !isTask && activity._originalType === "deposit";
+            const isReferral = activity.type === "referral";
+            const isWithdraw = !isTask && !isReferral && activity._originalType === "withdraw";
+            const isDeposit = !isTask && !isReferral && activity._originalType === "deposit";
 
             let title = "";
             let rewardStr = "";
@@ -111,9 +144,19 @@ export function ActivityHistory() {
             let statusLabel = "";
             let statusColor = "";
 
-            const displayAmount = parseFloat(activity.reward || activity.amount || 0).toFixed(2);
+            let displayAmount = parseFloat(activity.reward || activity.amount || activity.bonusEarned || 0).toFixed(2);
+            if (isReferral) {
+                displayAmount = getRefBonus(activity).toFixed(2);
+            }
 
-            if (isTask) {
+            if (isReferral) {
+                title = (language === "Bengali" ? "রেফারেল: " : "Referral: ") + (activity.referredName || activity.referredEmail?.split("@")[0] || "User");
+                rewardStr = `+৳${displayAmount}`;
+                badgeColor = "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20 dark:text-emerald-400";
+                IconComponent = CheckCircle;
+                statusLabel = language === "Bengali" ? "সম্পন্ন" : "Completed";
+                statusColor = "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30";
+            } else if (isTask) {
               title = activity.title || t("completed_task_activity") || "Completed Task";
               rewardStr = `+৳${displayAmount}`;
               
