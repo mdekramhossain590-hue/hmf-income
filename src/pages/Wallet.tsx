@@ -55,7 +55,7 @@ export function Wallet() {
   const [selectedTxId, setSelectedTxId] = useState<string | null>(null);
   const { t } = useLanguage();
 
-  const [withdrawSettings, setWithdrawSettings] = useState({ mainMin: 50, mainFee: 0, bonusMin: 50, bonusFee: 0, referralMin: 50, referralFee: 0, tasksMin: 50, tasksFee: 0, customAmounts: "110, 210, 310, 410, 510" });
+  const [withdrawSettings, setWithdrawSettings] = useState({ mainMin: 50, mainFee: 0, bonusMin: 50, bonusFee: 0, referralMin: 50, referralFee: 0, tasksMin: 50, tasksFee: 0, mainAmounts: "110, 210, 310, 410, 510", bonusAmounts: "110, 210, 310, 410, 510", referralAmounts: "110, 210, 310, 410, 510", tasksAmounts: "110, 210, 310, 410, 510", partnerAmounts: "110, 210, 310, 410, 510", giftAmounts: "110, 210, 310, 410, 510" });
   const [depositSettings, setDepositSettings] = useState({ bkashNumber: '017XX-XXXXXX', nagadNumber: '017XX-XXXXXX', minDeposit: 100, maxDeposit: 25000, bkashEnabled: true, nagadEnabled: true, bkashQrUrl: '', nagadQrUrl: '' });
   const [partnerSettings, setPartnerSettings] = useState({ withdrawEnabled: true });
 
@@ -94,7 +94,7 @@ export function Wallet() {
             referralFee: data.referralFee || 0,
             tasksMin: data.tasksMin || 50,
             tasksFee: data.tasksFee || 0,
-            customAmounts: data.customAmounts || "110, 210, 310, 410, 510"
+            mainAmounts: data.mainAmounts || "110, 210, 310, 410, 510", bonusAmounts: data.bonusAmounts || "110, 210, 310, 410, 510", referralAmounts: data.referralAmounts || "110, 210, 310, 410, 510", tasksAmounts: data.tasksAmounts || "110, 210, 310, 410, 510", partnerAmounts: data.partnerAmounts || "110, 210, 310, 410, 510", giftAmounts: data.giftAmounts || "110, 210, 310, 410, 510"
           });
         }
         if (dSnap.exists()) {
@@ -576,7 +576,16 @@ export function Wallet() {
               
               {/* Select amount options configured by admin */}
               {(() => {
-                const amountOptions = (withdrawSettings.customAmounts || "110, 210, 310, 410, 510")
+                let optionsString = "110, 210, 310, 410, 510";
+                const taskWallets = ['Facebook', 'Gmail', 'Instagram', 'Review', 'Sell Accounts', 'Microjob', 'Typing', 'Watch Ads', 'Other'];
+                if (selectedWallet === 'main') optionsString = withdrawSettings.mainAmounts || optionsString;
+                else if (selectedWallet === 'bonus') optionsString = withdrawSettings.bonusAmounts || optionsString;
+                else if (selectedWallet === 'referral') optionsString = withdrawSettings.referralAmounts || optionsString;
+                else if (selectedWallet === 'partner') optionsString = withdrawSettings.partnerAmounts || optionsString;
+                else if (selectedWallet === 'gift') optionsString = withdrawSettings.giftAmounts || optionsString;
+                else if (taskWallets.includes(selectedWallet) || selectedWallet === 'tasks') optionsString = withdrawSettings.tasksAmounts || optionsString;
+
+                const amountOptions = optionsString
                   .split(',')
                   .map(s => s.trim())
                   .filter(Boolean);
@@ -602,28 +611,6 @@ export function Wallet() {
                           </button>
                         );
                       })}
-                      
-                      {/* Custom Amount option button */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const customInput = prompt("Enter custom amount (৳):");
-                          if (customInput && !isNaN(parseFloat(customInput))) {
-                            setWithdrawAmount(parseFloat(customInput).toString());
-                          }
-                        }}
-                        className={`py-3 px-4 rounded-2xl border text-xs font-black transition-all duration-205 flex items-center justify-center gap-1 shadow-sm active:scale-95 ${
-                          withdrawAmount && !amountOptions.includes(withdrawAmount)
-                            ? 'bg-indigo-600 border-indigo-600 text-white font-black shadow-md' 
-                            : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:border-indigo-400'
-                        }`}
-                      >
-                        {withdrawAmount && !amountOptions.includes(withdrawAmount) ? (
-                          <span className="font-extrabold">{withdrawAmount} ৳</span>
-                        ) : (
-                          <span>অন্যান্য পরিমাণ</span>
-                        )}
-                      </button>
                     </div>
 
                     {/* Green box showing dynamic charging and net payout */}
