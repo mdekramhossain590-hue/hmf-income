@@ -21,13 +21,13 @@ export function Celebration({
       }, 2500);
       return () => clearTimeout(timer);
     }
-  }, [isVisible, onComplete]);
+  }, [isVisible]);
 
   return (
     <AnimatePresence>
       {isVisible && (
         <motion.div
-          className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none"
+          className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-auto bg-black/20 backdrop-blur-sm cursor-pointer" onClick={() => { if(onComplete) onComplete(); }}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
