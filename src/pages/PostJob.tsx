@@ -356,6 +356,7 @@ export function PostJob() {
               {[
                 { id: 'text', label: 'Written Proof (text)' },
                 { id: 'screenshot', label: 'Screenshot Upload' },
+                { id: 'file', label: 'File Upload (PDF/Doc/Zip)' },
                 { id: 'username', label: 'User Details / Username' }
               ].map(proof => (
                 <button

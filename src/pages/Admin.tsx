@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../components/AuthProvider';
+import { File as FileIcon } from 'lucide-react';
 import { collection, query, onSnapshot, doc, writeBatch, serverTimestamp, setDoc, orderBy, deleteDoc, increment, updateDoc, getDocs, deleteField, getDoc, limit, FieldPath } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { getCachedDoc, getCachedQuery, clearCache } from '../lib/cache';
@@ -1229,6 +1230,20 @@ export function AdminPanel() {
                       </button>
                     </div>
                   )}
+
+                  {sub.proofs.fileUrl && (
+                    <div className="pt-2">
+                      <a 
+                        href={sub.proofs.fileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 text-xs font-black text-white bg-blue-600 dark:bg-blue-500 px-4 py-2 rounded-xl hover:scale-[1.02] active:scale-95 transition-all w-fit shadow-md cursor-pointer"
+                      >
+                        <FileIcon className="w-3.5 h-3.5" /> View Proof File
+                      </a>
+                    </div>
+                  )}
+
                 </div>
               </div>
               

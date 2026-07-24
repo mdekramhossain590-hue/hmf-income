@@ -30,7 +30,8 @@ import {
 import { db, handleFirestoreError, OperationType, auth } from "../lib/firebase";
 import { getCachedDoc, getCachedQuery } from "../lib/cache";
 import { FullPageLoader } from "../components/LoadingSpinner";
-import { uploadImageOrFallback } from "../lib/imageUpload";
+import { uploadImageOrFallback, uploadFileGeneric } from "../lib/imageUpload";
+import { File as FileIcon } from "lucide-react";
 import toast from "react-hot-toast";
 
 import { Celebration } from "../components/Celebration";
@@ -49,6 +50,8 @@ export function TaskDetail() {
   const [showCelebration, setShowCelebration] = useState(false);
 
   const [proofText, setProofText] = useState("");
+  const [genericFile, setGenericFile] = useState<File | null>(null);
+  const [genericFileUrl, setGenericFileUrl] = useState("");
   const [proofImage, setProofImage] = useState(""); // Stores URL if pasted
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -109,6 +112,24 @@ export function TaskDetail() {
       };
       reader.readAsDataURL(file);
     }
+  };
+
+
+  const handleGenericFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        setErrorMsg("File must be smaller than 5MB.");
+        return;
+      }
+      setErrorMsg(null);
+      setGenericFile(file);
+      setGenericFileUrl("");
+    }
+  };
+  
+  const removeGenericFile = () => {
+    setGenericFile(null);
   };
 
   const removeImage = () => {
@@ -1016,6 +1037,7 @@ export function TaskDetail() {
               </div>
             )}
 
+
             {previousSubmission.proofs?.screenshot && (
               <div>
                 <span className="block text-xs font-bold text-gray-400 dark:text-gray-500 mb-2 uppercase tracking-wider">
@@ -1030,6 +1052,25 @@ export function TaskDetail() {
                 </div>
               </div>
             )}
+            
+            {previousSubmission.proofs?.fileUrl && (
+              <div>
+                <span className="block text-xs font-bold text-gray-400 dark:text-gray-500 mb-2 uppercase tracking-wider">
+                  File Upload
+                </span>
+                <div className="bg-gray-50 dark:bg-slate-700/50 rounded-xl p-3 text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <a
+                    href={previousSubmission.proofs.fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-blue-500 hover:underline break-all"
+                  >
+                    <FileIcon className="w-4 h-4" /> View / Download File
+                  </a>
+                </div>
+              </div>
+            )}
+
 
           </div>
         </>
@@ -1140,6 +1181,74 @@ export function TaskDetail() {
                 </div>
               )}
 
+              
+              {job.requiredProofs?.includes("file") && (
+                <div className="mb-4">
+                  <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-2">
+                    Document / File Upload *
+                  </label>
+                  
+                  <div className="space-y-3">
+                    {!genericFile && (
+                      <div className="border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-xl p-6 flex flex-col items-center justify-center bg-gray-50/50 dark:bg-slate-700/30 hover:bg-gray-100 dark:hover:bg-slate-700/50 transition cursor-pointer relative">
+                        <input
+                          type="file"
+                          accept=".pdf,.doc,.docx,.zip,.rar,.txt"
+                          onChange={handleGenericFileChange}
+                          required={!genericFileUrl}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        />
+                        <UploadCloud className="w-8 h-8 text-[#0D47A1] mb-2" />
+                        <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                          Tap to upload file
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          PDF, DOC, ZIP up to 5MB
+                        </p>
+                      </div>
+                    )}
+
+                    {genericFile && (
+                      <div className="relative rounded-xl border border-gray-200 dark:border-slate-600 bg-gray-100 dark:bg-slate-700/50 flex flex-col items-center justify-center p-4">
+                        <FileIcon className="w-8 h-8 text-blue-500 mb-2" />
+                        <button
+                          type="button"
+                          onClick={removeGenericFile}
+                          className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black text-white rounded-full transition backdrop-blur-sm"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                        <p className="text-xs text-center text-gray-700 dark:text-gray-300 mt-2 font-medium break-all">
+                          {genericFile.name}
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-4 py-1">
+                      <div className="flex-1 h-px bg-gray-200 dark:bg-slate-700"></div>
+                      <span className="text-xs font-bold text-gray-400 uppercase">OR</span>
+                      <div className="flex-1 h-px bg-gray-200 dark:bg-slate-700"></div>
+                    </div>
+
+                    <div className="relative">
+                      <FileIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        type="url"
+                        value={genericFileUrl}
+                        onChange={(e) => {
+                          setGenericFileUrl(e.target.value);
+                          if (e.target.value) removeGenericFile();
+                        }}
+                        placeholder="https://drive.google.com/... (File Link)"
+                        className="w-full bg-gray-50 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 dark:text-white rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:border-[#3b82f6]"
+                        required={!genericFile && !genericFileUrl}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              
               {job.requiredProofs?.includes("username") && (
                 <div className="mb-4">
                   <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">
@@ -1305,7 +1414,8 @@ export function TaskDetail() {
                     </div>
                   </div>
                 )}
-              {job.requiredProofs?.includes("username") && (
+              
+              {job.requiredProofs?.includes("file") && (genericFile || genericFileUrl) && ( <div> <span className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 mb-2 uppercase tracking-wider"> File Upload </span> <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 p-3"> <div className="flex items-center gap-2 text-blue-500 text-sm font-medium"> <FileIcon className="w-4 h-4" /> {genericFile ? genericFile.name : 'Linked File'} </div> </div> </div> )} {job.requiredProofs?.includes("username") && (
                 <div>
                   <span className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 mb-1 uppercase tracking-wider">
                     Username
