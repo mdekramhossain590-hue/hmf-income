@@ -141,35 +141,34 @@ export function Dashboard() {
   useEffect(() => {
     if (!auth.currentUser) return;
 
-    // Using cached read for notifications to save quota
-    const fetchNotifications = async () => {
-      try {
-        const notificationsRef = collection(
-          db,
-          "users",
-          auth.currentUser!.uid,
-          "notifications",
-        );
-        const q = query(
-          notificationsRef,
-          orderBy("createdAt", "desc"),
-          limit(20),
-        );
-        const snapshot = await getCachedQuery(
-          q,
-          `notifications_${auth.currentUser!.uid}`,
-        );
+    let unsubscribe: () => void;
+    import('firebase/firestore').then(({ onSnapshot }) => {
+      const notificationsRef = collection(
+        db,
+        "users",
+        auth.currentUser!.uid,
+        "notifications",
+      );
+      const q = query(
+        notificationsRef,
+        orderBy("createdAt", "desc"),
+        limit(20),
+      );
+      
+      unsubscribe = onSnapshot(q, (snapshot) => {
         const items: any[] = [];
         snapshot.forEach((docSnap) => {
           items.push({ id: docSnap.id, ...docSnap.data() });
         });
         setDbNotifications(items);
-      } catch (err) {
+      }, (err) => {
         console.warn("Error fetching db notifications:", err);
-      }
-    };
+      });
+    });
 
-    fetchNotifications();
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, [auth.currentUser?.uid]);
 
   const [userTx, setUserTx] = useState<any[]>([]);
@@ -1166,9 +1165,13 @@ export function Dashboard() {
           </div>
           
           <button
-            disabled={claimingPartner || alreadyClaimedPartner}
+            disabled={claimingPartner}
             className={`w-full font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg active:scale-95 transition-all text-xs ${alreadyClaimedPartner ? 'bg-slate-300 dark:bg-slate-700 text-slate-500 shadow-none cursor-not-allowed' : 'bg-indigo-600 text-white shadow-indigo-600/20'}`}
             onClick={async () => {
+              if (alreadyClaimedPartner) {
+                toast.error(language === 'Bengali' ? 'আগামীকাল পর্যন্ত অপেক্ষা করুন।' : 'Please wait until tomorrow to claim again.');
+                return;
+              }
               if (!auth.currentUser) return;
               if (claimingPartner) return;
               if ((actualReferralsCount) < partnerSettings.requiredReferrals) {
@@ -2121,7 +2124,8 @@ export function Dashboard() {
                     </p>
                   </div>
                 ) : (
-                  dbNotifications.map((notif) => {
+                  <AnimatePresence>
+                  {dbNotifications.map((notif) => {
                     const createdDate = notif.createdAt
                       ? notif.createdAt.toDate
                         ? notif.createdAt.toDate()
@@ -2140,7 +2144,11 @@ export function Dashboard() {
                       : "";
 
                     return (
-                      <div
+                      <motion.div
+                        initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, x: -50, scale: 0.9, transition: { duration: 0.2 } }}
+                        layout
                         key={notif.id}
                         onClick={() => {
                           if (!notif.read) {
@@ -2204,9 +2212,10 @@ export function Dashboard() {
                             {notif.message}
                           </p>
                         </div>
-                      </div>
+                      </motion.div>
                     );
-                  })
+                  })}
+                  </AnimatePresence>
                 )}
               </div>
             </motion.div>

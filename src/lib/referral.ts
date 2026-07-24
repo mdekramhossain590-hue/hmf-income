@@ -67,6 +67,14 @@ export async function processReferralCommission(userId: string, amountEarned: nu
             account: sourceUserEmail
           });
           
+          await addDoc(collection(db, `users/${referrerId}/notifications`), {
+            title: 'New Referral Commission',
+            message: `You earned ৳${commissionAmount} commission from ${sourceUserEmail}'s task.`,
+            type: 'referral_commission',
+            read: false,
+            createdAt: serverTimestamp()
+          });
+          
           const leaderboardRef = doc(db, 'leaderboard', referrerId);
           await setDoc(leaderboardRef, {
             fullName: referrerData.fullName || 'User',
@@ -147,6 +155,16 @@ export async function processRegistrationReferral(userId: string) {
       }
       
       await updateDoc(doc(db, "users", referrerId), userUpdates);
+      
+      if (fixedBonus > 0) {
+        await addDoc(collection(db, `users/${referrerId}/notifications`), {
+          title: 'New Referral Bonus',
+          message: `You earned ৳${fixedBonus} for referring ${userData.email || 'a new user'}.`,
+          type: 'referral_bonus',
+          read: false,
+          createdAt: serverTimestamp()
+        });
+      }
       
       const leaderboardRef = doc(db, 'leaderboard', referrerId);
       await setDoc(leaderboardRef, {

@@ -23,84 +23,55 @@ export function ActivityHistory() {
 
   useEffect(() => {
     if (!auth.currentUser) return;
+    
+    import('firebase/firestore').then(({ onSnapshot }) => {
+      let txList: any[] = [];
+      let subList: any[] = [];
+      let refList: any[] = [];
 
-    const fetchAllActivity = async () => {
-      try {
-        // Fetch transactions
-        const txRef = collection(db, "users", auth.currentUser!.uid, "transactions");
-        const txQuery = query(txRef, orderBy("createdAt", "desc"), limit(100));
-        const txSnapshot = await getCachedQuery(txQuery, `activity_tx_${auth.currentUser!.uid}`);
-        
-        const txItems: any[] = [];
-        txSnapshot.forEach((docSnap) => {
-          txItems.push({
-            id: docSnap.id,
-            type: "transaction",
-            ...docSnap.data(),
-          });
-        });
-
-        // Fetch submissions
-        const subQuery = query(
-          collection(db, "submissions"),
-          where("userId", "==", auth.currentUser!.uid),
-          limit(100)
-        );
-        const subSnapshot = await getCachedQuery(subQuery, `activity_sub_${auth.currentUser!.uid}`);
-        
-        const subItems: any[] = [];
-        subSnapshot.docs.forEach((docSnap) => {
-          subItems.push({
-            id: docSnap.id,
-            type: "task",
-            ...docSnap.data(),
-          });
-        });
-
-        
-        // Fetch referrals
-        const refQuery = query(
-          collection(db, "users", auth.currentUser!.uid, "referrals"),
-          orderBy("createdAt", "desc"),
-          limit(100)
-        );
-        const refSnapshot = await getCachedQuery(refQuery, `activity_ref_${auth.currentUser!.uid}`);
-        
-        const refItems: any[] = [];
-        refSnapshot.forEach((docSnap) => {
-          refItems.push({
-            id: docSnap.id,
-            type: "referral",
-            ...docSnap.data(),
-          });
-        });
-
+      const updateCombined = () => {
         const combined = [
-          ...txItems.map((t) => {
+          ...txList.map((t) => {
             const d = t.createdAt?.toDate ? t.createdAt.toDate() : t.createdAt ? new Date(t.createdAt) : new Date(0);
-            return { ...t, date: d, _originalType: t.type };
+            return { ...t, date: d, _originalType: t.type || 'transaction' };
           }),
-          ...subItems.map((t) => {
+          ...subList.map((t) => {
             const timeField = t.submittedAt || t.completedAt;
             const d = timeField?.toDate ? timeField.toDate() : timeField ? new Date(timeField) : new Date(0);
-            return { ...t, date: d, _originalType: t.type };
+            return { ...t, date: d, _originalType: t.type || 'task' };
           }),
-          ...refItems.map((t) => {
+          ...refList.map((t) => {
             const d = t.createdAt?.toDate ? t.createdAt.toDate() : t.createdAt ? new Date(t.createdAt) : new Date(0);
-            return { ...t, date: d, _originalType: t.type };
+            return { ...t, date: d, _originalType: 'referral' };
           }),
         ];
 
         combined.sort((a, b) => b.date.getTime() - a.date.getTime());
         setActivities(combined.slice(0, 100));
-      } catch (e) {
-        console.warn("Error fetching all activity:", e);
-      } finally {
         setLoading(false);
-      }
-    };
+      };
 
-    fetchAllActivity();
+      const unsubTx = onSnapshot(query(collection(db, "users", auth.currentUser!.uid, "transactions"), orderBy("createdAt", "desc"), limit(100)), (snap) => {
+        txList = snap.docs.map(d => ({ id: d.id, type: "transaction", ...d.data() }));
+        updateCombined();
+      });
+
+      const unsubSub = onSnapshot(query(collection(db, "submissions"), where("userId", "==", auth.currentUser!.uid), limit(100)), (snap) => {
+        subList = snap.docs.map(d => ({ id: d.id, type: "task", ...d.data() }));
+        updateCombined();
+      });
+
+      const unsubRef = onSnapshot(query(collection(db, "users", auth.currentUser!.uid, "referrals"), orderBy("createdAt", "desc"), limit(100)), (snap) => {
+        refList = snap.docs.map(d => ({ id: d.id, type: "referral", ...d.data() }));
+        updateCombined();
+      });
+
+      return () => {
+        unsubTx();
+        unsubSub();
+        unsubRef();
+      };
+    });
   }, [auth.currentUser?.uid]);
 
   return (
