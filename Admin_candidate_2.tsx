@@ -1,13 +1,3 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../components/AuthProvider';
-import { collection, query, onSnapshot, doc, writeBatch, serverTimestamp, setDoc, orderBy, deleteDoc, increment, updateDoc, getDocs, deleteField, getDoc, limit, FieldPath } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
-import { getCachedDoc, getCachedQuery, clearCache } from '../lib/cache';
-import { uploadImageOrFallback } from '../lib/imageUpload';
-import { processReferralCommission, processRegistrationReferral } from '../lib/referral';
-import { Trash2, CheckCircle, XCircle, Users, ShieldAlert, ShieldCheck, Wallet, ListChecks, Settings, User, Eye, Calculator, MessageSquare, Globe, Coins, Megaphone, Gamepad2, CreditCard, Lock, BellRing, RefreshCw, Smartphone, Mail, Camera, MessageCircle, Send, BookOpen, Layers, Copy, HelpCircle, Database, Search, Download, Gift } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
-import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 
 export function AdminPanel() {
@@ -32,7 +22,7 @@ export function AdminPanel() {
   const [newCourseDesc, setNewCourseDesc] = useState('');
   const [newCourseThumbnail, setNewCourseThumbnail] = useState('');
   const [newCourseLink, setNewCourseLink] = useState('');
-  const [newCourseCategory, setNewCourseCategory] = useState<' ' | ' ' | ''>(' ');
+  const [newCourseCategory, setNewCourseCategory] = useState<'টাস্ক কমপ্লিট' | 'টাকা উইথড্র' | 'অন্যান্য'>('টাস্ক কমপ্লিট');
   const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
   const [courseItems, setCourseItems] = useState<{ title: string; description: string; thumbnailUrl: string; videoLink: string; }[]>([]);
   const [optTitle, setOptTitle] = useState('');
@@ -90,7 +80,6 @@ export function AdminPanel() {
 
   const [promptInput, setPromptInput] = useState('');
   
-  const [editingUserBalance, setEditingUserBalance] = useState<{ id: string; fullName: string; main: number; bonus: number; referral: number; partner: number; tasks: number } | null>(null);
   const [editingJobId, setEditingJobId] = useState<string | null>(null);
 
   const [newJob, setNewJob] = useState({
@@ -267,6 +256,350 @@ export function AdminPanel() {
     }
   };
 
+  const handleFixBonusAmounts = async () => {
+    try {
+      toast.success("Fixing bonus amounts started...");
+      const { collection, getDocs, updateDoc, doc, increment, setDoc } = await import('firebase/firestore');
+      
+      let fixedCount = 0;
+      let permissionErrors = 0;
+      
+      for (const user of userList) {
+        const userId = user.id;
+        try {
+          const refSnap = await getDocs(collection(db, `users/${userId}/referrals`));
+          
+          for (const rDoc of refSnap.docs) {
+            const data = rDoc.data();
+            let diff = 0;
+            let newBonus = 0;
+            
+            if (data.level === 1 && data.bonusEarned > 5) {
+              diff = data.bonusEarned - 5; newBonus = 5;
+            } else if (data.level === 2 && data.bonusEarned > 3) {
+              diff = data.bonusEarned - 3; newBonus = 3;
+            } else if (data.level === 3 && data.bonusEarned > 1) {
+              diff = data.bonusEarned - 1; newBonus = 1;
+            }
+            
+            if (diff > 0) {
+               let updated = false;
+               try {
+                 await updateDoc(rDoc.ref, { bonusEarned: newBonus });
+                 updated = true;
+               } catch(err) {
+                 console.warn("Could not fix ref doc", err);
+                 permissionErrors++;
+               }
+               
+               try {
+                 await updateDoc(doc(db, "users", userId), {
+                   "balances.referral": increment(-diff)
+                 });
+                 await setDoc(doc(db, "leaderboard", userId), {
+                   totalIncome: increment(-diff)
+                 }, { merge: true });
+                 if (!updated) updated = true; 
+               } catch (err) {
+                  console.warn("Could not fix user balance", err);
+               }
+               
+               if (updated) fixedCount++;
+            }
+          }
+        } catch (e) {
+           permissionErrors++;
+           console.error("Failed for user", userId, e);
+        }
+      }
+      
+      if (fixedCount > 0) {
+        toast.success(`Fixed ${fixedCount} referrals!`);
+        loadData(true);
+      } else if (permissionErrors > 0) {
+        toast.error(`Permission denied on ${permissionErrors} operations.`);
+      } else {
+        toast.success("No referrals needed fixing.");
+      }
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  };
+
+  const handleFixOldReferrals = async () => {
+    try {
+      toast.success("Fix referrals started...");
+      console.log("Fix referrals started");
+      const loadingToast = toast.loading("Finding and processing old referrals...");
+      const { query, collection, where, getDocs, updateDoc, doc, serverTimestamp, increment, setDoc, addDoc } = await import('firebase/firestore');
+      
+      // Get referral settings
+      const { getDoc } = await import('firebase/firestore');
+      const settingsDoc = await getDoc(doc(db, "settings", "referral"));
+      let gen1 = 10, gen2 = 0, gen3 = 0;
+      if (settingsDoc.exists()) {
+        const data = settingsDoc.data();
+        gen1 = data.fixedBonus || 0;
+        gen2 = data.gen2FixedBonus || 0;
+        gen3 = data.gen3FixedBonus || 0;
+      }
+      const bonuses = [gen1, gen2, gen3];
+
+      // Query all users to avoid index requirements
+      const q = query(collection(db, "users"));
+      const snapshot = await getDocs(q);
+      let processed = 0;
+      let alreadyPaid = 0;
+      let logMsg = "";
+      
+      for (const userDoc of snapshot.docs) {
+        const data = userDoc.data();
+        
+        if (data.usedReferCode && data.usedReferCode !== 'none') {
+          const sanitizedCode = data.usedReferCode.replace(/[\u200B-\u200D\uFEFF\s]/g, '').trim().toUpperCase();
+          
+          if (data.usedReferCode !== sanitizedCode) {
+            await updateDoc(doc(db, "users", userDoc.id), { usedReferCode: sanitizedCode });
+          }
+
+          // Check if referrer actually received the referral
+          const referrerQuery = query(collection(db, "users"), where("myReferCode", "==", sanitizedCode));
+          const referrerSnapshot = await getDocs(referrerQuery);
+          
+          if (!referrerSnapshot.empty) {
+            const referrerDoc = referrerSnapshot.docs[0];
+            const referrerId = referrerDoc.id;
+            
+            // Allow matching by email or just checking if they've been paid
+            let missed = false;
+            
+            // Only process if the user is ACTIVE!
+            if (data.isActive) {
+              if (data.email) {
+                const refSubQuery = query(collection(db, `users/${referrerId}/referrals`), where("referredEmail", "==", data.email));
+                const refSubSnapshot = await getDocs(refSubQuery);
+                if (refSubSnapshot.empty) missed = true;
+              } else {
+                missed = !data.referralBonusPaid;
+              }
+            } else {
+              // If user is INACTIVE but referralBonusPaid is true, fix it so they can be processed later when they activate!
+              if (data.referralBonusPaid) {
+                await updateDoc(doc(db, "users", userDoc.id), { referralBonusPaid: false });
+              }
+            }
+            
+            if (missed) {
+               console.log("Found missed referral for user:", data.email || userDoc.id, "referred by", sanitizedCode);
+               
+               // Manually process it directly here so it never fails
+               let currentReferCode = sanitizedCode;
+               for (let level = 0; level < 3; level++) {
+                  if (!currentReferCode || currentReferCode === 'none') break;
+                  const fixedBonus = bonuses[level];
+                  
+                  const refQ = query(collection(db, "users"), where("myReferCode", "==", currentReferCode));
+                  const refSnap = await getDocs(refQ);
+                  if (refSnap.empty) break;
+                  
+                  const rDoc = refSnap.docs[0];
+                  const rId = rDoc.id;
+                  const rData = rDoc.data();
+                  
+                  // Add to subcollection if level 1 (or all levels depending on logic)
+                  await addDoc(collection(db, `users/${rId}/referrals`), {
+                    referredEmail: data.email || 'No Email',
+                    referredName: data.fullName || 'Anonymous',
+                    bonusEarned: fixedBonus,
+                    level: level + 1,
+                    createdAt: serverTimestamp()
+                  });
+                  
+                  const userUpdates: any = {
+                    totalReferrals: increment(level === 0 ? 1 : 0)
+                  };
+                  if (fixedBonus > 0) {
+                    userUpdates["balances.referral"] = increment(fixedBonus);
+                  }
+                  await updateDoc(doc(db, "users", rId), userUpdates);
+                  
+                  const leaderboardRef = doc(db, 'leaderboard', rId);
+                  await setDoc(leaderboardRef, {
+                    fullName: rData.fullName || 'User',
+                    referrals: increment(level === 0 ? 1 : 0),
+                    bonus: increment(0),
+                    totalIncome: increment(fixedBonus),
+                    updatedAt: serverTimestamp()
+                  }, { merge: true });
+                  
+                  currentReferCode = rData.usedReferCode ? rData.usedReferCode.replace(/[\u200B-\u200D\uFEFF\s]/g, '').trim().toUpperCase() : '';
+               }
+               
+               await updateDoc(doc(db, "users", userDoc.id), { referralBonusPaid: true });
+               processed++;
+               continue;
+            }
+          }
+        }
+        
+        if (data.referralBonusPaid) {
+          alreadyPaid++;
+        }
+      }
+      
+      // 
+      toast.success(`Successfully processed ${processed} missed referrals (skipped ${alreadyPaid} valid).`);
+      loadData(true);
+    } catch (e) {
+      // 
+      toast.error("Failed to process old referrals: " + (e as any).message);
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    
+    // Default to the first allowed tab if current activeTab is not allowed
+    if (!isFullAdmin && !userPermissions.includes(activeTab) && allowedTabs.length > 0) {
+      setActiveTab(allowedTabs[0].id as any);
+    }
+    
+    if (activeTab === 'settings') {
+       loadSettings();
+    }
+    loadData();
+  }, [isAdmin, activeTab, loadSettings, loadData]);
+
+  if (!isAdmin) return <div className="p-10 text-center">Access Denied</div>;
+
+  const handleCreateGiftCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newGiftCode || newGiftCode.length < 5) {
+      toast.error('Code must be at least 5 characters');
+      return;
+    }
+    
+    setIsCreatingGift(true);
+    try {
+      const expiresAt = new Date();
+      expiresAt.setHours(expiresAt.getHours() + (Number(giftExpiresInHours) || 24));
+      
+      await setDoc(doc(db, "giftCodes", newGiftCode.trim().toUpperCase()), {
+        code: newGiftCode.trim().toUpperCase(),
+        type: giftType,
+        amount: giftType === 'fixed' ? (Number(giftAmount) || 0) : 0,
+        minAmount: giftType === 'random' ? (Number(giftMinAmount) || 0) : 0,
+        maxAmount: giftType === 'random' ? (Number(giftMaxAmount) || 0) : 0,
+        maxUses: Number(giftMaxUses) || 0,
+        usedBy: [],
+        expiresAt: expiresAt,
+        status: 'active',
+        createdAt: serverTimestamp(),
+        createdBy: auth.currentUser?.email || 'admin'
+      });
+      
+      toast.success('Gift Code Created!');
+      setNewGiftCode('');
+      loadData(true);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, 'giftCodes');
+      toast.error('Failed to create code');
+    } finally {
+      setIsCreatingGift(false);
+    }
+  };
+
+  const handleDeleteGiftCode = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this gift code?')) return;
+    try {
+      await deleteDoc(doc(db, "giftCodes", id));
+      toast.success('Gift code deleted');
+      loadData(true);
+    } catch (err) {
+      toast.error('Failed to delete code');
+    }
+  };
+
+  const handleSaveFaqs = async (updatedFaqs: any[]) => {
+    setIsSavingSettings(true);
+    try {
+      await setDoc(doc(db, "settings", "faqs"), {
+        faqs: updatedFaqs,
+        updatedAt: serverTimestamp()
+      });
+      toast.success('FAQs updated!');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, 'settings/faqs');
+    } finally {
+      setIsSavingSettings(false);
+      setNewFaq({ question_en: '', answer_en: '', question_bn: '', answer_bn: '' });
+      setEditingFaqIndex(null);
+    }
+  };
+
+  const handleAddFaq = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editingFaqIndex !== null) {
+      const updated = [...faqsList];
+      updated[editingFaqIndex] = newFaq;
+      handleSaveFaqs(updated);
+    } else {
+      handleSaveFaqs([...faqsList, newFaq]);
+    }
+  };
+
+  const handleDeleteFaq = (index: number) => {
+    if(window.confirm('Are you sure you want to delete this FAQ?')) {
+      const updated = faqsList.filter((_, i) => i !== index);
+      handleSaveFaqs(updated);
+    }
+  };
+
+  const handleCancelEditFaq = () => {
+    setEditingFaqIndex(null);
+    setNewFaq({ question_en: '', answer_en: '', question_bn: '', answer_bn: '' });
+  };
+
+  const handleSaveActivationSettings = async () => {
+    setIsSavingSettings(true);
+    try {
+      await setDoc(doc(db, "settings", "activation"), {
+        mode: activationSettings.mode,
+        fee: activationSettings.fee,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      toast.success("Activation settings saved!");
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, 'settings/activation');
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
+  const handleUploadImage = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logo') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Image must be smaller than 2MB.");
+      return;
+    }
+
+    const toastId = toast.loading(`Uploading ${type}...`);
+    try {
+      const imageUrl = await uploadImageOrFallback(file, 400);
+
+      setSiteSettings(prev => ({
+        ...prev,
+        logoUrl: imageUrl
+      }));
+      toast.success(`${type} uploaded successfully!`, { id: toastId });
+    } catch (err: any) {
+      toast.error(err.message || `Failed to upload ${type}`, { id: toastId });
+    }
+  };
+
   const handleSaveSiteSettings = async () => {
     setIsSavingSettings(true);
     try {
@@ -380,7 +713,7 @@ export function AdminPanel() {
     setConfirmDialog({
       isOpen: true,
       title: 'Reject User Job',
-      message: `Are you sure you want to reject this job? ${job.totalCost} will be refunded to the user's main balance.`,
+      message: `Are you sure you want to reject this job? ৳${job.totalCost} will be refunded to the user's main balance.`,
       onConfirm: async () => {
         try {
           const batch = writeBatch(db);
@@ -503,7 +836,7 @@ export function AdminPanel() {
             const notifRef = doc(collection(db, "users", userId, "notifications"));
             batch.set(notifRef, {
               title: status === 'approved' ? 'Task Approved' : 'Task Rejected',
-              message: `Your submission for "${subTitle}" was ${status}. ${status === 'approved' ? `You earned ${safeReward}!` : ''}`,
+              message: `Your submission for "${subTitle}" was ${status}. ${status === 'approved' ? `You earned ৳${safeReward}!` : ''}`,
               type: status === 'approved' ? 'task_approved' : 'task_rejected',
               read: false,
               createdAt: serverTimestamp()
@@ -708,7 +1041,7 @@ export function AdminPanel() {
             const notifRef = doc(collection(db, "users", reqUserId, "notifications"));
             batch.set(notifRef, {
               title: `${reqType === 'deposit' ? 'Deposit' : reqType === 'activation' ? 'Account Activation' : 'Withdrawal'} ${status}`,
-              message: `Your ${reqType} request of ${reqAmount} has been ${status}.`,
+              message: `Your ${reqType} request of ৳${reqAmount} has been ${status}.`,
               type: `payment_${status}`,
               read: false,
               createdAt: serverTimestamp()
@@ -882,90 +1215,16 @@ export function AdminPanel() {
     }
   };
 
-
-  const handleSaveFaqs = async (updatedFaqs: any[]) => {
-    setIsSavingSettings(true);
-    try {
-      await setDoc(doc(db, "settings", "faqs"), {
-        faqs: updatedFaqs,
-        updatedAt: serverTimestamp()
-      });
-      toast.success('FAQs updated!');
-    } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, 'settings/faqs');
-    } finally {
-      setIsSavingSettings(false);
-      setNewFaq({ question_en: '', answer_en: '', question_bn: '', answer_bn: '' });
-      setEditingFaqIndex(null);
-    }
-  };
-
-  const handleAddFaq = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (editingFaqIndex !== null) {
-      const updated = [...faqsList];
-      updated[editingFaqIndex] = newFaq;
-      handleSaveFaqs(updated);
-    } else {
-      handleSaveFaqs([...faqsList, newFaq]);
-    }
-  };
-
-  const handleDeleteFaq = (index: number) => {
-    if(window.confirm('Are you sure you want to delete this FAQ?')) {
-      const updated = faqsList.filter((_, i) => i !== index);
-      handleSaveFaqs(updated);
-    }
-  };
-
-  const handleCancelEditFaq = () => {
-    setEditingFaqIndex(null);
-    setNewFaq({ question_en: '', answer_en: '', question_bn: '', answer_bn: '' });
-  };
-
   return (
     <div className="pt-6 px-4 pb-20">
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <h2 className="text-2xl font-bold text-[#0D47A1] dark:text-blue-400">Admin Panel</h2>
         <button
-          onClick={async () => {
-            const toastId = toast.loading('Syncing latest admin data...');
-            try {
-              clearCache();
-              await Promise.all([
-                loadSettings(true),
-                loadData(true)
-              ]);
-              toast.success('Admin data synced fully!', { id: toastId });
-            } catch (err) {
-              toast.error('Failed to sync admin data', { id: toastId });
-            }
-          }}
-          className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-full font-black text-[10px] uppercase tracking-widest transition-all border border-slate-200 dark:border-slate-700 active:scale-95"
-        >
-          <RefreshCw className="w-3.5 h-3.5" />
-          Sync Live Data
         </button>
       </div>
       <div className="flex bg-slate-100 dark:bg-slate-900/50 p-1.5 rounded-[20px] mb-8 flex-wrap gap-1.5 ring-1 ring-slate-200 dark:ring-slate-800">
         {allowedTabs.map(tab => (
           <button 
-            key={tab.id}
-            onClick={() => {
-              if (tab.id === 'migrate') {
-                navigate('/admin/migrate');
-              } else {
-                setActiveTab(tab.id as any);
-              }
-            }} 
-            className={`flex-1 min-w-[80px] py-2.5 px-2 rounded-[14px] text-[11px] font-black uppercase tracking-wider transition-all flex flex-col items-center gap-1 active:scale-95 ${
-              activeTab === tab.id 
-                ? 'bg-white dark:bg-slate-800 shadow-md shadow-slate-200 dark:shadow-black/20 text-slate-900 dark:text-white ring-1 ring-slate-200 dark:ring-slate-700' 
-                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-            }`}
-          >
-            <tab.icon className={`w-4 h-4 ${activeTab === tab.id ? tab.color : 'text-slate-400'}`} />
-            {tab.label}
           </button>
         ))}
       </div>
@@ -978,7 +1237,7 @@ export function AdminPanel() {
                 <Database className="w-5 h-5 text-indigo-200" /> cPanel Ready Build (.zip)
               </h4>
               <p className="text-xs text-blue-100 max-w-xl leading-relaxed">
-                 cPanel -       <b>dist.zip</b>       cPanel- <code className="bg-blue-700/50 px-1.5 py-0.5 rounded text-[11px] font-mono">public_html</code>      
+                আপনার cPanel হোস্টিং-এ আপলোড করার জন্য সম্পূর্ণ প্রস্তুত করা <b>dist.zip</b> বিল্ড ফাইলটি ডাউনলোড করুন। এটি সরাসরি cPanel-এর <code className="bg-blue-700/50 px-1.5 py-0.5 rounded text-[11px] font-mono">public_html</code> ফোল্ডারে আপলোড করে এক্সট্র্যাক্ট করতে পারবেন।
               </p>
             </div>
             <a 
@@ -999,7 +1258,7 @@ export function AdminPanel() {
               <div className="flex flex-col gap-2">
                 <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Total Approved Deposits</span>
                 <span className="text-3xl font-black text-slate-900 dark:text-white">
-                  {paymentRequests.filter(r => r.type === 'deposit' && r.status === 'approved').reduce((acc, curr) => acc + Number(curr.amount || 0), 0).toLocaleString()}
+                  ৳{paymentRequests.filter(r => r.type === 'deposit' && r.status === 'approved').reduce((acc, curr) => acc + Number(curr.amount || 0), 0).toLocaleString()}
                 </span>
                 <span className="text-[10px] font-bold text-slate-500 uppercase">
                   {paymentRequests.filter(r => r.type === 'deposit' && r.status === 'approved').length} Transactions
@@ -1011,7 +1270,7 @@ export function AdminPanel() {
               <div className="flex flex-col gap-2">
                 <span className="text-xs font-bold text-rose-600 dark:text-rose-400 uppercase tracking-widest">Total Approved Withdrawals</span>
                 <span className="text-3xl font-black text-slate-900 dark:text-white">
-                  {paymentRequests.filter(r => r.type === 'withdraw' && r.status === 'approved').reduce((acc, curr) => acc + Number(curr.amount || 0), 0).toLocaleString()}
+                  ৳{paymentRequests.filter(r => r.type === 'withdraw' && r.status === 'approved').reduce((acc, curr) => acc + Number(curr.amount || 0), 0).toLocaleString()}
                 </span>
                 <span className="text-[10px] font-bold text-slate-500 uppercase">
                   {paymentRequests.filter(r => r.type === 'withdraw' && r.status === 'approved').length} Transactions
@@ -1023,7 +1282,7 @@ export function AdminPanel() {
               <div className="flex flex-col gap-2">
                 <span className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-widest">Pending Deposits</span>
                 <span className="text-3xl font-black text-slate-900 dark:text-white">
-                  {paymentRequests.filter(r => r.type === 'deposit' && r.status === 'pending').reduce((acc, curr) => acc + Number(curr.amount || 0), 0).toLocaleString()}
+                  ৳{paymentRequests.filter(r => r.type === 'deposit' && r.status === 'pending').reduce((acc, curr) => acc + Number(curr.amount || 0), 0).toLocaleString()}
                 </span>
                 <span className="text-[10px] font-bold text-slate-500 uppercase">
                   {paymentRequests.filter(r => r.type === 'deposit' && r.status === 'pending').length} Action Required
@@ -1035,7 +1294,7 @@ export function AdminPanel() {
               <div className="flex flex-col gap-2">
                 <span className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest">Pending Withdrawals</span>
                 <span className="text-3xl font-black text-slate-900 dark:text-white">
-                  {paymentRequests.filter(r => r.type === 'withdraw' && r.status === 'pending').reduce((acc, curr) => acc + Number(curr.amount || 0), 0).toLocaleString()}
+                  ৳{paymentRequests.filter(r => r.type === 'withdraw' && r.status === 'pending').reduce((acc, curr) => acc + Number(curr.amount || 0), 0).toLocaleString()}
                 </span>
                 <span className="text-[10px] font-bold text-slate-500 uppercase">
                   {paymentRequests.filter(r => r.type === 'withdraw' && r.status === 'pending').length} Action Required
@@ -1068,11 +1327,11 @@ export function AdminPanel() {
                           {req.status}
                         </span>
                       </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">{req.method || 'System'}  {new Date(req.createdAt?.toDate()).toLocaleString()}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">{req.method || 'System'} • {new Date(req.createdAt?.toDate()).toLocaleString()}</p>
                     </div>
                   </div>
                   <div className={`font-black text-lg ${req.type === 'deposit' ? 'text-emerald-500' : 'text-rose-500'}`}>
-                    {req.type === 'deposit' ? '+' : '-'}{req.amount}
+                    {req.type === 'deposit' ? '+' : '-'}৳{req.amount}
                   </div>
                 </div>
               ))}
@@ -1121,7 +1380,7 @@ export function AdminPanel() {
                     </div>
                     <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 truncate max-w-[150px]">{sub.userEmail}</p>
                     <div className="w-1 h-1 rounded-full bg-slate-300"></div>
-                    <p className="text-xs font-black text-blue-600 dark:text-blue-400">{sub.reward}</p>
+                    <p className="text-xs font-black text-blue-600 dark:text-blue-400">৳{sub.reward}</p>
                   </div>
                 </div>
               </div>
@@ -1136,14 +1395,6 @@ export function AdminPanel() {
                         <p className="text-sm font-medium dark:text-slate-200 break-all">{sub.proofs.text}</p>
                       </div>
                       <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(sub.proofs.text);
-                          toast.success("Comment copied!");
-                        }}
-                        className="p-1 px-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors shrink-0 self-center"
-                        title="Copy Comment"
-                      >
-                        <Copy className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   )}
@@ -1154,32 +1405,15 @@ export function AdminPanel() {
                         <p className="text-sm font-mono font-bold text-indigo-500 break-all">{sub.proofs.username}</p>
                       </div>
                       <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(sub.proofs.username);
-                          toast.success("Username copied!");
-                        }}
-                        className="p-1 px-1.5 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors shrink-0 self-center"
-                        title="Copy Username"
-                      >
-                        <Copy className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   )}
                   {sub.proofs.password && (
                     <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50">
-                      <div className="flex-1 min-w-0">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Password:</span>
+                    P$-o  P$-o  o    o                            <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Password:</span>
                         <p className="text-sm font-mono font-bold text-rose-500 break-all">{sub.proofs.password}</p>
                       </div>
                       <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(sub.proofs.password);
-                          toast.success("Password copied!");
-                        }}
-                        className="p-1 px-1.5 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors shrink-0 self-center"
-                        title="Copy Password"
-                      >
-                        <Copy className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   )}
@@ -1190,14 +1424,6 @@ export function AdminPanel() {
                         <p className="text-sm font-mono font-bold text-emerald-500 break-all">{sub.proofs.twoFactorCode}</p>
                       </div>
                       <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(sub.proofs.twoFactorCode);
-                          toast.success("2FA copied!");
-                        }}
-                        className="p-1 px-1.5 rounded-lg text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors shrink-0 self-center"
-                        title="Copy 2FA"
-                      >
-                        <Copy className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   )}
@@ -1208,24 +1434,12 @@ export function AdminPanel() {
                         <a href={sub.proofs.videoUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-blue-500 underline truncate block">{sub.proofs.videoUrl}</a>
                       </div>
                       <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(sub.proofs.videoUrl);
-                          toast.success("Video URL copied!");
-                        }}
-                        className="p-1 px-1.5 rounded-lg text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors shrink-0 self-center"
-                        title="Copy Video URL"
-                      >
-                        <Copy className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   )}
                   {sub.proofs.screenshot && (
                     <div className="pt-2">
                       <button 
-                        onClick={() => setViewingScreenshot(sub.proofs.screenshot)}
-                        className="flex items-center gap-2 text-xs font-black text-white bg-emerald-600 dark:bg-emerald-500 px-4 py-2 rounded-xl hover:scale-[1.02] active:scale-95 transition-all w-fit shadow-md cursor-pointer"
-                      >
-                        <Eye className="w-3.5 h-3.5" /> View Proof Image
                       </button>
                     </div>
                   )}
@@ -1234,16 +1448,8 @@ export function AdminPanel() {
               
               <div className="grid grid-cols-2 gap-3">
                 <button 
-                  onClick={() => reviewSubmission(sub.id, sub.userId, sub.reward, sub.title, sub.jobType || 'Other', sub.jobId, 'approved')} 
-                  className="bg-emerald-500 hover:bg-emerald-600 text-white py-3 rounded-2xl font-black uppercase tracking-widest text-[11px] flex justify-center items-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-95 transition-all"
-                >
-                  <CheckCircle className="w-4 h-4"/> Approve
                 </button>
                 <button 
-                  onClick={() => reviewSubmission(sub.id, sub.userId, sub.reward, sub.title, sub.jobType || 'Other', sub.jobId, 'rejected')} 
-                  className="bg-rose-500 hover:bg-rose-600 text-white py-3 rounded-2xl font-black uppercase tracking-widest text-[11px] flex justify-center items-center gap-2 shadow-lg shadow-rose-500/20 active:scale-95 transition-all"
-                >
-                  <XCircle className="w-4 h-4" /> Reject
                 </button>
               </div>
             </motion.div>
@@ -1275,132 +1481,6 @@ export function AdminPanel() {
               <h3 className="font-black text-lg dark:text-white uppercase tracking-tight italic">{editingJobId ? 'Edit Task' : 'Create New Task'}</h3>
               {editingJobId && (
                 <button type="button" onClick={handleCancelEditJob} className="text-xs font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">Cancel Edit</button>
-              )}
-            </div>
-            <div className="grid gap-3">
-              <input type="text" placeholder="Task Title" required value={newJob.title} onChange={e => setNewJob({...newJob, title: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold placeholder:text-slate-400" />
-              <textarea placeholder="Job Description / Instructions" required value={newJob.description} onChange={e => setNewJob({...newJob, description: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold h-24 placeholder:text-slate-400" />
-              <input type="text" placeholder="Action Link (e.g. Telegram Group Link, URL)" value={newJob.link || ''} onChange={e => setNewJob({...newJob, link: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold placeholder:text-slate-400 text-blue-500" />
-            </div>
-            
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-1 block">Category</label>
-                <select 
-                  value={newJob.type} 
-                  onChange={e => {
-                    const newType = e.target.value;
-                    let updatedJob = { ...newJob, type: newType };
-                    if (newType === 'Review') {
-                      updatedJob.title = "German Doner Kebab (GDK)   ";
-                      updatedJob.description = "      (5 Star)                      ";
-                      updatedJob.link = "https://www.google.com/search?shndl=30&shem=rimspwouoe&q=German+Doner+Kebab+(GDK)&kgmid=/g/11wpz8mg0y";
-                      updatedJob.icon = 'Star';
-                      updatedJob.color = 'text-amber-500';
-                      updatedJob.requiredProofs = ['text', 'screenshot', 'username'];
-                      
-                      const defaultComments = [
-                        "Ive tried GDK in other locations, and Metrocenter branch is just as good. Consistent taste, clean, and fast.",
-                        "Super convenient inside Metrocenter. Grabbed a Kebab Box between shopping trips. No long wait even during lunch rush.fas",
-                        "What makes GDK different is the sauce selection. Tried Garlic + Chilli. Kebab was packed well and didnt get soggy.",
-                        "The waffle bread is absolutely incredible! GDK always delivers high-quality donor and the service is extremely friendly.",
-                        "Amazing kebab! Fresh ingredients, tasty sauces, and super clean. Best place in Metrocenter for a quick bite.",
-                        "Really friendly staff and super quick service. The donor meat is perfectly seasoned and not greasy at all.",
-                        "Absolutely love GDK. The food is always piping hot, fresh, and full of flavor. Highly recommend the Boss Box!",
-                        "Best doner kebab around here. Friendly staff, modern clean seating, and consistently delicious food.",
-                        "German Doner Kebab never disappoints! The combination of garlic and spicy sauce is just amazing.",
-                        "Great dining experience at the Metrocenter branch. The doner wraps are fresh, juicy, and huge!",
-                        "I am absolutely in love with GDK's signature sauce. The meat is tender and the waffle bread is so soft.",
-                        "A must-visit spot inside Metrocenter! Super clean environment, polite workers, and top-tier kebabs.",
-                        "Really tasty and healthy portion sizes. The GDK doner is far superior to standard kebabs.",
-                        "Excellent service! The team is efficient even when it is crowded. The food is consistently outstanding.",
-                        "Outstanding taste and amazing packaging! Everything feels very hygienic and fresh.",
-                        "Highly impressed by the speed and cleanliness. The kebab was packed with meat and extremely flavorful.",
-                        "The chili sauce is perfectly spicy and pairs so well with the garlic sauce. Best doner ever!",
-                        "Lovely food and brilliant service! Great addition to Metrocenter, definitely coming back again.",
-                        "The meat is so tender and flavorful, and the veggies are incredibly crisp. Highly recommended!",
-                        "Quick, yummy, and very clean! Definitely my go-to spot whenever I visit Metrocenter.",
-                        "GDK is on another level. The waffle bread kebab is unique, tasty, and loaded with fresh fillings.",
-                        "Perfect quick lunch while shopping. Warm food, delicious taste, and lovely helpful staff.",
-                        "Their doner box with fries is top notch! Perfect blend of spices and very satisfying portion.",
-                        "Great service, clean tables, and incredible flavor. The doner is juicy and absolutely delicious.",
-                        "Highly professional staff, excellent customer service, and unmatched kebab quality. Simply the best.",
-                        "The bread is light and crispy, and the meat is beautifully cooked. Best fast food in Metrocenter!",
-                        "Brilliant taste, gorgeous sauces, and absolutely spot on. Will definitely recommend GDK to friends.",
-                        "Loved the Doner Spring Rolls and the classic kebab. GDK Metrocenter is always top notch!",
-                        "Super fast preparation and extremely delicious. The garlic sauce is out of this world!",
-                        "Super clean, very friendly service, and absolutely scrumptious kebabs. A solid five stars!"
-                      ];
-                      updatedJob.reviewComments = defaultComments;
-                    }
-                    setNewJob(updatedJob);
-                  }} 
-                  className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold"
-                >
-                  {['Facebook', 'Gmail', 'Instagram', 'Telegram', 'Review', 'Sell Accounts', 'Microjob', 'Typing', 'Watch Ads', 'Other'].map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-1 block">Reward ()</label>
-                <input type="number" placeholder="0.00" required value={newJob.reward} onChange={e => setNewJob({...newJob, reward: Number(e.target.value)})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-black text-blue-600" />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-1 block">Total Slots (All Users)</label>
-                <input type="number" value={newJob.allowedCompletions} onChange={e => setNewJob({...newJob, allowedCompletions: Number(e.target.value)})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold" placeholder="0 for unlimited" />
-              </div>
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-1 block">Max Per User</label>
-                <input type="number" value={newJob.userLimit} onChange={e => setNewJob({...newJob, userLimit: Number(e.target.value)})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold text-orange-500" placeholder="0 for unlimited" />
-              </div>
-            </div>
-
-            <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-3xl space-y-3">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 pl-1">Appearance & Requirements</p>
-              <div className="grid grid-cols-2 gap-2">
-                <select value={newJob.icon} onChange={e => setNewJob({...newJob, icon: e.target.value})} className="bg-white dark:bg-slate-800 border-none px-3 py-2 rounded-xl text-xs font-bold shadow-sm">
-                  <option value="Facebook">Facebook Profile</option>
-                  <option value="Instagram">Instagram Page</option>
-                  <option value="Youtube">Youtube Display</option>
-                  <option value="Mail">Email / Gmail</option>
-                  <option value="Monitor">Computer / Desktop</option>
-                  <option value="Smartphone">Mobile Device</option>
-                  <option value="Video">Video Player</option>
-                  <option value="Copy">Copy Task</option>
-                  <option value="Send">Direct Message</option>
-                  <option value="Key">Lock / Secure</option>
-                  <option value="MessageCircle">Chatting</option>
-                  <option value="Heart">Likes / Reaction</option>
-                  <option value="Star">Review / Star</option>
-                  <option value="Send">Telegram / Message</option>
-                  <option value="User">User Account</option>
-                  <option value="Globe">Global Link</option>
-                </select>
-                <input type="text" placeholder="Icon Color (e.g. text-blue-500)" value={newJob.color} onChange={e => setNewJob({...newJob, color: e.target.value})} className="bg-white dark:bg-slate-800 border-none px-3 py-2 rounded-xl text-xs font-bold shadow-sm" />
-              </div>
-            </div>
-
-            <div className="grid gap-3">
-              <input type="text" placeholder="Task Redirect Link (Full URL)" required value={newJob.link} onChange={e => setNewJob({...newJob, link: e.target.value})} className="w-full bg-slate-100 dark:bg-slate-900/50 border-none px-4 py-3 rounded-2xl text-xs font-bold italic text-blue-500" />
-            </div>
-            
-            <div className="space-y-3">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Required Proofs To Check</p>
-              <div className="flex gap-2 flex-wrap">
-                {['text', 'screenshot', 'username', 'password', 'videoUrl', '2facode'].map(p => (
-                  <button 
-                    type="button" 
-                    key={p} 
-                    onClick={() => toggleProof(p)} 
-                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all active:scale-90 ${
-                      newJob.requiredProofs.includes(p) 
-                      ? 'bg-slate-900 text-white border-slate-900 shadow-lg shadow-slate-900/20' 
-                      : 'bg-white text-slate-500 border-slate-100 dark:bg-slate-800 dark:border-slate-700'
-                    }`}
-                  >
-                    {p === '2facode' ? '2FA Code' : p}
                   </button>
                 ))}
               </div>
@@ -1410,14 +1490,14 @@ export function AdminPanel() {
               <div className="p-4 bg-amber-50 dark:bg-amber-950/20 rounded-3xl space-y-3 border border-amber-100 dark:border-amber-900/30">
                 <div className="flex items-center justify-between">
                   <p className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest pl-1">
-                    Google Review Comments (    )
+                    Google Review Comments (১টি লাইনে ১টি কমেন্ট লিখুন)
                   </p>
                   <span className="text-[10px] bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 font-bold px-2 py-0.5 rounded-full">
-                    {Array.isArray(newJob.reviewComments) ? newJob.reviewComments.length : 0} 
+                    {Array.isArray(newJob.reviewComments) ? newJob.reviewComments.length : 0}টি কমেন্ট
                   </span>
                 </div>
                 <textarea
-                  placeholder="       -          ,       (randomly)   "
+                  placeholder="এখানে প্রতি লাইনে একটি করে কমেন্ট লিখুন। ২০-৩০টি বা তার বেশি কমেন্ট লিখতে পারেন। ব্যবহারকারী যখন কাজটি করবেন, তখন এখান থেকে একটি কমেন্ট এলোমেলোভাবে (randomly) তাকে দেওয়া হবে।"
                   value={Array.isArray(newJob.reviewComments) ? newJob.reviewComments.join('\n') : ''}
                   onChange={e => {
                     const commentsArray = e.target.value.split('\n');
@@ -1426,7 +1506,7 @@ export function AdminPanel() {
                   className="w-full bg-white dark:bg-slate-800 border-none px-4 py-3 rounded-2xl text-xs font-bold h-36 placeholder:text-slate-400 focus:ring-1 focus:ring-amber-500"
                 />
                 <p className="text-[9px] text-amber-600 dark:text-amber-500 font-bold pl-1 leading-relaxed">
-                  *       ,                           
+                  * গুগল ম্যাপে ব্যবহারকারী যখন রিভিউর কাজটি করবেন, তখন আমাদের ওয়েবসাইট স্বয়ংক্রিয়ভাবে একটি করে কমেন্ট কপি করার জন্য স্ক্রিনে দেখাবে। এর মাধ্যমে ভিন্ন ভিন্ন ব্যবহারকারী ভিন্ন ভিন্ন কমেন্ট দিয়ে গুগল ম্যাপে ৫ স্টার রেটিং দিবে।
                 </p>
               </div>
             )}
@@ -1448,48 +1528,8 @@ export function AdminPanel() {
             </div>
             
             <button type="submit" className="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black uppercase tracking-[0.2em] py-4 rounded-2xl shadow-xl hover:scale-[1.02] active:scale-95 transition-all text-xs">{editingJobId ? 'Update Job Now' : 'Publish Job Now'}</button>
-          </form>
-
-          <div className="grid gap-3">
-            {jobs.filter(job => job.status === 'pending').length > 0 && (
-              <div className="space-y-3 mb-6">
-                <h3 className="font-black dark:text-white text-rose-500 uppercase tracking-tight text-xs mb-1 px-1 flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></div>
-                  Pending User Job Requests ({jobs.filter(job => job.status === 'pending').length})
-                </h3>
-                {jobs.filter(job => job.status === 'pending').map(job => (
-                  <div key={job.id} className="bg-amber-50/50 dark:bg-amber-950/10 p-4 rounded-3xl shadow-sm border border-amber-100 dark:border-amber-900/30 space-y-3">
-                    <div className="flex justify-between items-start">
-                      <div className="min-w-0 flex-1">
-                        <span className="text-[9px] font-black uppercase tracking-widest text-amber-600 bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 rounded-md">
-                          {job.type}
-                        </span>
-                        <h4 className="font-bold dark:text-white text-sm leading-snug truncate mt-1">{job.title}</h4>
-                        <p className="text-xs text-slate-550 dark:text-slate-400 mt-1 line-clamp-2">{job.description}</p>
-                        <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mt-1">
-                          Link: <a href={job.link} target="_blank" rel="noopener noreferrer" className="underline">{job.link}</a>
-                        </p>
-                      </div>
-                      <div className="text-right shrink-0 ml-3">
-                        <p className="text-xs font-black text-slate-700 dark:text-slate-300">Rate: {job.reward}</p>
-                        <p className="text-[10px] font-bold text-slate-400">Slots: {job.allowedCompletions}</p>
-                        <p className="text-[10px] font-black text-emerald-600">Total: {job.totalCost}</p>
-                        <p className="text-[8px] font-black text-slate-450 uppercase mt-1">By: {job.postedBy}</p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex gap-2 justify-end pt-2 border-t border-amber-100 dark:border-amber-900/10">
-                      <button 
-                        onClick={() => handleRejectJob(job)} 
-                        className="px-4 py-2 text-rose-650 bg-rose-50 dark:bg-rose-950/30 rounded-xl text-xs font-black uppercase tracking-wider hover:scale-105 active:scale-95 transition-all"
-                      >
-                        Reject & Refund
                       </button>
                       <button 
-                        onClick={() => handleApproveJob(job.id)} 
-                        className="px-4 py-2 text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl text-xs font-black uppercase tracking-wider hover:scale-105 active:scale-95 transition-all"
-                      >
-                        Approve Job
                       </button>
                     </div>
                   </div>
@@ -1511,14 +1551,12 @@ export function AdminPanel() {
                       {job.status}
                     </span>
                   </div>
-                  <p className="text-[10px] font-black text-blue-500/80 uppercase tracking-widest">{job.reward} &bull; {job.type} &bull; Slots: {job.remainingSlots}/{job.allowedCompletions}</p>
+                  <p className="text-[10px] font-black text-blue-500/80 uppercase tracking-widest">৳{job.reward} &bull; {job.type} &bull; Slots: {job.remainingSlots}/{job.allowedCompletions}</p>
                 </div>
                 <div className="flex items-center gap-2 ml-4">
                   <button onClick={() => handleEditJobClick(job)} className="p-3 text-blue-500 bg-blue-50 dark:bg-blue-900/30 rounded-2xl hover:scale-105 active:scale-90 transition-all">
-                    <Settings className="w-4 h-4" />
                   </button>
                   <button onClick={() => handleDeleteJob(job.id)} className="p-3 text-rose-500 bg-rose-50 dark:bg-rose-900/30 rounded-2xl hover:scale-105 active:scale-90 transition-all">
-                    <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
               </div>
@@ -1565,7 +1603,7 @@ export function AdminPanel() {
                     </span>
                     <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{new Date(req.createdAt?.toDate()).toLocaleTimeString()}</span>
                   </div>
-                  <h4 className="font-black text-2xl text-slate-900 dark:text-white leading-none mt-2">{req.amount}</h4>
+                  <h4 className="font-black text-2xl text-slate-900 dark:text-white leading-none mt-2">৳{req.amount}</h4>
                   <div className="flex items-center gap-2 mt-2">
                     <div className="w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500">
                       <User className="w-3 h-3" />
@@ -1597,14 +1635,6 @@ export function AdminPanel() {
                       <div className="flex items-center gap-1.5">
                         <span className="font-mono font-bold text-slate-700 dark:text-slate-200 tracking-wider text-[11px]">{req.account}</span>
                         <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(req.account);
-                            toast.success('Account copied!');
-                          }}
-                          className="hover:text-indigo-500 text-slate-400 transition p-0.5 rounded cursor-pointer active:scale-95"
-                          title="Copy Account Number"
-                        >
-                          <Copy className="w-3 h-3" />
                         </button>
                       </div>
                     </div>
@@ -1618,14 +1648,6 @@ export function AdminPanel() {
                         <span className="font-mono font-bold text-slate-700 dark:text-slate-200 tracking-wider text-[11px]">{req.account || 'Unknown'}</span>
                         {req.account && (
                           <button
-                            onClick={() => {
-                              navigator.clipboard.writeText(req.account);
-                              toast.success('Sender number copied!');
-                            }}
-                            className="hover:text-indigo-500 text-slate-400 transition p-0.5 rounded cursor-pointer active:scale-95"
-                            title="Copy Sender Number"
-                          >
-                            <Copy className="w-3 h-3" />
                           </button>
                         )}
                       </div>
@@ -1635,14 +1657,6 @@ export function AdminPanel() {
                       <div className="flex items-center gap-1.5">
                         <span className="font-mono font-bold text-indigo-600 selection:bg-indigo-100 tracking-wider text-[11px]">{req.trxId}</span>
                         <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(req.trxId);
-                            toast.success('Transaction ID copied!');
-                          }}
-                          className="hover:text-indigo-500 text-slate-400 transition p-0.5 rounded cursor-pointer active:scale-95"
-                          title="Copy Transaction ID"
-                        >
-                          <Copy className="w-3 h-3" />
                         </button>
                       </div>
                     </div>
@@ -1660,14 +1674,6 @@ export function AdminPanel() {
                         <span className="font-mono font-bold text-slate-700 dark:text-slate-200 tracking-wider text-[11px]">{req.account || 'Unknown'}</span>
                         {req.account && (
                           <button
-                            onClick={() => {
-                              navigator.clipboard.writeText(req.account);
-                              toast.success('Sender number copied!');
-                            }}
-                            className="hover:text-emerald-500 text-slate-400 transition p-0.5 rounded cursor-pointer active:scale-95"
-                            title="Copy Sender Number"
-                          >
-                            <Copy className="w-3 h-3" />
                           </button>
                         )}
                       </div>
@@ -1677,14 +1683,6 @@ export function AdminPanel() {
                       <div className="flex items-center gap-1.5">
                         <span className="font-mono font-bold text-emerald-600 tracking-wider text-[11px]">{req.trxId}</span>
                         <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(req.trxId);
-                            toast.success('Transaction ID copied!');
-                          }}
-                          className="hover:text-emerald-500 text-slate-400 transition p-0.5 rounded cursor-pointer active:scale-95"
-                          title="Copy Transaction ID"
-                        >
-                          <Copy className="w-3 h-3" />
                         </button>
                       </div>
                     </div>
@@ -1698,16 +1696,8 @@ export function AdminPanel() {
               
               <div className="grid grid-cols-2 gap-3">
                 <button 
-                  onClick={() => handlePaymentRequest(req.id, req.userId, req.amount, req.type, 'approved', req.transactionId, req.wallet)} 
-                  className="bg-emerald-500 hover:bg-emerald-600 text-white py-3 rounded-2xl font-black uppercase tracking-widest text-[11px] shadow-lg shadow-emerald-500/20 active:scale-95 transition-all"
-                >
-                  Pay Now
                 </button>
                 <button 
-                  onClick={() => handlePaymentRequest(req.id, req.userId, req.amount, req.type, 'rejected', req.transactionId, req.wallet)} 
-                  className="bg-rose-500 hover:bg-rose-600 text-white py-3 rounded-2xl font-black uppercase tracking-widest text-[11px] shadow-lg shadow-rose-500/20 active:scale-95 transition-all"
-                >
-                  Decline
                 </button>
               </div>
             </motion.div>
@@ -1720,10 +1710,10 @@ export function AdminPanel() {
                 <div key={req.id} className="bg-white dark:bg-slate-800 p-3 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex justify-between items-center opacity-70">
                   <div className="flex-1 overflow-hidden pr-4">
                     <p className="font-black text-[13px] text-slate-800 dark:text-slate-200 italic uppercase flex items-center gap-1.5">
-                      {req.amount} &bull; {req.type}
+                      ৳{req.amount} &bull; {req.type}
                       {req.method && <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 rounded text-[9px] not-italic">{req.method}</span>}
                     </p>
-                    <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold truncate tracking-widest uppercase">{req.userEmail} {req.account ? ` ${req.account}` : ''}</p>
+                    <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold truncate tracking-widest uppercase">{req.userEmail} {req.account ? `• ${req.account}` : ''}</p>
                   </div>
                   <div className={`text-[9px] px-3 py-1 rounded-full font-black uppercase tracking-widest border ${req.status === 'approved' ? 'bg-emerald-100 text-emerald-600 border-emerald-200' : 'bg-rose-100 text-rose-600 border-rose-200'}`}>
                     {req.status}
@@ -1755,17 +1745,17 @@ export function AdminPanel() {
               
               {giftType === 'fixed' ? (
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Amount ()</label>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Amount (৳)</label>
                   <input type="number" min="1" value={giftAmount} onChange={(e) => setGiftAmount(e.target.value === '' ? '' : isNaN(parseFloat(e.target.value)) ? "" : parseFloat(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" required />
                 </div>
               ) : (
                 <>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Min Amount ()</label>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Min Amount (৳)</label>
                     <input type="number" min="1" value={giftMinAmount} onChange={(e) => setGiftMinAmount(e.target.value === '' ? '' : isNaN(parseFloat(e.target.value)) ? "" : parseFloat(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" required />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Max Amount ()</label>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Max Amount (৳)</label>
                     <input type="number" min="1" value={giftMaxAmount} onChange={(e) => setGiftMaxAmount(e.target.value === '' ? '' : isNaN(parseFloat(e.target.value)) ? "" : parseFloat(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" required />
                   </div>
                 </>
@@ -1782,7 +1772,6 @@ export function AdminPanel() {
             </div>
 
             <button type="submit" disabled={isCreatingGift} className="w-full bg-[#0D47A1] hover:bg-blue-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg transition-all text-xs disabled:opacity-50">
-              {isCreatingGift ? 'Creating...' : 'Create Code'}
             </button>
           </form>
 
@@ -1804,9 +1793,9 @@ export function AdminPanel() {
                       <div>
                         <h4 className="font-black font-mono text-slate-900 dark:text-white text-lg tracking-widest">{code.code}</h4>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                          {code.type === 'fixed' ? `${code.amount} Fixed` : `${code.minAmount} - ${code.maxAmount} Random`}
-                          <span className="mx-2 text-slate-300"></span>
-                          {code.usedBy?.length || 0} / {code.maxUses || ''} Uses
+                          {code.type === 'fixed' ? `৳${code.amount} Fixed` : `৳${code.minAmount} - ৳${code.maxAmount} Random`}
+                          <span className="mx-2 text-slate-300">•</span>
+                          {code.usedBy?.length || 0} / {code.maxUses || '∞'} Uses
                         </p>
                       </div>
                       <div className="flex flex-col items-end gap-2">
@@ -1816,7 +1805,6 @@ export function AdminPanel() {
                           {isExpired ? 'EXPIRED' : code.status}
                         </span>
                         <button onClick={() => handleDeleteGiftCode(code.id)} className="p-2 text-rose-500 bg-rose-50 dark:bg-rose-900/30 rounded-lg hover:scale-105 active:scale-90 transition-all">
-                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
@@ -1835,22 +1823,6 @@ export function AdminPanel() {
               <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight text-sm">{editingFaqIndex !== null ? 'Edit FAQ' : 'Add New FAQ'}</h3>
               {editingFaqIndex !== null && (
                 <button type="button" onClick={handleCancelEditFaq} className="text-xs font-bold text-slate-500 hover:text-slate-700">Cancel</button>
-              )}
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <input type="text" placeholder="Question (English)" value={newFaq.question_en} onChange={(e) => setNewFaq({...newFaq, question_en: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" required />
-                <textarea placeholder="Answer (English)" value={newFaq.answer_en} onChange={(e) => setNewFaq({...newFaq, answer_en: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 h-24" required />
-              </div>
-              <div className="space-y-2">
-                <input type="text" placeholder="Question (Bengali)" value={newFaq.question_bn} onChange={(e) => setNewFaq({...newFaq, question_bn: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" required />
-                <textarea placeholder="Answer (Bengali)" value={newFaq.answer_bn} onChange={(e) => setNewFaq({...newFaq, answer_bn: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 h-24" required />
-              </div>
-            </div>
-
-            <button type="submit" disabled={isSavingSettings} className="w-full bg-[#0D47A1] hover:bg-blue-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg transition-all text-xs disabled:opacity-50">
-              {editingFaqIndex !== null ? 'Update FAQ' : 'Create FAQ'}
             </button>
           </form>
 
@@ -1870,10 +1842,8 @@ export function AdminPanel() {
                     <h4 className="font-bold text-slate-900 dark:text-white text-sm">{faq.question_en}</h4>
                     <div className="flex gap-2">
                       <button onClick={() => { setEditingFaqIndex(index); setNewFaq(faq); }} className="p-2 text-blue-500 bg-blue-50 dark:bg-blue-900/30 rounded-lg hover:scale-105 active:scale-90 transition-all">
-                        <Settings className="w-4 h-4" />
                       </button>
                       <button onClick={() => handleDeleteFaq(index)} className="p-2 text-rose-500 bg-rose-50 dark:bg-rose-900/30 rounded-lg hover:scale-105 active:scale-90 transition-all">
-                        <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
@@ -1928,7 +1898,7 @@ export function AdminPanel() {
             >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Package Title ( )</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Package Title (প্যাকের নাম)</label>
                   <input type="text" placeholder="e.g. GP 40GB + 800 Min Combo" required value={newDriveTitle} onChange={(e) => setNewDriveTitle(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 focus:ring-2 focus:ring-indigo-500 transition-all text-slate-900 dark:text-white" />
                 </div>
                 <div>
@@ -1945,21 +1915,20 @@ export function AdminPanel() {
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Validity ()</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Validity (মেয়াদ)</label>
                   <input type="text" placeholder="e.g. 30 Days" required value={newDriveValidity} onChange={(e) => setNewDriveValidity(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 text-slate-900 dark:text-white" />
                 </div>
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Original ()</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Original (৳)</label>
                   <input type="number" placeholder="e.g. 799" required value={newDriveOriginalPrice} onChange={(e) => setNewDriveOriginalPrice(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 text-slate-900 dark:text-white" />
                 </div>
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Sale ()</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Sale (৳)</label>
                   <input type="number" placeholder="e.g. 580" required value={newDriveSalePrice} onChange={(e) => setNewDriveSalePrice(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 text-slate-900 dark:text-white" />
                 </div>
               </div>
 
               <button type="submit" className="w-full bg-[#0D47A1] hover:bg-blue-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg transition-all text-xs">
-                Create Drive Pack
               </button>
             </form>
           </div>
@@ -1993,40 +1962,13 @@ export function AdminPanel() {
                         <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">{of.validity}</span>
                       </div>
                       <h4 className="font-black text-slate-900 dark:text-white text-sm truncate uppercase">{of.title}</h4>
-                      <p className="text-xs font-bold text-slate-505 mt-1 dark:text-slate-400">Regular: <span className="line-through">{of.originalPrice}</span> &bull; Sale: <span className="text-emerald-550 dark:text-emerald-400">{of.salePrice}</span></p>
+                      <p className="text-xs font-bold text-slate-505 mt-1 dark:text-slate-400">Regular: <span className="line-through">৳{of.originalPrice}</span> &bull; Sale: <span className="text-emerald-550 dark:text-emerald-400">৳{of.salePrice}</span></p>
                     </div>
                     
                     <div className="flex items-center gap-2">
                       <button 
-                        onClick={async () => {
-                          try {
-                            const newStatus = of.status === 'active' ? 'inactive' : 'active';
-                            await updateDoc(doc(db, "drive_offers", of.id), { status: newStatus });
-                            toast.success(`Package set ${newStatus}`);
-                            await loadData(true);
-                          } catch (e) {
-                            toast.error("Failed to alter status");
-                          }
-                        }}
-                        className={`text-[10px] font-black uppercase px-2.5 py-1.5 rounded-xl border ${of.status === 'active' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20' : 'bg-slate-50 text-slate-500 dark:bg-slate-900/20'}`}
-                      >
-                        {of.status === 'active' ? 'Active' : 'Paused'}
                       </button>
                       <button 
-                        onClick={async () => {
-                          if (confirm("Delete this Drive Pack?")) {
-                            try {
-                              await deleteDoc(doc(db, "drive_offers", of.id));
-                              toast.success("Pack deleted");
-                              await loadData(true);
-                            } catch (e) {
-                              toast.error("Failed to delete pack");
-                            }
-                          }
-                        }}
-                        className="p-2 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/30 text-rose-500 rounded-xl"
-                      >
-                        <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
@@ -2042,14 +1984,14 @@ export function AdminPanel() {
           {/* Create/Edit Course Form */}
           <div className="bg-white dark:bg-slate-800 p-6 rounded-[32px] border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden">
             <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight text-sm mb-4">
-              {editingCourseId ? '    ' : '     '}
+              {editingCourseId ? 'কোর্স বা টিউটোরিয়াল এডিট করুন' : 'নতুন কোর্স বা টিউটোরিয়াল তৈরি করুন'}
             </h3>
             
             <form 
               onSubmit={async (e) => {
                 e.preventDefault();
                 if (!newCourseTitle || !newCourseDesc || !newCourseThumbnail || !newCourseLink) {
-                  toast.error("    ");
+                  toast.error("সবগুলো ঘর সঠিকভাবে পূরণ করুন");
                   return;
                 }
                 
@@ -2066,7 +2008,7 @@ export function AdminPanel() {
                     updatedAt: serverTimestamp()
                   }, { merge: true });
                   
-                  toast.success(editingCourseId ? "     !" : "    !");
+                  toast.success(editingCourseId ? "কোর্স বা টিউটোরিয়াল সফলভাবে আপডেট হয়েছে!" : "নতুন টিউটোরিয়াল সফলভাবে যুক্ত হয়েছে!");
                   await loadData(true);
                   
                   // Clear form
@@ -2074,11 +2016,11 @@ export function AdminPanel() {
                   setNewCourseDesc('');
                   setNewCourseThumbnail('');
                   setNewCourseLink('');
-                  setNewCourseCategory(' ');
+                  setNewCourseCategory('টাস্ক কমপ্লিট');
                   setCourseItems([]);
                   setEditingCourseId(null);
                 } catch (err) {
-                  toast.error("   ");
+                  toast.error("সেভ করতে ব্যর্থ হয়েছে");
                   console.error(err);
                 }
               }}
@@ -2086,10 +2028,10 @@ export function AdminPanel() {
             >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">  (Title)</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">কোর্সের শিরোনাম (Title)</label>
                   <input 
                     type="text" 
-                    placeholder="     " 
+                    placeholder="উদাঃ সঠিক উপায়ে ডেইলি স্পিন খেলুন" 
                     required 
                     value={newCourseTitle} 
                     onChange={(e) => setNewCourseTitle(e.target.value)} 
@@ -2097,22 +2039,22 @@ export function AdminPanel() {
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">  (Category)</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">টিউটোরিয়াল ক্যাটাগরি (Category)</label>
                   <select 
                     value={newCourseCategory} 
                     onChange={(e) => setNewCourseCategory(e.target.value as any)} 
                     className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-555"
                   >
-                    <option value=" "> </option>
-                    <option value=" "> </option>
-                    <option value=""> </option>
+                    <option value="টাস্ক কমপ্লিট">টাস্ক কমপ্লিট</option>
+                    <option value="টাকা উইথড্র">টাকা উইথড্র</option>
+                    <option value="অন্যান্য">অন্যান্য হেল্প</option>
                   </select>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">   (Thumbnail URL)</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">থাম্বনেইল ইমেজ লিংক (Thumbnail URL)</label>
                   <input 
                     type="url" 
                     placeholder="https://images.unsplash.com/..." 
@@ -2123,7 +2065,7 @@ export function AdminPanel() {
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">    (Video/Instruction Link)</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">ভিডিও বা রেফারেল লিংক (Video/Instruction Link)</label>
                   <input 
                     type="url" 
                     placeholder="https://youtube.com/watch?v=..." 
@@ -2136,9 +2078,9 @@ export function AdminPanel() {
               </div>
 
               <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">    (Detailed Description)</label>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">পূর্ণাঙ্গ ডেসক্রিপশন বা নির্দেশনা (Detailed Description)</label>
                 <textarea 
-                  placeholder="             ..." 
+                  placeholder="ধাপে ধাপে কিভাবে টাস্ক সম্পন্ন করবে বা কিভাবে উইথড্র করবে তার বিস্তারিত বিবরণ লিখুন..." 
                   required 
                   rows={4} 
                   value={newCourseDesc} 
@@ -2152,24 +2094,24 @@ export function AdminPanel() {
                 <div className="flex items-center gap-1.5 border-b border-slate-100 dark:border-slate-800 pb-2">
                   <Layers className="w-4 h-4 text-purple-600 dark:text-purple-400" />
                   <div className="flex-1">
-                    <h4 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tight">   /     (Multiple Option Items)</h4>
+                    <h4 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tight">আলাদা আলাদা অপশন / বহুবিধ টিউটোরিয়াল যোগ করুন (Multiple Option Items)</h4>
                     <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">Add sub-tutorials for How to complete tasks, How to withdraw, etc.</p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">  (Option Title)</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">অপশন শিরোনাম (Option Title)</label>
                     <input 
                       type="text" 
-                      placeholder=" .      " 
+                      placeholder="উদাঃ ১. কিভাবে সঠিক উপায়ে টাস্ক সম্পন্ন করবেন" 
                       value={optTitle} 
                       onChange={(e) => setOptTitle(e.target.value)} 
                       className="w-full bg-white dark:bg-slate-800 border-none px-4 py-2.5 rounded-xl text-xs font-bold ring-1 ring-slate-100 dark:ring-slate-800 focus:ring-2 focus:ring-purple-555 transition-all text-slate-900 dark:text-white" 
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">   (Option Thumbnail URL)</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">অপশন থাম্বনেইল লিংক (Option Thumbnail URL)</label>
                     <input 
                       type="url" 
                       placeholder="https://images.unsplash.com/..." 
@@ -2182,7 +2124,7 @@ export function AdminPanel() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block"> /  (Option Video/Instruction Link)</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">অপশন ভিডিও/টিউটোরিয়াল লিংক (Option Video/Instruction Link)</label>
                     <input 
                       type="url" 
                       placeholder="https://youtube.com/watch?v=..." 
@@ -2192,10 +2134,10 @@ export function AdminPanel() {
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">   (Option Description)</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">অপশন সংক্ষিপ্ত বিবরণ (Option Description)</label>
                     <input 
                       type="text" 
-                      placeholder="   --    " 
+                      placeholder="উদাঃ নিয়মগুলো এবং স্টেপ-বাই-স্টেপ সিক্রেট ভিডিও মেথড দেখুন।" 
                       value={optDesc} 
                       onChange={(e) => setOptDesc(e.target.value)} 
                       className="w-full bg-white dark:bg-slate-800 border-none px-4 py-2.5 rounded-xl text-xs font-bold ring-1 ring-slate-100 dark:ring-slate-800 focus:ring-2 focus:ring-purple-555 transition-all text-slate-900 dark:text-white" 
@@ -2204,35 +2146,12 @@ export function AdminPanel() {
                 </div>
 
                 <button 
-                  type="button"
-                  onClick={() => {
-                    if (!optTitle || !optLink) {
-                      toast.error("     ");
-                      return;
-                    }
-                    const newItem = {
-                      title: optTitle,
-                      description: optDesc || '  ',
-                      thumbnailUrl: optThumbnail || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=600&auto=format&fit=crop',
-                      videoLink: optLink
-                    };
-                    setCourseItems(prev => [...prev, newItem]);
-                    // Clear option fields
-                    setOptTitle('');
-                    setOptDesc('');
-                    setOptThumbnail('');
-                    setOptLink('');
-                    toast.success("     !");
-                  }}
-                  className="bg-purple-600 hover:bg-purple-550 text-white font-black px-5 py-2.5 rounded-xl text-[10px] uppercase tracking-wider flex items-center gap-1 hover:scale-98 active:scale-95 transition-all"
-                >
-                       (+ Add Option)
                 </button>
 
                 {/* Render added list items */}
                 {courseItems.length > 0 && (
                   <div className="space-y-2 pt-3 border-t border-slate-100 dark:border-slate-800/80">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">  ({courseItems.length})</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">যুক্তকৃত অপশনসমূহ ({courseItems.length})</p>
                     <div className="grid gap-2 max-h-[220px] overflow-y-auto pr-1">
                       {courseItems.map((item, index) => (
                         <div key={index} className="bg-white dark:bg-slate-900/60 p-3 rounded-xl border border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-3">
@@ -2247,14 +2166,6 @@ export function AdminPanel() {
                             </div>
                           </div>
                           <button 
-                            type="button" 
-                            onClick={() => {
-                              setCourseItems(prev => prev.filter((_, idx) => idx !== index));
-                              toast.success("   !");
-                            }}
-                            className="text-[9px] font-black uppercase text-rose-500 hover:text-rose-600 hover:underline shrink-0"
-                          >
-                             
                           </button>
                         </div>
                       ))}
@@ -2265,27 +2176,10 @@ export function AdminPanel() {
 
               <div className="flex gap-2.5">
                 <button 
-                  type="submit" 
-                  className="flex-1 bg-purple-600 hover:bg-purple-550 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-purple-600/10 transition-all text-xs"
-                >
-                  {editingCourseId ? '   (Save Changes)' : '     (Create)'}
                 </button>
                 
                 {editingCourseId && (
                   <button 
-                    type="button"
-                    onClick={() => {
-                      setNewCourseTitle('');
-                      setNewCourseDesc('');
-                      setNewCourseThumbnail('');
-                      setNewCourseLink('');
-                      setNewCourseCategory(' ');
-                      setCourseItems([]);
-                      setEditingCourseId(null);
-                    }}
-                    className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold px-6 py-3.5 rounded-2xl text-xs"
-                  >
-                     (Cancel)
                   </button>
                 )}
               </div>
@@ -2295,57 +2189,15 @@ export function AdminPanel() {
           {/* Admin Courses List */}
           <div className="space-y-4">
             <div className="flex items-center justify-between px-1">
-              <h3 className="font-black dark:text-white uppercase tracking-tight text-xs">    ({adminCourses.length})</h3>
+              <h3 className="font-black dark:text-white uppercase tracking-tight text-xs">লাইভ কোর্স এবং টিউটোরিয়ালসমূহ ({adminCourses.length})</h3>
               
               <button 
-                onClick={async () => {
-                  try {
-                    const batch = writeBatch(db);
-                    const DEFAULT_ITEMS = [
-                      {
-                        title: "      ",
-                        description: "           ,                       ",
-                        thumbnailUrl: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=600&auto=format&fit=crop",
-                        videoLink: "https://www.youtube.com",
-                        category: " ",
-                        status: 'active'
-                      },
-                      {
-                        title: "        ",
-                        description: ",                              ",
-                        thumbnailUrl: "https://images.unsplash.com/photo-1559526324-4b87b5e36e44?q=80&w=600&auto=format&fit=crop",
-                        videoLink: "https://www.youtube.com",
-                        category: " ",
-                        status: 'active'
-                      },
-                      {
-                        title: "        ",
-                        description: "                     ",
-                        thumbnailUrl: "https://images.unsplash.com/photo-1606167668584-78701c57f13d?q=80&w=600&auto=format&fit=crop",
-                        videoLink: "https://www.youtube.com",
-                        category: "",
-                        status: 'active'
-                      }
-                    ];
-                    DEFAULT_ITEMS.forEach((it, ix) => {
-                      const id = `course_imported_${ix + Date.now()}`;
-                      batch.set(doc(db, "courses", id), it);
-                    });
-                    await batch.commit();
-                    toast.success("      !");
-                  } catch (err) {
-                    toast.error("  ");
-                  }
-                }}
-                className="text-[10px] font-black uppercase text-purple-600 hover:text-purple-550 underline"
-              >
-                    
               </button>
             </div>
 
             {adminCourses.length === 0 && (
               <div className="text-center py-12 bg-white dark:bg-slate-800/40 rounded-[32px] border-2 border-dashed border-slate-100 dark:border-slate-800">
-                <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">       </p>
+                <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">এখনো কোনো কোর্স বা টিউটোরিয়াল তৈরি করা হয়নি।</p>
               </div>
             )}
 
@@ -2374,52 +2226,12 @@ export function AdminPanel() {
 
                   <div className="flex items-center justify-end gap-2 w-full sm:w-auto shrink-0 border-t sm:border-y-0 border-slate-50 dark:border-slate-750/30 pt-3 sm:pt-0">
                     <button 
-                      onClick={() => {
-                        setNewCourseTitle(course.title || '');
-                        setNewCourseDesc(course.description || '');
-                        setNewCourseThumbnail(course.thumbnailUrl || '');
-                        setNewCourseLink(course.videoLink || '');
-                        setNewCourseCategory(course.category || ' ');
-                        setCourseItems(course.items || []);
-                        setEditingCourseId(course.id);
-                        toast.success("    !");
-                      }}
-                      className="text-[10px] font-black uppercase px-2.5 py-1.5 rounded-xl border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:text-slate-350"
-                    >
-                      
                     </button>
                     
                     <button 
-                      onClick={async () => {
-                        try {
-                          const toggledStatus = course.status === 'active' ? 'inactive' : 'active';
-                          await updateDoc(doc(db, "courses", course.id), { status: toggledStatus });
-                          toast.success(`  ${toggledStatus}  `);
-                          await loadData(true);
-                        } catch (err) {
-                          toast.error("  ");
-                        }
-                      }}
-                      className={`text-[10px] font-black uppercase px-2.5 py-1.5 rounded-xl border ${course.status === 'active' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-50 text-slate-400 border-slate-100'}`}
-                    >
-                      {course.status === 'active' ? '' : ''}
                     </button>
 
                     <button 
-                      onClick={async () => {
-                        if (confirm("      ?")) {
-                          try {
-                            await deleteDoc(doc(db, "courses", course.id));
-                            toast.success("  !");
-                            await loadData(true);
-                          } catch (err) {
-                            toast.error("!");
-                          }
-                        }
-                      }}
-                      className="p-2 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/40 text-rose-500 rounded-xl transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
@@ -2437,27 +2249,13 @@ export function AdminPanel() {
             </h3>
             
                         <button
-              type="button"
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteDuplicateAdmins(); }}
-              className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold"
-            >
-              Delete Duplicate Admins
+            </button>
+            <button
             </button>
             
-            
-            
             <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault(); e.stopPropagation();
-                setNotifyTarget('all');
-                setNotifyTitle('');
-                setNotifyMessage('');
-                setShowNotifyModal(true);
-              }}
-              className="bg-sky-500 hover:bg-sky-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold ml-2 flex items-center gap-1"
-            >
-              <BellRing className="w-3 h-3" /> Global Notify
+            </button>
+            <button
             </button>
             <div className="relative w-full sm:w-72">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
@@ -2522,25 +2320,25 @@ export function AdminPanel() {
                   <div className="mt-4 flex flex-wrap gap-2">
                     <div className="bg-slate-50 dark:bg-slate-900/50 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-700">
                       <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">Main Balance</p>
-                      <p className="text-xs font-black text-slate-900 dark:text-white leading-tight">{(user.balances?.main || 0).toFixed(2)}</p>
+                      <p className="text-xs font-black text-slate-900 dark:text-white leading-tight">৳{(user.balances?.main || 0).toFixed(2)}</p>
                     </div>
                     <div className="bg-slate-50 dark:bg-slate-900/50 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-700">
-                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">Bonus Earnings</p>
-                      <p className="text-xs font-black text-slate-900 dark:text-white leading-tight">{(user.balances?.bonus || 0).toFixed(2)}</p>
+                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">Bonus</p>
+                      <p className="text-xs font-black text-slate-900 dark:text-white leading-tight">৳{(user.balances?.bonus || 0).toFixed(2)}</p>
                     </div>
                     <div className="bg-slate-50 dark:bg-slate-900/50 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-700">
-                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">Referral Earnings</p>
-                      <p className="text-xs font-black text-slate-900 dark:text-white leading-tight">{(user.balances?.referral || 0).toFixed(2)}</p>
+                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">Referral</p>
+                      <p className="text-xs font-black text-slate-900 dark:text-white leading-tight">৳{(user.balances?.referral || 0).toFixed(2)}</p>
                     </div>
                     <div className="bg-slate-50 dark:bg-slate-900/50 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-700">
-                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">Task Earnings</p>
-                      <p className="text-xs font-black text-slate-900 dark:text-white leading-tight">{(
+                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">Tasks</p>
+                      <p className="text-xs font-black text-slate-900 dark:text-white leading-tight">৳{(
                         Object.values(user.balances?.tasks || {}).reduce((a: any, b: any) => Number(a || 0) + Number(b || 0), 0) as number
                       ).toFixed(2)}</p>
                     </div>
                     <div className="bg-indigo-50 dark:bg-indigo-900/30 px-3 py-1.5 rounded-xl border border-indigo-100 dark:border-indigo-800/50">
                       <p className="text-[8px] font-black text-indigo-500 dark:text-indigo-400 uppercase tracking-widest leading-none mb-0.5">Total</p>
-                      <p className="text-xs font-black text-indigo-700 dark:text-indigo-300 leading-tight">{(
+                      <p className="text-xs font-black text-indigo-700 dark:text-indigo-300 leading-tight">৳{(
                         Number(user.balances?.main || 0) +
                         Number(user.balances?.bonus || 0) +
                         Number(user.balances?.referral || 0) +
@@ -2552,107 +2350,20 @@ export function AdminPanel() {
                 
                 <div className="flex items-center gap-2 self-end md:self-center flex-wrap">
                   <button
-                    onClick={() => {
-                      setNotifyTarget(user.id);
-                      setNotifyTitle('');
-                      setNotifyMessage('');
-                      setShowNotifyModal(true);
-                    }}
-                    className="flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-[0.1em] text-[10px] transition-all active:scale-95 bg-sky-100 text-sky-600 shadow-lg shadow-sky-500/10 hover:bg-sky-200"
-                  >
-                    <BellRing className="w-4 h-4" /> Notify
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setEditingUserBalance({
-                        id: user.id,
-                        fullName: user.fullName || 'Anonymous',
-                        main: Number(user.balances?.main || 0),
-                        bonus: Number(user.balances?.bonus || 0),
-                        referral: Number(user.balances?.referral || 0),
-                        partner: Number(user.balances?.partner || 0),
-                        tasks: Number(Object.values(user.balances?.tasks || {}).reduce((a: any, b: any) => Number(a || 0) + Number(b || 0), 0))
-                      });
-                    }}
-                    className="flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-[0.1em] text-[10px] transition-all active:scale-95 bg-emerald-100 text-emerald-600 shadow-lg shadow-emerald-500/10 hover:bg-emerald-200"
-                  >
-                    <Settings className="w-4 h-4" /> Edit Balance
                   </button>
                   {isFullAdmin && user.role !== 'admin' && (
                     <button 
-                      onClick={() => {
-                        setEmployeeConfigUser(user);
-                        setEmployeePermissions(user.permissions || []);
-                      }}
-                      className="flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-[0.1em] text-[10px] transition-all active:scale-95 bg-purple-100 text-purple-600 shadow-lg shadow-purple-500/10 hover:bg-purple-200"
-                    >
-                      <ShieldCheck className="w-4 h-4" /> Config Employee
                     </button>
                   )}
-
-                  <button
-                    onClick={() => {
-                      setEditingUserBalance({
-                        id: user.id,
-                        fullName: user.fullName || 'Anonymous',
-                        main: Number(user.balances?.main || 0),
-                        bonus: Number(user.balances?.bonus || 0),
-                        referral: Number(user.balances?.referral || 0),
-                        partner: Number(user.balances?.partner || 0),
-                        tasks: Number(Object.values(user.balances?.tasks || {}).reduce((a: any, b: any) => Number(a || 0) + Number(b || 0), 0))
-                      });
-                    }}
-                    className="flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-[0.1em] text-[10px] transition-all active:scale-95 bg-emerald-100 text-emerald-600 shadow-lg shadow-emerald-500/10 hover:bg-emerald-200"
-                  >
-                    <Settings className="w-4 h-4" /> Edit Balance
-                  </button>
                   {isFullAdmin && user.role !== 'admin' && (
                     <button 
-                      onClick={() => handleDeleteUser(user.id)}
-                      className="flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-[0.1em] text-[10px] transition-all active:scale-95 bg-rose-100 text-rose-600 hover:bg-rose-200 shadow-lg shadow-rose-500/10"
-                    >
-                      <Trash2 className="w-4 h-4" /> Delete User
                     </button>
                   )}
                   {user.role !== 'admin' && (
                     <button 
-                      onClick={() => handleToggleActive(user.id, user.isActive || false)}
-                      className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-[0.1em] text-[10px] transition-all active:scale-95 disabled:opacity-30 ${
-                        !user.isActive 
-                          ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/20' 
-                          : 'bg-amber-500 text-white shadow-lg shadow-amber-500/20'
-                      }`}
-                    >
-                      {!user.isActive ? (
-                        <>
-                          <CheckCircle className="w-4 h-4" /> Activate
-                        </>
-                      ) : (
-                        <>
-                          <XCircle className="w-4 h-4" /> Deactivate
-                        </>
-                      )}
                     </button>
                   )}
                   <button 
-                    onClick={() => handleToggleBlock(user.id, user.isBlocked)}
-                    disabled={user.role === 'admin'}
-                    className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-[0.1em] text-[10px] transition-all active:scale-95 disabled:opacity-30 ${
-                      user.isBlocked 
-                        ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' 
-                        : 'bg-rose-500 text-white shadow-lg shadow-rose-500/20'
-                    }`}
-                  >
-                    {user.isBlocked ? (
-                      <>
-                        <ShieldCheck className="w-4 h-4" /> Grant Access
-                      </>
-                    ) : (
-                      <>
-                        <ShieldAlert className="w-4 h-4" /> Restrict User
-                      </>
-                    )}
                   </button>
                 </div>
               </motion.div>
@@ -2666,29 +2377,13 @@ export function AdminPanel() {
           {/* Settings Sub Tabs Menu */}
           <div className="flex bg-slate-100 dark:bg-slate-900/50 p-1.5 rounded-[24px] overflow-x-auto gap-2 no-scrollbar ring-1 ring-slate-200 dark:ring-slate-800/60">
             {[
-              { id: 'identity', label: '  ', sub: 'Identity & Info', icon: Globe, color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-950/20' },
-              { id: 'gateways', label: '  ', sub: 'Deposit & Cashout', icon: Wallet, color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-950/20' },
-              { id: 'rewards', label: '  ', sub: 'Referrals & Spins', icon: Coins, color: 'text-orange-500', bg: 'bg-orange-50 dark:bg-orange-950/20' },
-              { id: 'security', label: '  ', sub: 'Gates & Popups', icon: Lock, color: 'text-indigo-500', bg: 'bg-indigo-50 dark:bg-indigo-950/20' },
-              { id: 'danger', label: ' ', sub: 'System Reset', icon: Trash2, color: 'text-rose-500', bg: 'bg-rose-50 dark:bg-rose-950/20' }
+              { id: 'identity', label: 'আইডেন্টিটি ও সাধারণ', sub: 'Identity & Info', icon: Globe, color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-950/20' },
+              { id: 'gateways', label: 'গেটওয়ে ও উইথড্র', sub: 'Deposit & Cashout', icon: Wallet, color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-950/20' },
+              { id: 'rewards', label: 'বোনাস ও রিওয়ার্ড', sub: 'Referrals & Spins', icon: Coins, color: 'text-orange-500', bg: 'bg-orange-50 dark:bg-orange-950/20' },
+              { id: 'security', label: 'নিরাপত্তা ও সিস্টেম', sub: 'Gates & Popups', icon: Lock, color: 'text-indigo-500', bg: 'bg-indigo-50 dark:bg-indigo-950/20' },
+              { id: 'danger', label: 'ফ্যাক্টরি রিসেট', sub: 'System Reset', icon: Trash2, color: 'text-rose-500', bg: 'bg-rose-50 dark:bg-rose-950/20' }
             ].map(st => (
               <button
-                key={st.id}
-                type="button"
-                onClick={() => setSettingsSubTab(st.id as any)}
-                className={`flex-1 min-w-[170px] md:min-w-0 py-3 px-4 rounded-[18px] text-[11px] font-black transition-all duration-200 flex items-center gap-2.5 whitespace-nowrap active:scale-95 ${
-                  settingsSubTab === st.id
-                    ? 'bg-white dark:bg-slate-800 shadow-md text-slate-900 dark:text-white ring-1 ring-slate-200 dark:ring-slate-700'
-                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                }`}
-              >
-                <div className={`w-8 h-8 rounded-xl ${st.bg} flex items-center justify-center ${st.color}`}>
-                  <st.icon className="w-4 h-4" />
-                </div>
-                <div className="text-left flex flex-col">
-                  <span className="font-extrabold text-[12px] tracking-tight">{st.label}</span>
-                  <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider leading-none">{st.sub}</span>
-                </div>
               </button>
             ))}
           </div>
@@ -2729,7 +2424,6 @@ export function AdminPanel() {
                 </div>
                 
                 <button type="button" onClick={handleSavePopupSettings} disabled={isSavingSettings} className="mt-6 w-full bg-indigo-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-indigo-600/20 active:scale-95 transition-all text-xs flex items-center justify-center gap-2">
-                  {isSavingSettings ? <><RefreshCw className="w-4 h-4 animate-spin" /> Updating...</> : 'Save Popup'}
                 </button>
               </motion.div>
             )}
@@ -2759,50 +2453,6 @@ export function AdminPanel() {
                   <input type="text" value={siteSettings.logoUrl} onChange={(e) => setSiteSettings(prev => ({ ...prev, logoUrl: e.target.value }))} className="flex-1 bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-[11px] font-bold ring-1 ring-slate-100 dark:ring-slate-800" />
                   <div className="relative overflow-hidden group">
                     <button type="button" className="bg-slate-100 dark:bg-slate-700 px-4 py-3 rounded-2xl font-black text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-300">Upload</button>
-                    <input type="file" accept="image/*" onChange={(e) => handleUploadImage(e, 'logo')} className="absolute inset-0 opacity-0 cursor-pointer" />
-                  </div>
-                </div>
-                {siteSettings.logoUrl && <div className="mt-3 p-3 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 inline-block"><img src={siteSettings.logoUrl} alt="Logo Preview" className="h-8 object-contain" /></div>}
-              </div>
-              <div className="group">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-emerald-500">Floating Telegram URL</label>
-                <input type="text" value={siteSettings.telegramUrl} onChange={(e) => setSiteSettings(prev => ({ ...prev, telegramUrl: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-[11px] font-bold ring-1 ring-slate-100 dark:ring-slate-800" placeholder="https://t.me/yourchannel" />
-              </div>
-              <div className="group mt-3">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-emerald-500">Direct APK Download URL</label>
-                <input type="text" value={siteSettings.apkUrl || ''} onChange={(e) => setSiteSettings(prev => ({ ...prev, apkUrl: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-[11px] font-bold ring-1 ring-slate-100 dark:ring-slate-800" placeholder="https://example.com/app.apk" />
-                <p className="text-[9px] text-slate-500 pl-1 mt-1">If provided, this URL will be used for out-of-store direct APK installs instead of PWA installation.</p>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="group">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-emerald-500">Ads View Button Text</label>
-                  <input type="text" value={siteSettings.adsViewText} onChange={(e) => setSiteSettings(prev => ({ ...prev, adsViewText: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-[11px] font-bold ring-1 ring-slate-100 dark:ring-slate-800" placeholder="Watch Ads" />
-                </div>
-                <div className="group">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-emerald-500">Ads View Link</label>
-                  <input type="text" value={siteSettings.adsViewLink} onChange={(e) => setSiteSettings(prev => ({ ...prev, adsViewLink: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-[11px] font-bold ring-1 ring-slate-100 dark:ring-slate-800" placeholder="https://..." />
-                </div>
-              </div>
-              <div className="group">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-emerald-500">Daily Task Limit (Per User)</label>
-                <input type="number" value={siteSettings.dailyTaskLimit} onChange={(e) => setSiteSettings(prev => ({ ...prev, dailyTaskLimit: Number(e.target.value) }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-[11px] font-bold ring-1 ring-slate-100 dark:ring-slate-800" placeholder="0 for unlimited" />
-                <p className="text-[9px] text-slate-400 mt-1 px-1">Maximum tasks a user can submit in 24 hours.</p>
-              </div>
-              <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
-                <div>
-                  <h4 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tight">Drive Offer Option</h4>
-                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Enable/Disable Drive Offer page access</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className={`text-[10px] font-black uppercase tracking-widest ${siteSettings.driveOffersEnabled ? 'text-emerald-500' : 'text-slate-400'}`}>
-                    {siteSettings.driveOffersEnabled ? 'ON' : 'OFF'}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setSiteSettings(prev => ({ ...prev, driveOffersEnabled: !prev.driveOffersEnabled }))}
-                    className={`w-12 h-6 rounded-full transition-colors relative ${siteSettings.driveOffersEnabled ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-705'}`}
-                  >
-                    <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${siteSettings.driveOffersEnabled ? 'translate-x-6' : ''}`} />
                   </button>
                 </div>
               </div>
@@ -2816,11 +2466,6 @@ export function AdminPanel() {
                     {siteSettings.coursesEnabled !== false ? 'ON' : 'OFF'}
                   </span>
                   <button
-                    type="button"
-                    onClick={() => setSiteSettings(prev => ({ ...prev, coursesEnabled: !prev.coursesEnabled }))}
-                    className={`w-12 h-6 rounded-full transition-colors relative ${siteSettings.coursesEnabled !== false ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-705'}`}
-                  >
-                    <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${siteSettings.coursesEnabled !== false ? 'translate-x-6' : ''}`} />
                   </button>
                 </div>
               </div>
@@ -2834,11 +2479,6 @@ export function AdminPanel() {
                     {siteSettings.adsViewEnabled ? 'ON' : 'OFF'}
                   </span>
                   <button
-                    type="button"
-                    onClick={() => setSiteSettings(prev => ({ ...prev, adsViewEnabled: !prev.adsViewEnabled }))}
-                    className={`w-12 h-6 rounded-full transition-colors relative ${siteSettings.adsViewEnabled ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-705'}`}
-                  >
-                    <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${siteSettings.adsViewEnabled ? 'translate-x-6' : ''}`} />
                   </button>
                 </div>
               </div>
@@ -2852,50 +2492,12 @@ export function AdminPanel() {
                     {siteSettings.reviewsEnabled !== false ? 'ON' : 'OFF'}
                   </span>
                   <button
-                    type="button"
-                    onClick={() => setSiteSettings(prev => ({ ...prev, reviewsEnabled: prev.reviewsEnabled === false ? true : false }))}
-                    className={`w-12 h-6 rounded-full transition-colors relative ${siteSettings.reviewsEnabled !== false ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-705'}`}
-                  >
-                    <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${siteSettings.reviewsEnabled !== false ? 'translate-x-6' : ''}`} />
                   </button>
                 </div>
               </div>
             </div>
             
             <button onClick={handleSaveSiteSettings} disabled={isSavingSettings} className="mt-6 w-full bg-emerald-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-emerald-600/20 active:scale-95 transition-all text-xs">Update Identity</button>
-          </motion.div>
-
-          {/* Support Channels */}
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-500">
-                <MessageSquare className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Support Grid</h3>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Contact Config</p>
-              </div>
-            </div>
-            
-            <div className="grid gap-4">
-              <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-900 p-3 rounded-[20px] ring-1 ring-slate-100 dark:ring-slate-800">
-                <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 flex items-center justify-center text-slate-400"><Mail className="w-4 h-4" /></div>
-                <input type="email" value={supportSettings.email} onChange={(e) => setSupportSettings(prev => ({ ...prev, email: e.target.value }))} className="bg-transparent border-none p-0 flex-1 text-sm font-bold focus:ring-0" placeholder="Support Email" />
-              </div>
-              <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-900 p-3 rounded-[20px] ring-1 ring-slate-100 dark:ring-slate-800">
-                <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 flex items-center justify-center text-emerald-500"><Smartphone className="w-4 h-4" /></div>
-                <input type="text" value={supportSettings.whatsapp} onChange={(e) => setSupportSettings(prev => ({ ...prev, whatsapp: e.target.value }))} className="bg-transparent border-none p-0 flex-1 text-sm font-bold focus:ring-0" placeholder="WhatsApp Link" />
-              </div>
-              <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-900 p-3 rounded-[20px] ring-1 ring-slate-100 dark:ring-slate-800">
-                <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 flex items-center justify-center text-indigo-500"><Send className="w-4 h-4" /></div>
-                <input type="text" value={supportSettings.telegram} onChange={(e) => setSupportSettings(prev => ({ ...prev, telegram: e.target.value }))} className="bg-transparent border-none p-0 flex-1 text-sm font-bold focus:ring-0" placeholder="Telegram Link" />
-              </div>
-              <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-900 p-3 rounded-[20px] ring-1 ring-slate-100 dark:ring-slate-800">
-                <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 flex items-center justify-center text-blue-600"><MessageCircle className="w-4 h-4" /></div>
-                <input type="text" value={supportSettings.facebook} onChange={(e) => setSupportSettings(prev => ({ ...prev, facebook: e.target.value }))} className="bg-transparent border-none p-0 flex-1 text-sm font-bold focus:ring-0" placeholder="Facebook Profile" />
-              </div>
-            </div>
-            
             <button onClick={handleSaveSupportSettings} disabled={isSavingSettings} className="mt-6 w-full bg-blue-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-blue-600/20 active:scale-95 transition-all text-xs">Save Channels</button>
           </motion.div>
           </>)}
@@ -2933,49 +2535,6 @@ export function AdminPanel() {
             </div>
             
             <button onClick={handleSaveSpinSettings} disabled={isSavingSettings} className="mt-6 w-full bg-amber-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-amber-600/20 active:scale-95 transition-all text-xs">Sync Rewards</button>
-          </motion.div>
-
-          {/* Referral Engine */}
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-2xl bg-orange-50 dark:bg-orange-900/30 flex items-center justify-center text-orange-500">
-                <Coins className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Referral Engine</h3>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Yield Configuration</p>
-              </div>
-            </div>
-            
-            <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-2">
-                {[1, 2, 3].map(gen => (
-                  <div key={gen} className="group">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Gen {gen} ()</label>
-                    <input 
-                      type="number" 
-                      value={gen === 1 ? referralSettings.fixedBonus : (gen === 2 ? referralSettings.gen2FixedBonus : referralSettings.gen3FixedBonus)} 
-                      onChange={(e) => setReferralSettings(prev => ({ ...prev, [gen === 1 ? 'fixedBonus' : (gen === 2 ? 'gen2FixedBonus' : 'gen3FixedBonus')]: Number(e.target.value) }))} 
-                      className="w-full bg-slate-50 dark:bg-slate-900 border-none px-2 py-2.5 rounded-xl text-center text-sm font-black ring-1 ring-slate-100 dark:ring-slate-800" 
-                    />
-                  </div>
-                ))}
-              </div>
-              <div className="grid grid-cols-3 gap-2 mt-2">
-                {[1, 2, 3].map(gen => (
-                  <div key={gen} className="group">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Yield {gen} (%)</label>
-                    <input 
-                      type="number" 
-                      value={gen === 1 ? referralSettings.gen1Percent : (gen === 2 ? referralSettings.gen2Percent : referralSettings.gen3Percent)} 
-                      onChange={(e) => setReferralSettings(prev => ({ ...prev, [gen === 1 ? 'gen1Percent' : (gen === 2 ? 'gen2Percent' : 'gen3Percent')]: Number(e.target.value) }))} 
-                      className="w-full bg-slate-100 dark:bg-slate-700/50 border-none px-2 py-2.5 rounded-xl text-center text-sm font-black text-orange-500" 
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-            
             <button onClick={handleSaveReferralSettings} disabled={isSavingSettings} className="mt-6 w-full bg-orange-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-orange-600/20 active:scale-95 transition-all text-xs">Reload Engine</button>
           </motion.div>
 
@@ -3014,34 +2573,13 @@ export function AdminPanel() {
                   <input type="number" value={partnerSettings.requiredReferrals} onChange={(e) => setPartnerSettings(prev => ({ ...prev, requiredReferrals: Number(e.target.value) }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-black ring-1 ring-slate-100 dark:ring-slate-800" />
                 </div>
                 <div className="group">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Daily Bonus ()</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Daily Bonus (৳)</label>
                   <input type="number" value={partnerSettings.dailyBonus} onChange={(e) => setPartnerSettings(prev => ({ ...prev, dailyBonus: Number(e.target.value) }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-black text-indigo-500 ring-1 ring-slate-100 dark:ring-slate-800" />
                 </div>
               </div>
             </div>
             
             <button onClick={handleSavePartnerSettings} disabled={isSavingSettings} className="mt-6 w-full bg-indigo-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-indigo-600/20 active:scale-95 transition-all text-xs">Save Partner Rules</button>
-          </motion.div>
-          </>)}
-
-          {/* Announcement Scroller */}
-          {settingsSubTab === 'identity' && (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-2xl bg-purple-50 dark:bg-purple-900/30 flex items-center justify-center text-purple-500">
-                <Megaphone className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Global Banner</h3>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Ticker Configuration</p>
-              </div>
-            </div>
-            
-            <div className="space-y-4">
-              <textarea value={bannerSettings.text} onChange={(e) => setBannerSettings(prev => ({ ...prev, text: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold h-24 ring-1 ring-slate-100 dark:ring-slate-800" placeholder="Marquee News Text..." />
-              <input type="text" value={bannerSettings.link} onChange={(e) => setBannerSettings(prev => ({ ...prev, link: e.target.value }))} className="w-full bg-slate-100 dark:bg-slate-900/50 border-none px-4 py-3 rounded-2xl text-xs font-bold text-purple-500 italic" placeholder="Promo Link URL" />
-            </div>
-            
             <button onClick={handleSaveBannerSettings} disabled={isSavingSettings} className="mt-6 w-full bg-purple-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-purple-600/20 active:scale-95 transition-all text-xs">Update Marquee</button>
           </motion.div>
           )}
@@ -3065,7 +2603,7 @@ export function AdminPanel() {
                 <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-3">Spin Requirements</p>
                 <div className="space-y-2">
                   <div className="flex justify-between items-center bg-white dark:bg-slate-800 px-3 py-2 rounded-xl shadow-sm">
-                    <span className="text-[9px] font-bold text-slate-400">Task Earnings</span>
+                    <span className="text-[9px] font-bold text-slate-400">Tasks</span>
                     <input type="number" value={gameSettings.spinTaskReq} onChange={(e) => setGameSettings(prev => ({ ...prev, spinTaskReq: Number(e.target.value) }))} className="w-10 bg-transparent border-none p-0 text-right text-xs font-black" />
                   </div>
                   <div className="flex justify-between items-center bg-white dark:bg-slate-800 px-3 py-2 rounded-xl shadow-sm">
@@ -3078,7 +2616,7 @@ export function AdminPanel() {
                 <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-3">Math Requirements</p>
                 <div className="space-y-2">
                   <div className="flex justify-between items-center bg-white dark:bg-slate-800 px-3 py-2 rounded-xl shadow-sm">
-                    <span className="text-[9px] font-bold text-slate-400">Task Earnings</span>
+                    <span className="text-[9px] font-bold text-slate-400">Tasks</span>
                     <input type="number" value={gameSettings.mathTaskReq} onChange={(e) => setGameSettings(prev => ({ ...prev, mathTaskReq: Number(e.target.value) }))} className="w-10 bg-transparent border-none p-0 text-right text-xs font-black" />
                   </div>
                   <div className="flex justify-between items-center bg-white dark:bg-slate-800 px-3 py-2 rounded-xl shadow-sm">
@@ -3090,39 +2628,6 @@ export function AdminPanel() {
             </div>
             
             <button onClick={handleSaveGameSettings} disabled={isSavingSettings} className="mt-6 w-full bg-blue-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-blue-600/20 active:scale-95 transition-all text-xs italic">Sync Logic</button>
-          </motion.div>
-
-          {/* Account Integrity */}
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-2xl bg-cyan-50 dark:bg-cyan-900/30 flex items-center justify-center text-cyan-500">
-                <Lock className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Account Integrity</h3>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Security Gates</p>
-              </div>
-            </div>
-            
-            <div className="bg-slate-50 dark:bg-slate-900/50 p-5 rounded-3xl border border-slate-100 dark:border-slate-800">
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-xs font-black uppercase tracking-wider dark:text-white">Activation Mode</span>
-                <select value={activationSettings.mode} onChange={(e) => setActivationSettings(prev => ({ ...prev, mode: e.target.value as 'free'|'paid' }))} className="bg-white dark:bg-slate-800 border-none rounded-xl text-[10px] font-black uppercase ring-1 ring-slate-100 dark:ring-slate-700 py-1.5 px-3">
-                  <option value="free">Permissive (Free)</option>
-                  <option value="paid">Restrictive (Paid)</option>
-                </select>
-              </div>
-              {activationSettings.mode === 'paid' && (
-                <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                  <span className="text-xs font-black uppercase text-slate-400">Mandatory Fee</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-black text-cyan-500"></span>
-                    <input type="number" value={activationSettings.fee} onChange={(e) => setActivationSettings(prev => ({ ...prev, fee: Number(e.target.value) }))} className="w-16 bg-white dark:bg-slate-800 border-none rounded-xl text-center text-sm font-black p-2 ring-1 ring-slate-100 dark:ring-slate-700" />
-                  </div>
-                </div>
-              )}
-            </div>
-            
             <button onClick={handleSaveActivationSettings} disabled={isSavingSettings} className="mt-6 w-full bg-cyan-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-cyan-600/20 active:scale-95 transition-all text-xs">Lock Configuration</button>
           </motion.div>
           </>)}
@@ -3152,7 +2657,7 @@ export function AdminPanel() {
                   <span className={`text-[10px] font-black uppercase tracking-widest ${wallet.color} w-16`}>{wallet.key}</span>
                   <div className="flex-1 flex gap-2 justify-end">
                     <div className="flex flex-col items-end">
-                      <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Min </span>
+                      <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Min ৳</span>
                       <input type="number" value={wallet.min} onChange={(e) => setWithdrawSettings(prev => ({ ...prev, [wallet.minSetter]: Number(e.target.value) }))} className="w-14 bg-white dark:bg-slate-800 text-[11px] font-black p-1.5 rounded-lg text-center" />
                     </div>
                     <div className="flex flex-col items-end">
@@ -3165,7 +2670,7 @@ export function AdminPanel() {
             </div>
 
             <div className="mt-4 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-3xl space-y-2 ring-1 ring-slate-100 dark:ring-slate-800">
-              <span className="text-[10px] font-black uppercase tracking-widest text-indigo-500 block">Withdraw Option Amounts ()</span>
+              <span className="text-[10px] font-black uppercase tracking-widest text-indigo-500 block">Withdraw Option Amounts (৳)</span>
               <p className="text-[9px] text-slate-400 font-bold uppercase leading-tight">Comma-separated withdraw options for each wallet</p>
               
               <div className="space-y-3 mt-3">
@@ -3197,60 +2702,6 @@ export function AdminPanel() {
             </div>
             
             <button onClick={handleSaveWithdrawSettings} disabled={isSavingSettings} className="mt-6 w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-xl active:scale-95 transition-all text-xs">Execute Protocol</button>
-          </motion.div>
-
-          {/* Deposit Gateways */}
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8 }} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-500">
-                <Wallet className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Funding Gateways</h3>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Inbound Channels</p>
-              </div>
-            </div>
-            
-            <div className="space-y-4">
-              <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-3xl space-y-4">
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-2xl bg-[#e2136e] flex items-center justify-center text-white text-[10px] font-black">BKASH</div>
-                      <input type="text" value={depositSettings.bkashNumber} onChange={(e) => setDepositSettings(prev => ({ ...prev, bkashNumber: e.target.value }))} className="flex-1 bg-white dark:bg-slate-800 border-none rounded-xl px-3 py-2.5 text-sm font-black tracking-widest text-[#e2136e] ring-1 ring-slate-100 dark:ring-slate-700" placeholder="01XXX-XXXXXX" />
-                    </div>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" checked={!!depositSettings.bkashEnabled} onChange={(e) => setDepositSettings(prev => ({ ...prev, bkashEnabled: e.target.checked }))} className="w-4 h-4 text-emerald-500 rounded focus:ring-emerald-500" />
-                      <span className="text-xs font-bold text-slate-500">Enabled</span>
-                    </label>
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-2 border-t border-slate-200 dark:border-slate-800 pt-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-2xl bg-[#ea232a] flex items-center justify-center text-white text-[10px] font-black">NAGAD</div>
-                      <input type="text" value={depositSettings.nagadNumber} onChange={(e) => setDepositSettings(prev => ({ ...prev, nagadNumber: e.target.value }))} className="flex-1 bg-white dark:bg-slate-800 border-none rounded-xl px-3 py-2.5 text-sm font-black tracking-widest text-[#ea232a] ring-1 ring-slate-100 dark:ring-slate-700" placeholder="01XXX-XXXXXX" />
-                    </div>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" checked={!!depositSettings.nagadEnabled} onChange={(e) => setDepositSettings(prev => ({ ...prev, nagadEnabled: e.target.checked }))} className="w-4 h-4 text-emerald-500 rounded focus:ring-emerald-500" />
-                      <span className="text-xs font-bold text-slate-500">Enabled</span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="group">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Min ()</label>
-                  <input type="number" value={depositSettings.minDeposit} onChange={(e) => setDepositSettings(prev => ({ ...prev, minDeposit: Number(e.target.value) }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-black" />
-                </div>
-                <div className="group">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Max ()</label>
-                  <input type="number" value={depositSettings.maxDeposit} onChange={(e) => setDepositSettings(prev => ({ ...prev, maxDeposit: Number(e.target.value) }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-black opacity-50" />
-                </div>
-              </div>
-            </div>
-            
             <button onClick={handleSaveDepositSettings} disabled={isSavingSettings} className="mt-6 w-full bg-emerald-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-emerald-600/20 active:scale-95 transition-all text-xs">Update Gateways</button>
           </motion.div>
           </>)}
@@ -3271,11 +2722,6 @@ export function AdminPanel() {
                 This action will completely wipe all user accounts (except admins), tasks, courses, requests, and transactions from Firestore. This cannot be undone. Ensure you have backed up the data if needed.
               </p>
               <button 
-                onClick={handleWipeData} 
-                disabled={isSavingSettings} 
-                className="w-full bg-rose-600 hover:bg-rose-700 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-rose-600/20 active:scale-95 transition-all text-xs"
-              >
-                Understand & Wipe Everything
               </button>
             </motion.div>
           )}
@@ -3305,10 +2751,6 @@ export function AdminPanel() {
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800/80 mb-3">
                 <span className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Proof Screenshot</span>
                 <button
-                  onClick={() => setViewingScreenshot(null)}
-                  className="px-3 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/30 hover:text-rose-600 dark:hover:text-rose-400 text-slate-500 dark:text-slate-400 font-extrabold text-[10px] transition-all cursor-pointer"
-                >
-                  Close
                 </button>
               </div>
               <div className="flex-1 overflow-y-auto rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800/50 flex items-center justify-center p-2.5">
@@ -3358,25 +2800,8 @@ export function AdminPanel() {
             
             <div className="flex gap-3">
               <button 
-                onClick={() => { setConfirmDialog(null); setPromptInput(''); }}
-                className="flex-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 py-3.5 rounded-2xl font-black uppercase text-xs tracking-widest active:scale-95 transition-all"
-              >
-                Cancel
               </button>
               <button 
-                disabled={confirmDialog.isPrompt && promptInput !== confirmDialog.promptExpected}
-                onClick={() => {
-                  confirmDialog.onConfirm();
-                  setConfirmDialog(null);
-                  setPromptInput('');
-                }}
-                className={`flex-1 py-3.5 rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg active:scale-95 transition-all ${
-                  (confirmDialog.isPrompt && promptInput !== confirmDialog.promptExpected)
-                    ? 'bg-rose-300 text-white/50 cursor-not-allowed shadow-none'
-                    : 'bg-rose-600 hover:bg-rose-700 text-white shadow-rose-600/20'
-                }`}
-              >
-                Confirm
               </button>
             </div>
           </motion.div>
@@ -3414,16 +2839,8 @@ export function AdminPanel() {
 
             <div className="space-y-3">
               <button 
-                onClick={handleSaveEmployeeConfig}
-                className="w-full bg-purple-600 hover:bg-purple-700 text-white font-black uppercase tracking-[0.15em] py-3.5 rounded-2xl shadow-lg shadow-purple-600/20 active:scale-95 transition-all text-[11px]"
-              >
-                Save Roles & Permissions
               </button>
               <button 
-                onClick={() => setEmployeeConfigUser(null)}
-                className="w-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-700 dark:text-slate-200 font-black uppercase tracking-[0.15em] py-3.5 rounded-2xl active:scale-95 transition-all text-[11px]"
-              >
-                Close
               </button>
             </div>
             {employeePermissions.length === 0 && (
@@ -3433,56 +2850,6 @@ export function AdminPanel() {
         </div>
       )}
 
-
-      {/* Edit User Balance Modal */}
-      {editingUserBalance && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white dark:bg-slate-800 rounded-3xl p-6 w-full max-w-md shadow-2xl">
-            <h3 className="font-black text-slate-900 dark:text-white uppercase tracking-tight mb-4">Edit Balances: {editingUserBalance.fullName}</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Main Balance</label>
-                <input type="number" step="0.01" value={editingUserBalance.main} onChange={e => setEditingUserBalance({...editingUserBalance, main: parseFloat(e.target.value) || 0})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" />
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Bonus Balance</label>
-                <input type="number" step="0.01" value={editingUserBalance.bonus} onChange={e => setEditingUserBalance({...editingUserBalance, bonus: parseFloat(e.target.value) || 0})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" />
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Referral Balance</label>
-                <input type="number" step="0.01" value={editingUserBalance.referral} onChange={e => setEditingUserBalance({...editingUserBalance, referral: parseFloat(e.target.value) || 0})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" />
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Partner Balance</label>
-                <input type="number" step="0.01" value={editingUserBalance.partner} onChange={e => setEditingUserBalance({...editingUserBalance, partner: parseFloat(e.target.value) || 0})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" />
-              </div>
-            </div>
-            <div className="flex gap-3 mt-6">
-              <button onClick={() => setEditingUserBalance(null)} className="flex-1 py-3 text-slate-600 dark:text-slate-300 font-bold bg-slate-100 dark:bg-slate-700 rounded-2xl text-xs uppercase tracking-wider">Cancel</button>
-              <button onClick={async () => {
-                try {
-                  const { updateDoc, doc, setDoc } = await import('firebase/firestore');
-                  const { db } = await import('../lib/firebase');
-                  await updateDoc(doc(db, "users", editingUserBalance.id), {
-                    "balances.main": editingUserBalance.main,
-                    "balances.bonus": editingUserBalance.bonus,
-                    "balances.referral": editingUserBalance.referral,
-                    "balances.partner": editingUserBalance.partner,
-                  });
-                  await setDoc(doc(db, "leaderboard", editingUserBalance.id), {
-                    totalIncome: editingUserBalance.main + editingUserBalance.bonus + editingUserBalance.referral + editingUserBalance.partner + editingUserBalance.tasks
-                  }, { merge: true });
-                  toast.success("Balances updated!");
-                  setEditingUserBalance(null);
-                  loadData(true);
-                } catch(err: any) {
-                  toast.error(err.message);
-                }
-              }} className="flex-1 py-3 text-white font-bold bg-indigo-500 rounded-2xl text-xs uppercase tracking-wider">Save</button>
-            </div>
-          </motion.div>
-        </div>
-      )}
       {showNotifyModal && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4">
           <motion.div
@@ -3496,7 +2863,6 @@ export function AdminPanel() {
                 {notifyTarget === 'all' ? 'Notify All Users' : 'Send Notification'}
               </h3>
               <button onClick={() => setShowNotifyModal(false)} className="text-slate-400 hover:text-slate-600">
-                <XCircle className="w-5 h-5" />
               </button>
             </div>
             
@@ -3522,56 +2888,6 @@ export function AdminPanel() {
               </div>
               
               <button
-                onClick={async () => {
-                  if (!notifyTitle.trim() || !notifyMessage.trim()) {
-                    toast.error("Please enter a title and message.");
-                    return;
-                  }
-                  setIsSendingNotification(true);
-                  try {
-                    if (notifyTarget === 'all') {
-                      let chunk = [];
-                      for (let i = 0; i < userList.length; i++) {
-                        chunk.push(userList[i]);
-                        if (chunk.length === 450 || i === userList.length - 1) {
-                          const batch = writeBatch(db);
-                          chunk.forEach(u => {
-                            const notifRef = doc(collection(db, "users", u.id, "notifications"));
-                            batch.set(notifRef, {
-                              title: notifyTitle,
-                              message: notifyMessage,
-                              read: false,
-                              type: 'admin_broadcast',
-                              createdAt: serverTimestamp()
-                            });
-                          });
-                          await batch.commit();
-                          chunk = [];
-                        }
-                      }
-                      toast.success(`Sent to ${userList.length} users!`);
-                    } else {
-                      const notifRef = doc(collection(db, "users", notifyTarget, "notifications"));
-                      await setDoc(notifRef, {
-                        title: notifyTitle,
-                        message: notifyMessage,
-                        read: false,
-                        type: 'admin_direct',
-                        createdAt: serverTimestamp()
-                      });
-                      toast.success("Notification sent!");
-                    }
-                    setShowNotifyModal(false);
-                  } catch (e: any) {
-                    toast.error(e.message || "Failed to send notification.");
-                  } finally {
-                    setIsSendingNotification(false);
-                  }
-                }}
-                disabled={isSendingNotification}
-                className="w-full bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white py-3 rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-sky-500/20 active:scale-95 transition-all"
-              >
-                {isSendingNotification ? 'Sending...' : 'Send Now'}
               </button>
             </div>
           </motion.div>
@@ -3580,3 +2896,223 @@ export function AdminPanel() {
     </div>
   );
 }
+AAA      /        o                                        ~K ,aACnCc    jCc      AAc,                 A,OA	Ac    Ac      AC9C                g] W,GADc    Dc    K ,SAAvCc    rCc      ;AAAFc    Fc    A A+E;Cc    Cc    VW O,YA`Dc    \Dc      AAA,                  AAAA                  S,GA                  AC7B                  ,GAA                  AAU;                 C,SAAc    Ac      CAAC                % G,SAAc    Ac    7 Ae,oBc    Bc      AG,S                  AAe,                  xB;A                  BAAk                zK AAU,fCc    bCc      ;AAA                 AAAA@Ac    <Ac      A,oB                  6CAA                  AAG,                  KAAr                  A,6B                C AC,O2Cc    .Cc      ,WAA                  AAK,                Q ;AAADc    
+Dc      ,uBA                  AAA,                 sE;AAc    Ac    Y} C,UAqFc    mFc    3 SAASGc    Gc    K A;AAAc    zCc      6BAD                  AA,+                  ,0BA                ; AAS,Bc    Bc    g ,UAAVEc    REc      E;AA                  AAAA                  AAU;                pu ,4BAEc    Ec    ! AAhBAc    ~Ac      ,mCA                  ;AAA                  A;AA                  AAA,                  ;AAA                5 AAAApBc    lBc    M BA;ACc    Cc    F ;AAAGc    Gc     BACA@c    @c      b;AA                 CACZd@c    `@c    A ,SAACc    Cc      ,IAC                  Ac,G                  AAA,                  G,QA                Cw AHxF!Ac    Ec      ,2BA                Q AAW,Dc    Dc     ,6IA8Ac    4Ac    / ;AAA<Bc    8Bc      BAC3                  AC,O                \ /J;ADc    Dc      BAAu                u] AAW,Ac    Dc      ,0IA                  ;AAA                 BAR7!Ac    Ac    ie A,yBEc    	Ec    + AtCKBc    Bc     ;AAAFc    Fc    E A;AABCc    >Cc    X ACH,~Bc    |Dc    0  ;AAAAFc    >Fc    } AAA;yFc    uFc      ;AAA                  A;AA                  BAAw                e AAoBEc    Ec      AAQ,                M AC3DCc    Cc    ( iBAAAc    Ac      ,WAA                & ,UACAc    Ac    7 1C,aBc    Bc    m uEAC}Ec    yEc      ACb;                ( ,0CABc    Bc      ;AAA                  CvE,                6 b;AA~Bc    zBc      CACX                w AR;AEc    Ec      BAAe                  ,WAA                +  C;AAHAc    DAc    u AAA;Ec    Ec    !( ,oBABc    Bc    u ,mCAEc    Ec      AAA,                  ,gBA                  mBAA                  AA,q                v ,eAA3Dc    JGc      AqB,                M iBADCc    Cc    U AA,m:Dc    6Dc      ,OAA                5" AAC,Ac    Ac    0& ;AAAAc    Ac    ;  AAS;<Bc    }Fc    ), IAAK%Bc    !Bc    M qB,KCc    Cc    u BADlEc    Ec      A,mB                  AAA;                  ,UAE                 6 ACX;Bc    Bc    !6 R;AABc    Bc    8 AAe;Bc    Bc    O AAAACc    Cc    $6 A;AABc    Bc    g BAACfEc    bEc      A,mC                  AAAA                { A,YAFc    Fc    Y D5B;l@c    h@c      iBAE                W AE,WhDc    dDc      ,YAA                  AA;A                g ;AAAmEc    iEc    q AA;AEc    Ec      AAAA                .8 A;AABc    Bc     BAACFc    Fc      ;AAA                  C,SA                  AAAA                q X;AAEc    Ec      AA;A                  AAA;                  AAAA                I, ,SAA-Bc    )Bc    e A,cAEc    Ec    { AA;AFc    Fc    { AAA;BCc    Fc      aAZF                  ,eAa                  AA;A                  ;AAA                  CA;A                e AhhB$Ec     Ec    5@ A,SACc    Cc      ["q"                                      ^     Dc    Dc    !P bmcuCc    Cc      b250                b& ZWFjAc    Ac    { dXNlt@c    p@c    { cmVh#Fc    Fc    e& bW90Ac    Ac    c( c2VuBc    Bc    U2 b24vCBc    ?Bc     IHsg@c    @c      ZnQs                  IFRh                  J2x1                  bXBv                 ZSB9Fc    Fc      dXRl                  dCBz                  ICAg                  bWUg                  Iixc                  bjog                  IHRv%Cc    "Cc      eSBi                 bXBs@c    @c      ZyBn                ={ cmluCc    Ec    =N ICAgCc    Cc      biAg                ?N bHVlCc    Cc      ZS01                  ICB7+Cc    (Cc      Q29t                 c1wi@c    @c      aW9u                  J0Vh                & b24sAc    Ac    k6 cGxlBc    Bc      YW5k                IN byBnCc    Cc      ICBp                  ZSxc                @V Zy1nBDc    >Dc    >X LWdypDc    lDc      IH0s                  ZTog                  bWVz                 cHRpFc    Fc    I IGx1RGc    NGc      biBX                5 YXRowBc    sBc    g| biBlIFc    EFc      dHMg                 ICAg@c    @c      ICAgICc    FCc      cGxl                  cGxl                  XG4g                  XCJJ                 XG4g@c    @c      IFwi                  cnJh                 aXhlFc    Fc    L\ aWZlDc    Dc      IGNv                fL aGVpCc    ~Cc      Llwi                  ZXJz                  ImJnOCc    LCc    x b3ctEc    Ec      biAg                  dGxl                  c3Rh                & c2NyAc    Ac      IHRo                  Y2Ug                  cmVj                  c2gs                Px ZXQgEc    Ec    # ICBpFc    Fc    H\ ICAgDc    Dc      bC01                 NTAw@c    @c      blxu                 IE9u@c    @c      IGNv                  dElz                |L ZShmCc    Cc    Sh IFtjuEc    qEc    6| Q3Vy:Fc    6Fc      U3Rh                L IG5hCc    Cc    	 aWdh>Gc    :Gc     ZmZl@c    @c      IGNv                  b2Nh                { bSgnFc    Fc      bmcn                 c1NlGc    Gc      IFNt                Jv dCB0Ec    Ec    \ c3RcDc    Dc      bWVy                  KSA9                 ZSksHAc    Fc    |X cmV0xDc    tDc    8 VGltBc    Bc      ICAg                  biAg                P c2UgCc    Cc    Qx bG9jEc    Ec    K ZW0oVCc    RCc    F aW5nFc    Fc      ICBz                 O1xuICc    Fc      IG5l                _V e1xuJDc    FDc      U3RlPAc    LAc    2 aCAtJBc    FBc      dEN1                  PT4g                  IH0g                @ YW5k Cc    Bc      IH1c                  dCBw                  IHtc                  dFN0                  ICBz                  cmV2                  biAg                  aWYg                L biBuCc    Cc    C IFN0Fc    Fc      Y3Vy                b XG5cEc    Dc      ICA8                  Plxu                  c05h                \ dC0wDc    Dc      dGVt                  eS1j                  YWNr                6 dXItAc    Bc    \ PG1vDc    Dc      ICAg                M cGFjFc    Fc      MC45                  ICAg                  IG9w                  OiAx                C ICAgFGc    BGc    Z aXR5Dc    Dc      NSwg                  ICAg                  Zy13                  YXRl                  bCB3                  MHB4                # ZW4gAc    Ac     dGl2Fc    Fc      biAg                  IFxu                  bGlj                | XG4gQFc    MFc     c05h&Gc    "Gc      b3At                  Z3Jh                  dC1n                | dmVyYFc    UFc    \ ei0xDc    Dc      ICAg                0  IDxYYDc    VDc      NSBo                  ICAg                L ICAgCc    Cc    \& IDxkAc    Ac      cC04                  LTEw                + ICA8U@c    Q@c    X IG1vDc    Dc    L ICAgCc    Cc      b24u                  ICAg                  U3Rl                  ICAg                  YWNp                  XG4g                  YW5p                o OiAx.Gc    *Gc     ICAg|@c    x@c    Z eyBvDc    Dc    J5 MjAgQBc    MBc      ICAg                  IGR1                | biAgaFc    ]Fc    X bGFzhDc    Dc      ZXgt                  clwi                w ID5cEc    Ec      ICA8                /! YHctWAc    SAc      LWZ1                
+; ZW50Bc    Bc    8 YWRv)Ac    %Ac      LWNl                  bnRl                /% LTYgAc    Ac    e cnNg$Ec    'Ec    Z ICAgDc    Dc      bGFz                '- MTBc5Bc    1Bc      ICAg                  ICAg                  ICAg                  bGFz                = IGZvBc    Bc    9% eHQtAc    Ac    z! ZXh0oAc    kAc      ICAg                  cHNb                C! dGxl_Ac    [Ac      ICAg                $7 ICAgBc    Bc     YW1lGc    
+Gc      LWdy                  dC1n                "; LXJlBc    Bc      cHhd                  ICAg                  cmVu                  aW9u                 ICAgxDc    Fc      ICAg                  Plxu                b bmlt~Bc    Ec      ICAg                 ICAg@c    @c    Z ICAgDc    Dc    { XCJw*Fc    &Fc      ICAg                { c3NO2Fc    .Fc    S aWZ5Dc    Dc    b Yi04@c    @c      ICAg                  IGkp                M ICAgCc    Cc     ICAgFc    Fc    v PXtpBCc    Ec      ICAg                  YGgt                  dHJh                  YXRp                  Y3Vy                  IGJn                  OmJn                  LTIg                m azpi1Ac    -Ac    G7 XG4gBc    Bc     g Lz5c/Ec    +Ec    "Q KSl9Dc    Dc    k! L2RpgAc    cAc    N5 IFxuYBc    UBc      diBj                Ò IGZsFc    Fc    ʒ XG4gFc    Fc      aXYg                  eCBn@c    @c      ICAg                r U3RlYDc    Ec      ICAg                r# dHRvAc    Ac      ICAg                  cHJl                  ICAg                  TmFt                \5 IHJv`Bc    \Bc      b2xk                 cms6@c    @c    g eHQt6Ec    2Ec      ZXh0                  OmJn                  aG92                  IHRy                y OnNjEc    Ec    w IlxuEc    Ec    | ICAgiFc    eFc    g ICAg>Ec    :Ec    h5 ICAghBc    dBc    QE dHRv:Cc    6Cc      ICAg                  ICAg                  ICAg                 bkNs]@c    Y@c      biAg                ]A IGNsCc    Cc      WzJd                &g bCBmFEc    BEc    ?W RDQ3RDc    NDc     c2hh@c    @c      bHVl                  YWRv                 b3Zl@c    @c    d YW5zFc    Fc      YWxl                ! ICAgvAc    rAc      biAg                 IHtjAc    @c    ! c3RlPAc    zAc    MU IFwi%Dc    !Dc      IFwi                  ICAg                  Plxu                  L2Rp                  ICAg                8g c3RlNEc    JEc      JiAo                  ICAg                  ICAg                  Y2s9                  ICAg                YU Y2xh,Dc    (Dc    ؚ ZXh06Gc    2Gc      bGQg                g b3Zl^Ec    ZEc    iM IGRhCc    Cc      cmF5                 LWNv@c    @c      ICAg                ' ICAgAc    Ac    Pa dXRvDc    Dc    cU ICAg3Dc    /Dc      ICAg                  ICAg                  XG4g                  XG4g                 LmRp@c    @c      Plxu                yK ZXNl^Cc    ZCc    ' Il0sAc    Ac     w Rlk7Ec    Ec    7       ؁    0     ؁    0    Yb  (  QyxTQUFTLGFBQWEsTUFBTSxPQUFPLFFBQVEsUUFBUSxTQUFTO0FBQzVELFNBQVMsbUJBQW1CO0FBRTVCLE1BQU0sUUFBUTtBQUFBLEVBQ1o7QUFBQSxJQUNFLE9BQU87QUFBQSxJQUNQLGFBQWE7QUFBQSxJQUNiLE1BQU07QUFBQSxJQUNOLE9BQU87QUFBQSxFQUNUO0FBQUEsRUFDQTtBQUFBLElBQ0UsT0FBTztBQUFBLElBQ1AsYUFBYTtBQUFBLElBQ2IsTUFBTTtBQUFBLElBQ04sT0FBTztBQUFBLEVBQ1Q7QUFBQSxFQUNBO0FBQUEsSUFDRSxPQUFPO0FBQUEsSUFDUCxhQUFhO0FBQUEsSUFDYixNQUFNO0FBQUEsSUFDTixPQUFPO0FBQUEsRUFDVDtBQUFBLEVBQ0E7QUFBQSxJQUNFLE9BQU87QUFBQSxJQUNQLGFBQWE7QUFBQSxJQUNiLE1BQU07QUFBQSxJQUNOLE9BQU87QUFBQSxFQUNUO0FBQUEsRUFDQTtBQUFBLElBQ0UsT0FBTztBQUFBLElBQ1AsYUFBYTtBQUFBLElBQ2IsTUFBTTtBQUFBLElBQ04sT0FBTztBQUFBLEVBQ1Q7QUFDRjtBQUVPLGdCQUFTLGFBQWE7QUFDM0IsUUFBTSxDQUFDLFFBQVEsU0FBUyxJQUFJLFNBQVMsS0FBSztBQUMxQyxRQUFNLENBQUMsYUFBYSxjQUFjLElBQUksU0FBUyxDQUFDO0FBQ2hELFFBQU0sV0FBVyxZQUFZO0FBRTdCLFlBQVUsTUFBTTtBQUNkLFVBQU0sVUFBVSxhQUFhLFFBQVEsbUJBQW1CO0FBQ3hELFFBQUksQ0FBQyxTQUFTO0FBRVosWUFBTSxRQUFRLFdBQVcsTUFBTSxVQUFVLElBQUksR0FBRyxJQUFJO0FBQ3BELGFBQU8sTUFBTSxhQUFhLEtBQUs7QUFBQSxJQUNqQztBQUFBLEVBQ0YsR0FBRyxDQUFDLENBQUM7QUFFTCxRQUFNLGNBQWMsTUFBTTtBQUN4QixpQkFBYSxRQUFRLHFCQUFxQixNQUFNO0FBQ2hELGNBQVUsS0FBSztBQUFBLEVBQ2pCO0FBRUEsUUFBTSxXQUFXLE1BQU07QUFDckIsUUFBSSxjQUFjLE1BQU0sU0FBUyxHQUFHO0FBQ2xDLHFCQUFlLFVBQVEsT0FBTyxDQUFDO0FBQUEsSUFDakMsT0FBTztBQUNMLGtCQUFZO0FBQUEsSUFDZDtBQUFBLEVBQ0Y7QUFFQSxRQUFNLFdBQVcsTUFBTTtBQUNyQixRQUFJLGNBQWMsR0FBRztBQUNuQixxQkFBZSxVQUFRLE9BQU8sQ0FBQztBQUFBLElBQ2pDO0FBQUEsRUFDRjtBQUVBLE1BQUksQ0FBQyxPQUFRLFFBQU87QUFFcEIsUUFBTSxXQUFXLE1BQU0sV0FBVyxFQUFFO0FBRXBDLFNBQ0UsdUJBQUMsbUJBQ0MsaUNBQUMsU0FBSSxXQUFVLDJGQUNiO0FBQUEsSUFBQyxPQUFPO0FBQUEsSUFBUDtBQUFBLE1BQ0MsU0FBUyxFQUFFLFNBQVMsR0FBRyxPQUFPLE1BQU0sR0FBRyxHQUFHO0FBQUEsTUFDMUMsU0FBUyxFQUFFLFNBQVMsR0FBRyxPQUFPLEdBQUcsR0FBRyxFQUFFO0FBQUEsTUFDdEMsTUFBTSxFQUFFLFNBQVMsR0FBRyxPQUFPLE1BQU0sR0FBRyxHQUFHO0FBQUEsTUFDdkMsV0FBVTtBQUFBLE1BRVY7QUFBQTtBQUFBLFVBQUM7QUFBQTtBQUFBLFlBQ0MsU0FBUztBQUFBLFlBQ1QsV0FBVTtBQUFBLFlBRVYsaUNBQUMsS0FBRSxXQUFVLGFBQWI7QUFBQTtBQUFBO0FBQUE7QUFBQSxtQkFBdUI7QUFBQTtBQUFBLFVBSnpCO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQSxRQUtBO0FBQUEsUUFFQSx1QkFBQyxTQUFJLFdBQVUseUJBQ2IsaUNBQUMsbUJBQWdCLE1BQUssUUFDcEI7QUFBQSxVQUFDLE9BQU87QUFBQSxVQUFQO0FBQUEsWUFFQyxTQUFTLEVBQUUsU0FBUyxHQUFHLEdBQUcsR0FBRztBQUFBLFlBQzdCLFNBQVMsRUFBRSxTQUFTLEdBQUcsR0FBRyxFQUFFO0FBQUEsWUFDNUIsTUFBTSxFQUFFLFNBQVMsR0FBRyxHQUFHLElBQUk7QUFBQSxZQUMzQixZQUFZLEVBQUUsVUFBVSxJQUFJO0FBQUEsWUFDNUIsV0FBVTtBQUFBLFlBRVY7QUFBQSxxQ0FBQyxTQUFJLFdBQVcsMEJBQTBCLE1BQU0sV0FBVyxFQUFFLEtBQUssaUZBQ2hFLGlDQUFDLFlBQVMsV0FBVSxlQUFwQjtBQUFBO0FBQUE7QUFBQTtBQUFBLHFCQUFnQyxLQURsQztBQUFBO0FBQUE7QUFBQTtBQUFBLHFCQUVBO0FBQUEsY0FFQSx1QkFBQyxRQUFHLFdBQVUsd0RBQ1gsZ0JBQU0sV0FBVyxFQUFFLFNBRHRCO0FBQUE7QUFBQTtBQUFBO0FBQUEscUJBRUE7QUFBQSxjQUNBLHVCQUFDLE9BQUUsV0FBVSx5RUFDVixnQkFBTSxXQUFXLEVBQUUsZUFEdEI7QUFBQTtBQUFBO0FBQUE7QUFBQSxxQkFFQTtBQUFBO0FBQUE7QUFBQSxVQWhCSztBQUFBLFVBRFA7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQSxRQWtCQSxLQW5CRjtBQUFBO0FBQUE7QUFBQTtBQUFBLGVBb0JBLEtBckJGO0FBQUE7QUFBQTtBQUFBO0FBQUEsZUFzQkE7QUFBQSxRQUVBLHVCQUFDLFNBQUksV0FBVSxhQUNiO0FBQUEsaUNBQUMsU0FBSSxXQUFVLGtDQUNaLGdCQUFNLElBQUksQ0FBQyxHQUFHLE1BQ2I7QUFBQSxZQUFDO0FBQUE7QUFBQSxjQUVDLFdBQVcsZ0RBQWdELE1BQU0sY0FBYyxzQ0FBc0MsbUNBQW1DO0FBQUE7QUFBQSxZQURuSjtBQUFBLFlBRFA7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQSxVQUdBLENBQ0QsS0FOSDtBQUFBO0FBQUE7QUFBQTtBQUFBLGlCQU9BO0FBQUEsVUFFQSx1QkFBQyxTQUFJLFdBQVUsdUJBQ2I7QUFBQSxtQ0FBQyxTQUFJLFdBQVUsY0FDWjtBQUFBLDRCQUFjLEtBQ2I7QUFBQSxnQkFBQztBQUFBO0FBQUEsa0JBQ0MsU0FBUztBQUFBLGtCQUNULFdBQVU7QUFBQSxrQkFDWDtBQUFBO0FBQUEsZ0JBSEQ7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBLGNBS0E7QUFBQSxjQUVGO0FBQUEsZ0JBQUM7QUFBQTtBQUFBLGtCQUNDLFNBQVM7QUFBQSxrQkFDVCxXQUFVO0FBQUEsa0JBRVQsMEJBQWdCLE1BQU0sU0FBUyxJQUFJLGdCQUFnQjtBQUFBO0FBQUEsZ0JBSnREO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQSxjQUtBO0FBQUEsaUJBZEY7QUFBQTtBQUFBO0FBQUE7QUFBQSxtQkFlQTtBQUFBLFlBQ0MsY0FBYyxNQUFNLFNBQVMsS0FDNUI7QUFBQSxjQUFDO0FBQUE7QUFBQSxnQkFDQyxTQUFTO0FBQUEsZ0JBQ1QsV0FBVTtBQUFBLGdCQUNYO0FBQUE7QUFBQSxjQUhEO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQSxZQUtBO0FBQUEsZUF2Qko7QUFBQTtBQUFBO0FBQUE7QUFBQSxpQkF5QkE7QUFBQSxh&      ܅    -o                  ![p	  0   QTtBy[p	  0   O0FB[p	  0   QUFB\p	  0   QTtBq\p	  0   QUFB\p	  0   QTNF!]p	  0   QUE7i]p	  0   LFNB]p	  0   O0FB^p	  0   QUFBQ^p	  0   RUE7^p	  0   YW1l^p	  0       A_p	  0   o  _p	  0       _p	  0   / jsI`p	  0       `p	  0      {`p	  0    hreQap	  0   nloaap	  0       ap	  0   : "dIbp	  0       bp	  0   ame:bp	  0   overAcp	  0    texcp	  0   x-6 cp	  0   ed-2Adp	  0   k updp	  0   kingdp	  0   -xs 9ep	  0   enteep	  0   nterep	  0   w-lg1fp	  0   w-xlfp	  0   all fp	  0   -95 9gp	  0       gp	  0   ren:gp	  0       9hp	  0   _ */hp	  0   loadhp	  0   e: "Aip	  0   voidip	  0   
+   ip	  0    filQjp	  0   /appjp	  0   s/Adkp	  0       Ykp	  0   neNukp	  0       lp	  0   coluQlp	  0   
+   lp	  0   , thlp	  0       Qmp	  0   d Bump	  0       mp	  0       Inp	  0     vonp	  0       np	  0       Aop	  0     fiop	  0   p/apop	  0   es/AIpp	  0       pp	  0   umbepp	  0       Iqp	  0   umbeqp	  0       qp	  0    thiQrp	  0       rp	  0   0, trp	  0      fQsp	  0   pp/asp	  0   ges/sp	  0       Qtp	  0   er: tp	  0     coup	  0   11
+ Yup	  0   ),
+ up	  0   URE_	vp	  0   "divavp	  0   me: vp	  0   cent	  8   etweA  8   ildry  8   RE__  8   h3",  8   : "f!  8   rk:tY  8   perc  8   -tig  8    chi  8   ncia9  8   }, vq  8   , {
+  8   Name  8   et/s  8   in.tQ  8    lin  8   6,
+   8   nNum  8     },1  8   id 0i  8         8    "/a  8   c/pa  8   x",
+I  8   Numb  8         8   er:   8   this)  8   @__Pa  8   DEV(  8   ssNa  8   id-c	  8   , chA  8       y  8   __ *  8   v",   8    "bg!  8   -br Y  8   -50   8   ark:  8   -900  8   teal9  8   rounq  8   er b  8   d-10  8   r-em  8   ", cQ  8   @__P  8   DEV(  8   ssNa  8   ex-c1  8   hildi  8         8   _ */  8   n",   8    "teI  8   old   8   -600  8   mera  8   case)  8   desta  8    "To  8    Dep  8   id 0	  8       A  8   ame:y  8   t/sr  8   n.ts  8       !  8   1302Y  8     co  8   17
+   8   this  8    /* 9  8    jsxq  8   { cl  8   xt-3  8   k te  8    darQ  8   ", c  8         8   ,
+    8   ymen1  8   lteri  8   pe =      &&   0    "ap1  8   uce(i  8   => a  0   curr  8   ), 0	  8   ringA  0    ] }q  8   ue,   8     fi  0   p/ap  8   es/AI  8         0   umbe  8         8   umbe!   0       Q   8          8   RE__   0   span   8   me: )!  8    fona!  0   slat!  8   ase"!  8   [
+  "  0   ymen1"  8   lteri"  8   pe ="  0    && "  8    "ap	#  8   gth,A#  0    " Tq#  8   
+   #  8   void#  0       $  8   NameI$  8   et/s$  0   in.t$  8       $  8    130!%  0      cQ%  8    17
+%  8    thi%  0    }, %  8   , {
+)&  8   leNaa&  0   plet&  8   dmin&  8       '  0    1301'  8    coli'  8   5
+  '  0   s) }'  8   lse,	(  8    filA(  0   /appq(  8   s/Ad(  8       (  0   er: )  8       I)  8   : 13)  0   this)  8   * @_)  8   sxDE!*  0   lassQ*  8   adie*  8   m-ro*  0   k-50*  8   ose-)+  8   to-pa+  0   -5 r+  8   orde+  8   e-10,  0   r-ro1,  8   chili,  8   PURE,  0   ("di,  8   ame:	-  8   col A-  0   drenq-  8     /*-  8   / js-  0    { c.  8   ext-I.  8    tex.  0   ark:                 o  F    vp	          	wp	      ppro)wp	      als"Iwp	      falsiwp	          wp	      /appwp	      pagewp	      ,
+  wp	      neNu	xp	          )xp	      mnNuixp	          xp	      
+   xp	      _PURxp	      V("sxp	      sNam	yp	       fon)yp	      -slaIyp	      textiyp	      ldreyp	          yp	          yp	      equeyp	      r) =)zp	       "wiIzp	      .staizp	      rovezp	      acc,zp	      c + zp	      amouzp	      .toL	{p	      )
+  ){p	       voiI{p	      
+   i{p	      eNam{p	      let/{p	      min.{p	          {p	      : 13	|p	          )|p	      : 17I|p	      , thi|p	         /|p	      */ j|p	      , { |p	      text|p	      -bol	}p	      -500)}p	       chiI}p	          i}p	      Requ}p	      (r) }p	      = "w}p	      r.st}p	      prov	~p	      
+   )~p	      ransi~p	          ~p	       0, ~p	          ~p	      : "/	p	      rc/p)p	      sx",Ip	       linip	      8,
+ p	      olump	          p	      s)
+ p	      void	p	          yp	      me: p	      /srcp	      .tsxp	       linp	      3,
+ QVp	  p   umnNVp	  p       1Wp	  p   , voWp	  p    {
+ Xp	  p   eNamXp	  p   let/Xp	  p   min.aYp	  p       Yp	  p   1312AZp	  p   colu	]  8   
+   A]      ),
+ a]  8   _PUR]      V("d]  8   Name]      nt-t^  8   ber-I^      -50 i^  8   ber-^      to-o^  8    p-5^       bor_  8   mberQ_      rderq_  8   0", _       @___  8   xDEV`      assN!`  8   lex-Y`      chily`  8       `      __ *`  8   an",	a      : "t)a  8   boldaa      600 a  8   ber-a      e tra  8   t", b      endi1b  8    }, ib      e, {b  8    filb      /appb  8   s/Adc          9c  8   mberqc          c  8   mberc         }c  8       !d      E__ Ad  8   pan"yd      e: "d  8   t-bld      te-9d  8   -whi)e      n: [Ie  8    "ুe          e  8   sts.e      > r.e  8   posi1f      us =Qf  8   ).ref      urr)f  8   mberf       || g  8   aleS9g          Yg  8   0, tg          g  8    "/ag      c/pa	h  8   x",
+Ah      lineah  8   ,
+  h      lumnh  8       h      ),
+ i  8   @__PIi      DEV(ii  8   assNi      10pxi  8   texti      pperj  8   ren:Qj         pqj  8   ts.fj       r.tj  8   ositk      s ==!k  8   .lenYk          yk  8   quirk        ] QR  8   rue,R  8      fR  0   pp/aR  8   ges/)S  8       aS  0   NumbS  8       S  8   NumbT  0       1T  8       iT  8   0, tT  0       T  8   /app	U  8   pageAU  0   ,
+  qU  8   NumbU  8       U  0   mberV  8    }, IV  8   d 0,V  0       V  8   : "/V  8   rc/p!W  0   sx",QW  8   ineNW  8   
+   W  0   nNumW  8       )X  8       aX  0   __ *X  8   v", X  8    "bgY  0   -br 1Y  8    to-iY  8   fromY  0    darY  8   /20 	Z  8   3xl AZ  0   r-blqZ  8   bordZ  8   30",Z  0   * @_[  8   sxDEI[  8   lass[  0   flex[  8    chi[  8       !\  0   E__ Q\  8   pan"\  8   e: "\  0   -bol\  8   600 )]  8   ue-4a]  0    tra]  8   ", c]  8       ^  0      1^  8   pathi^  8   plet^  0   s/mo^  8   t/es	_  8       A_  0       q_  8       _  8       _  0       `  8       I`  8       `  0       `  8       `  8       !a  0       Qa  8       a  8       a  0       a  8       )b  8       ab  0       b  8       b  8       c  0       1c  8       ic  8       c  0       c  8                     P!-o  P!-o  f    f                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    @     P       F                           ,WAA    AAAA,2BA B,SAAI,WAAU,8JA1          -o                       i    Pi    Pj    P       @       x      let/node_modules/motion-dom/dist/es/inde       P           5       5       5         AAoD    AAsB,KAA F;AAAA;AAAA;AAAQ          -o          0       v    i    0j    j    P       P                                  A,iB    A,UAC3B, @AE,SAAS;AAAA;A          -o          0       V    j    j    k           !            j    p       P       f                           WAAW    
+  "name ": ["us?                -o          0           @k    k    pl           !           k    p       P       &                                   x       dt/node_modules1          -o          0            l    Pl    m    P       P           N       N       N                                 m           υ    @i            0       v    l    l    @m    P       @           а          k                   7      @              }    `}    0?    'o  $              ^      Em    #-o  Em    X    yHistory.tsx"],"sourcesContent":["importA^      yb    -o                  import { collection, query, orderBy, lim]      yb    -o                  store';\nimport { db, auth } from '../li]      yb    -o                  from '../lib/cache';\nimport { Activity,Q]      yb    -o                  ircle, ArrowUpCircle } from 'lucide-reac]      yb    -o                  ponents/LanguageProvider';\nimport { mot\      yb    -o                  ction ActivityHistory() {\n  const [actia\      yb    -o                  ([]);\n  const [loading, setLoading] = u\      yb    -o                  = useLanguage();\n\n  const getRefBonus [      yb    -o                  usEarned !== undefined ? Number(ref.bonuq[      yb    -o                    return raw;\n    }\n    if (ref.level ![      yb    -o                  2) return 3;\n    return 5;\n  };\n\n  uZ      yb    -o                  ser) return;\n    \n    import('firebaseZ      yb    -o                  n      let txList: any[] = [];\n      le1Z      yb    -o                  t: any[] = [];\n\n      const updateCombY      yb    -o                   [\n          ...txList.map((t) => {\n  Y      yb    -o                  ? t.createdAt.toDate() : t.createdAt ? nAY      yb    -o                           return { ...t, date: d, _originX      yb    -o                        }),\n          ...subList.map((t) X      yb    -o                  bmittedAt || t.completedAt;\n           QX      yb    -o                  .toDate() : timeField ? new Date(timeFieX      yb    -o                   ...t, date: d, _originalType: t.type ||W      yb    -o                  refList.map((t) => {\n            const aW      yb    -o                  Date() : t.createdAt ? new Date(t.createW      yb    -o                  { ...t, date: d, _originalType: 'referraV      yb    -o                      combined.sort((a, b) => b.date.getTiqV      yb    -o                  tivities(combined.slice(0, 100));\n     !V      yb    -o                   const unsubTx = onSnapshot(query(collecU      yb    -o                  d, \"transactions\"), orderBy(\"createdAU      yb    -o                  \n        txList = snap.docs.map(d => ({1U      yb    -o                  ata() }));\n        updateCombined();\n T      yb    -o                  pshot(query(collection(db, \"submissionsT      yb    -o                  entUser!.uid), limit(100)), (snap) => {\AT      yb    -o                   id: d.id, type: \"task\", ...d.data() }S      yb    -o                  ;\n\n      const unsubRef = onSnapshot(qS      yb    -o                  entUser!.uid, \"referrals\"), orderBy(\"QS      yb    -o                  ap) => {\n        refList = snap.docs.maS      yb    -o                  ...d.data() }));\n        updateCombinedR      yb    -o                          unsubTx();\n        unsubSub();\aR      yb    -o                  n  }, [auth.currentUser?.uid]);\n\n  retR      yb    -o                  -24 max-w-lg mx-auto\">\n      <div clasQ      yb    -o                  n        <div className=\"w-10 h-10 bg-iqQ      yb    -o                  igo-600 flex items-center justify-center!Q      yb    -o                  ssName=\"w-5 h-5\" />\n        </div>\n P      yb    -o                  text-xl font-display font-black text-slaP      yb    -o                  \n            Activity History\n        1P      yb    -o                  s text-slate-500 dark:text-slate-400 fonO      yb    -o                  ent tasks and transactions\n          </O      yb    -o                    <div className=\"space-y-3\">\n       AO      yb    -o                  \"text-center py-8\">\n            <div N      yb    -o                  go-200 border-t-indigo-600 rounded-full N      yb    -o                          <p className=\"text-sm text-slatQN      yb    -o                    </div>\n        ) : activities.length N      yb    -o                  xt-center py-12 bg-white dark:bg-slate-8M      yb    -o                  0 dark:border-slate-700/50 shadow-sm\">\aM      yb    -o                  h-12 mx-auto mb-3 opacity-20 text-slate-M      yb    -o                    <p className=\"text-sm font-medium texL      yb    -o                  ivity found.</p>\n          </div>\n    qL      yb    -o                  ivity, index) => {\n            const is!L      yb    -o                          const isReferral = activity.typeK      yb    -o                  Withdraw = !isTask && !isReferral && actK      yb    -o                             const isDeposit = !isTask && 1K      yb    -o                  = \"deposit\";\n\n            let title J      yb    -o                  ";\n            let badgeColor = \"\";\nJ      yb    -o                  cle;\n            let statusLabel = \"\"AJ      yb    -o                  \n            let displayAmount = parseFI      yb    -o                  || activity.bonusEarned || 0).toFixed(2)I      yb    -o                            displayAmount = getRefBonus(acQI      yb    -o                            if (isReferral) {\n           I      yb    -o                   \"রেফারেল: \" : \"ReferraH      yb    -o                  ity.referredEmail?.split(\"@\")[0] || \"aH      yb    -o                  ৳${displayAmount}`;\n                bH      yb    -o                  -600 dark:bg-emerald-950/20 dark:text-emG      yb    -o                  ent = CheckCircle;\n                statqG      yb    -o                  ম্পন্ন\" : \"Completed\";\!G      yb    -o                  erald-600 dark:text-emerald-400 bg-emeraF      yb    -o                       } else if (isTask) {\n             F      yb    -o                  _task_activity\") || \"Completed Task\";1F      yb    -o                  ayAmount}`;\n              \n           E      yb    -o                   'pending';\n              if (taskStatuE      yb    -o                  geColor = \"bg-emerald-50 text-emerald-6AE      yb    -o                  ald-400\";\n                IconComponenD      yb    -o                  Label = language === \"Bengali\" ? \"অD      yb    -o                  n                statusColor = \"text-emQD      yb    -o                  ld-50 dark:bg-emerald-950/30\";\n       D      yb    -o                  ed') {\n                badgeColor = \"bC      yb    -o                   dark:text-red-400\";\n                IaC      yb    -o                   statusLabel = language === \"Bengali\" C      yb    -o                                 statusColor = \"text-red-B      yb    -o                  red-950/30\";\n                rewardStrqB      yb    -o                               badgeColor = \"bg-amber-50 !B      yb    -o                  :text-amber-400\";\n                IconA      yb    -o                  usLabel = language === \"Bengali\" ? \"A      yb    -o                  \";\n                statusColor = \"tex1A      yb    -o                  -50 dark:bg-amber-950/30\";\n           @      yb    -o                    if (activity._originalType === 'partne@      yb    -o                  guage === \"Bengali\" ? \"পার্A@      yb    -o                   Bonus\";\n                rewardStr = `?      yb    -o                  badgeColor = \"bg-indigo-50 text-indigo-?      yb    -o                  go-400\";\n                IconComponentQ?      yb    -o                  abel = language === \"Bengali\" ? \"স?      yb    -o                                statusColor = \"text-indig>      yb    -o                  dark:bg-indigo-900/30\";\n              a>      yb    -o                  ctivation') {\n                title = l>      yb    -o                  কাউন্ট অ্যাক্ট=      yb    -o                  \";\n                rewardStr = `-৳${q=      yb    -o                  olor = \"bg-rose-50 text-rose-600 dark:b!=      yb    -o                               IconComponent = CheckCircle<      yb    -o                  ity.status || 'completed';\n            <      yb    -o                              statusLabel = language === \1<      yb    -o                  \" : \"Pending\";\n                  s;      yb    -o                  amber-400 bg-amber-50 dark:bg-amber-900/;      yb    -o                  s === 'rejected') {\n                  sA;      yb    -o                  \"বাতিল\" : \"Rejected\";\n   :      yb    -o                  -600 dark:text-rose-400 bg-rose-50 dark::      yb    -o                  e {\n                  statusLabel = lanQ:      yb    -o                  ্ন\" : \"Completed\";\n            :      yb    -o                  :text-rose-400 bg-rose-50 dark:bg-rose-99      yb    -o                     } else if (activity._originalType ===a9      yb    -o                  = language === \"Bengali\" ? \"গিফ9      yb    -o                  ift Code Claim\";\n                rewar8      yb    -o                          badgeColor = \"bg-purple-50 textq8      yb    -o                  ext-purple-400\";\n                IconC!8      yb    -o                   statusLabel = language === \"Bengali\" 7      yb    -o                  d\";\n                statusColor = \"te7      yb    -o                  rple-50 dark:bg-purple-900/30\";\n      17      yb    -o                            title = language === \"Bengali6      yb    -o                  \" : \"Withdrawal\";\n                r6      yb    -o                              \n                const wStaA6      yb    -o                               if (wStatus === 'approved')5      yb    -o                  emerald-50 text-emerald-600 dark:bg-emer5      yb    -o                                 IconComponent = ArrowUpCiQ5      yb    -o                  anguage === \"Bengali\" ? \"সম্প5      yb    -o                          statusColor = \"text-emerald-6004      yb    -o                  k:bg-emerald-950/30\";\n                a4      yb    -o                                  badgeColor = \"bg-red-504      yb    -o                  xt-red-400\";\n                  IconCom3      yb    -o                  tusLabel = language === \"Bengali\" ? \"q3      yb    -o                               statusColor = \"text-red-60!3      yb    -o                  d-950/30\";\n                } else {\n 2      yb    -o                  -50 text-amber-600 dark:bg-amber-950/20 2      yb    -o                    IconComponent = Clock;\n              12      yb    -o                  \" ? \"অপেক্ষমান\" : \1      yb    -o                  or = \"text-amber-600 dark:text-amber-401      yb    -o                                 }\n              } else iA1      yb    -o                   language === \"Bengali\" ? \"টাক0      yb    -o                         rewardStr = `+৳${displayAmount}0      yb    -o                  nst dStatus = activity.status || 'approvQ0      yb    -o                  pproved') {\n                  badgeColo0      yb    -o                  lue-950/20 dark:text-blue-400\";\n      /      yb    -o                  cle;\n                  statusLabel = laa/      yb    -o                  ্ন\" : \"Completed\";\n           /      yb    -o                  k:text-blue-400 bg-blue-50 dark:bg-blue-.      yb    -o                  tatus === 'rejected') {\n               q.      yb    -o                   dark:bg-red-950/20 dark:text-red-400\";!.      yb    -o                  cle;\n                  statusLabel = la-      yb    -o                  \" : \"Rejected\";\n                  -      yb    -o                  ed-400 bg-red-50 dark:bg-red-950/30\";\n1-      yb    -o                      badgeColor = \"bg-amber-50 text-ambe,      yb    -o                  er-400\";\n                  IconCompone,      yb    -o                  el = language === \"Bengali\" ? \"অপA,      yb    -o                                    statusColor = \"text-a+      yb    -o                   dark:bg-amber-950/30\";\n              +      yb    -o                       title = activity.description || \"TQ+      yb    -o                   = `৳${displayAmount}`;\n             +      yb    -o                  -600 dark:bg-slate-800 dark:text-slate-4*      yb    -o                  heckCircle;\n                statusLabela*      yb    -o                  পন্ন\" : \"Completed\";\n      *      yb    -o                   dark:text-slate-400 bg-slate-50 dark:bg)      yb    -o                      }\n\n            return (\n         q)      yb    -o                  l={{ opacity: 0, y: 10 }}\n             !)      yb    -o                             transition={{ duration: 0.2, (      yb    -o                  key={`${activity.id}-${index}`}\n       (      yb    -o                  ate-800 rounded-2xl shadow-sm border bor1(      yb    -o                  -4 flex items-center justify-between gap'      yb    -o                  ver:border-indigo-500/30 transition-colo'      yb    -o                  div className=\"flex items-center gap-3 A'      yb    -o                  Name={`w-10 h-10 rounded-[14px] flex ite&      yb    -o                  eColor}`}>\n                    <IconCom&      yb    -o                             </div>\n                  <diQ&      yb    -o                        <h4 className=\"text-[14px] font-b&      yb    -o                  ate\">\n                      {title}\n %      yb    -o                        <div className=\"flex items-centera%      yb    -o                  <span className=\"text-[11px] font-mediu%      yb    -o                  n                        {activity.date.$      yb    -o                                 month: \"short\",\n      q$      yb    -o                                           hour: \"numeric!$      yb    -o                  "2-digit\",\n                        })}#      yb    -o                               </div>\n                  <#      yb    -o                           <div className=\"flex flex-col 1#      yb    -o                   <span className={`text-[15px] font-blac"      yb    -o                  xt-slate-300' : 'text-emerald-600 dark:t"      yb    -o                    {rewardStr}\n                  </span>A"      yb    -o                  xt-[9px] mt-1 px-1.5 py-0.5 rounded font!      yb    -o                  sColor}`}>\n                    {statusL!      yb    -o                            </div>\n              </motionQ!      yb    -o                       )}\n      </div>\n    </div>\n  );\!      yb    -o                  ,iBAAiB;AACpC,SAAS,YAAY,OAAO,SAAS,OAAgB,       yb    -o                  U,aAAa,OAAO,SAAS,iBAAiB,qBAAqB;AACtF,SAAa       yb    -o                  AkB;AAChC,QAAM,CAAC,YAAY,aAAa,IAAI,SAAgB       yb    -o                  I,SAAS,IAAI;AAC3C,QAAM,EAAE,GAAG,SAAS,IA      yb    -o                  QAAI,MAAM,IAAI,gBAAgB,SAAY,OAAO,IAAI,WAAq      yb    -o                  AA,IACV;AACA,QAAI,IAAI,UAAU,EAAG,QAAO;AA!      yb    -o                  AAAA,EACT;AAEA,YAAU,MAAM;AACd,QAAI,CAAC,      yb    -o                  AC,EAAE,WAAW,MAAM;AACpD,UAAI,SAAgB,CAAC;      yb    -o                  AAC;AAEtB,YAAM,iBAAiB,MAAM;AAC3B,cAAM,WA1      yb    -o                  ACnB,kBAAM,IAAIA,GAAE,WAAW,SAASA,GAAE,UA      yb    -o                  SAAS,IAAI,oBAAI,KAAK,CAAC;AACvG,mBAAO,EA      yb    -o                  cAAc;AAAA,UACjE,CAAC;AAAA,UACD,GAAG,QAAQA      yb    -o                  eAAeA,GAAE;AACrC,kBAAM,IAAI,WAAW,SAAS,UA      yb    -o                  AAI,KAAK,CAAC;AAC/F,mBAAO,EAAE,GAAGA,IAA      yb    -o                  C1D,CAAC;AAAA,UACD,GAAG,QAAQ,IAAI,CAACA,Q      yb    -o                  AAE,UAAU,OAAO,IAAIA,GAAE,YAAY,IAAI,KAAKA      yb    -o                  AAO,EAAE,GAAGA,IAAG,MAAM,GAAG,eAAe,WAAW;      yb    -o                  K,CAAC,GAAG,MAAM,EAAE,KAAK,QAAQ,IAAI,EAAa      yb    -o                  AAG,GAAG,CAAC;AACpC,mBAAW,KAAK;AAAA,MACl      yb    -o                  S,KAAK,YAAa,KAAK,cAAc,GAAG,QAAQ,aAAa,MAA      yb    -o                  pJ,iBAAS,KAAK,KAAK,IAAI,QAAM,EAAE,IAAI,Eq      yb    -o                  AAE;AAC5E,uBAAe;AAAA,MACjB,CAAC;AAED,YAA!      yb    -o                  M,UAAU,MAAM,KAAK,YAAa,GAAG,GAAG,MAAM,GAA      yb    -o                  AAK,IAAI,QAAM,EAAE,IAAI,EAAE,IAAI,MAAM,Q      yb    -o                  ;AAAA,MACjB,CAAC;AAED,YAAM,WAAW,WAAW,MAA1      yb    -o                  G,QAAQ,aAAa,MAAM,GAAG,MAAM,GAAG,CAAC,GAA      yb    -o                  AAM,EAAE,IAAI,EAAE,IAAI,MAAM,YAAY,GAAG,E      yb    -o                  B,CAAC;AAED,aAAO,MAAM;AACX,gBAAQ;AACR,iBA      yb    -o                  AAAA,EACH,GAAG,CAAC,KAAK,aAAa,GAAG,CAAC;      yb    -o                  AAC,SAAI,WAAU,gCACb;AAAA,6BAAC,SAAI,WAAU      yb    -o                  AAA;AAAA,aAA8B,KADhC;AAAA;AAAA;AAAA;AAAAQ      yb    -o                  AG,WAAU,iFAAgF,gCAA9F;AAAA;AAAA;AAAA;AAA      yb    -o                  kDAA7E;AAAA;AAAA;AAAA;AAAA,eAEA;AAAA,WAN      yb    -o                  A;AAAA;AAAA;AAAA,WAYA;AAAA,IAEA,uBAAC,SAa      yb    -o                  ;AAAA,6BAAC,SAAI,WAAU,mGAAf;AAAA;AAAA;AA      yb    -o                  ,0BAAyB,kCAAtC;AAAA;AAAA;AAAA;AAAA,aAAwD      yb    -o                  E,WAAW,WAAW,IACxB,uBAAC,SAAI,WAAU,0HACb;q      yb    -o                  AA;AAAA,aAA2F;AAAA,MAC3F,uBAAC,OAAE,WAAU!      yb    -o                  ;AAAA,SAF1F;AAAA;AAAA;AAAA;AAAA,WAGA,IAE      yb    -o                  AS,SAAS,SAAS;AACjC,YAAM,aAAa,SAAS,SAAS;A      yb    -o                  kBAAkB;AACxE,YAAM,YAAY,CAAC,UAAU,CAAC,cA1      yb    -o                  ,YAAY;AAChB,UAAI,aAAa;AACjB,UAAI,gBAAgB;      yb    -o                  AI,gBAAgB,WAAW,SAAS,UAAU,SAAS,UAAU,SAAS,      yb    -o                  ;AACZ,wBAAgB,YAAY,QAAQ,EAAE,QAAQ,CAAC;AAA      yb    -o                  YAAY,cAAc,iBAAiB,SAAS,gBAAgB,SAAS,eAAe,M      yb    -o                  ,aAAa;AAC9B,qBAAa;AACb,wBAAgB;AAChB,sBAA      yb    -o                  WAAW,QAAQ;AACjB,gBAAQ,SAAS,SAAS,EAAE,yBAQ      yb    -o                  M,aAAa,SAAS,UAAU;AACtC,YAAI,eAAe,YAAY;AA      yb    -o                  AAY,aAAa;AACpD,wBAAc;AAAA,QAChB,WAAW,eAA      yb    -o                  Ac,aAAa,YAAY,UAAU;AACjD,wBAAc;AACd,sBAAYa      yb    -o                  AChB,wBAAc,aAAa,YAAY,cAAc;AACrD,wBAAc;AA      yb    -o                  BAAkB,iBAAiB;AAC9C,kBAAQ,aAAa,YAAY,mBAAm      yb    -o                  ,0BAAgB;AAChB,wBAAc,aAAa,YAAY,YAAY;AACnDq      yb    -o                  AAClD,kBAAQ,aAAa,YAAY,4BAA4B;AAC7D,sBAAY!      yb    -o                  ,gBAAM,UAAU,SAAS,UAAU;AACnC,cAAI,YAAY,WA      yb    -o                  c;AAAA,UAChB,WAAW,YAAY,YAAY;AACjC,0BAAc,      yb    -o                  AO;AACL,0BAAc,aAAa,YAAY,YAAY;AACnD,0BAAc1      yb    -o                  AAc;AAClD,kBAAQ,aAAa,YAAY,oBAAoB;AACrD,s      yb    -o                  AChB,wBAAc,aAAa,YAAY,YAAY;AACnD,wBAAc;AA      yb    -o                  ,iBAAiB;AAClD,sBAAY,KAAK,aAAa;AAE9B,gBAAA      yb    -o                  C1B,yBAAa;AACb,4BAAgB;AAChB,0BAAc,aAAa,Y      yb    -o                  Y,YAAY;AACjC,yBAAa;AACb,4BAAgB;AAChB,0BA      yb    -o                  ,OAAO;AACL,yBAAa;AACb,4BAAgB;AAChB,0BAAcQ      yb    -o                  AAA,QACF,WAAW,WAAW;AACpB,kBAAQ,aAAa,YAAY      yb    -o                  UAAU,SAAS,UAAU;AACnC,cAAI,YAAY,YAAY;AAC1      yb    -o                  Y,YAAY;AACnD,0BAAc;AAAA,UAChB,WAAW,YAAY,a      yb    -o                  ,aAAa,YAAY,UAAU;AACjD,0BAAc;AAAA,UAChB,O      yb    -o                  AAa,YAAY,cAAc;AACrD,0BAAc;AAAA,UAChB;AAA      yb    -o                  BAAY,IAAI,aAAa;AAC7B,uBAAa;AACb,0BAAgB;Aq      yb    -o                  AA,QAChB;AAAA,MACF;AAEA,aACE;AAAA,QAAC,O!      yb    -o                  AAG,GAAG,GAAG;AAAA,UAC7B,SAAS,EAAE,SAAS,
+      yb    -o                  ,KAAK,OAAO,QAAQ,KAAK;AAAA,UAEjD,WAAU;AAA
+      yb    -o                  CAAC,SAAI,WAAW,sEAAsE,UAAU,IAC9F,iCAAC,i1
+      yb    -o                  mC,KADrC;AAAA;AAAA;AAAA;AAAA,qBAEA;AAAA,	      yb    -o                  G,WAAU,iEACX,mBADH;AAAA;AAAA;AAAA;AAAA,u	      yb    -o                  AAC,UAAK,WAAU,8DACb,mBAAS,KAAK,eAAe,QAAWA	      yb    -o                  BACL,MAAM;AAAA,kBACN,QAAQ;AAAA,gBACV,CAA      yb    -o                  AA;AAAA;AAAA;AAAA,uBASA;AAAA,mBAbF;AAAA;      yb    -o                  AA;AAAA;AAAA,mBAmBA;AAAA,YAEA,uBAAC,SAAIQ      yb    -o                  aAAa,uCAAuC,wCAAwC,IACpI,uBADH;AAAA;AAAA      yb    -o                  AW,8EAA8E,WAAW,IACvG,yBADH;AAAA;AAAA;AAA      yb    -o                  AAA,mBAOA;AAAA;AAAA;AAAA,QA/BK,GAAG,SAASa      yb    -o                  A;AAAA;AAAA;AAAA;AAAA,MAoCA;AAAA,IAEJ,CA      yb    -o                  OAtMF;AAAA;AAAA;AAAA;AAAA,SAuMA;AAEJ;","      yb    -o                  `B`    !!                            q      yb    -o                                           3      !      yb    -o                  Ɂ    -o          0       켁          yb    -o                  \                                          yb    -o                  8       8       4          
+    1      yb    -o                          0       |    Ɓ    0ǁ          yb    -o                  PK    L           P                 yb    -o                           rq  (	    !       o~    A      yb    -o                  g      g      6          	          yb    -o        ā     ȁ     Ɂ    0      `       L          yb    -o    tion/dist/es/render/dom/create-visual-element.mjs     Q      yb    -o                  |    ǁ     Ɂ     ʁ    P             yb    -o    odules/framer-motion/dist/es/utils/use-motion-value-ev      yb    -o        -o  O       O       8                  a      yb    -o        ȁ            0           Ɂ     ʁ          yb    -o        let/node_modules/framer-motion/dist/es/value/use      yb    -o                    `    I       I       9      q      yb    -o              A    -o          0           !      yb    -o  P       P           let/node_modules/framer-]             yb    -o                              h            ^             yb    -o                  sm    9               !       }    1       _    -o  }            ^      @           o   f n                  IA  @             a           IA  ́    @                '                    )   u   !       7   ~   pdh*j,.D 1       IA  @             7   ~       A              1c                     )o                a      6E     n$                    Nb        8             @k$    6E                                    `Q                                                              3E    e     (R,8         0e     )R,8         e     )R,8  	       e     *R,8         e     *R,8         e     *R,8  
+       e     +R,8         me     ,R,8         e     ,R,8         e     -R,8  	       Te     -R,8         ke     -R,8         e     .R,8         e     .R,8         e                ճe                   e     /R,8         e     0R,8  
+       e     0R,8         e     0R,8         ôe     1R,8         e     1R,8         e     2R,8         e     2R,8         0e     2R,8         e     3R,8         e     3R,8         ϵe     3R,8         e     4R,8         oe     4R,8         e     5R,8  	                5R,8           e     6R,8         Be     6R,8  B       e     6R,8         e     7R,8  6       e                  e     ρ           !e     8R,8  J       e     8R,8  	       e     9R,8  \       e     9R,8  @       ge     :R,8         |e     :R,8  
+       e     :R,8         e     ;R,8         ѳe     ;R,8         e     ;R,8         e     <R,8         e     <R,8  o       e     =R,8         e     =R,8         Ӵe     =R,8         e     >R,8         e     >R,8         (e     ?R,8         9e     ?R,8  [       e     @R,8         ʵe     @R,8         e           4       $e     o~    I       |e            7       e            9                            @}           +                ҁ                                                                          @              @}    `,    1                                      0       A          o   ց    0'    PՁ     (o                 A          o  Ձ                    (o                 A               Po                                   `       Q              k    Ё         ց           ar-ER           P       A              &    Ձ    ց    `(o                 A              ց                    `(o                 A          o   ց    `ց    `    `(o                        p             n
+            
+    `ׁ     q    $q    䢮                                         A               q                                   @      1                                        der.!                                 ,o                0      #-o  `6    `D    `6                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            Q       e    d    O    -o                        <h1 classN`                                 A(      #-o                 Pl           </d                    E    HY        P            order borderq*      O    -o                     ded- Ե                                                                             |                                           $cj    bf4    ʕcj    0D    ʕcj    0D    ʕcj    `D            -o                  <div>\n          <h3 className=\        Ѕ     Ե    H    `Xh{          e leading-tight\">24/7 Verified Support<(      O                   D                 @             mt-1 f(      O    -o                  assist you with       0           let/storage.rules               a%      P!    -o                  Pl    p                            E    HY        P     p           O    -o                  enter mb-6 trans   n-co Ե                                                                                    +                                    $cj     4    ʕcj    k    ʕcj    k    ʕcj                        /30 p-4         full mb-5 ring-4 ring-wha&              Ѕ     Ե    (    `Xh{  ">\n          <HelpCircle classN&      O    -o                         D                 @            O    -o                  slate-800 dark:text-white mb-2 r      0       .    let/test_admin.ts        classNa"      P!    -o                  Pl    P                        @     E    HY        P     P       o                  lease reach out to our team.\n       </ Ե                                                                                    s                                    $cj    z4    ʕcj    e=H    ʕcj    e=H    ʕcj    G            -center justify-        p-4 bg-s#      O    -o          Ѕ     Ե        `Xh{  -slate-700/50 roA#      O    -o                  over:bor               D                 @                           n              <div className=\"flex ite"            0           let/test_anon_auth.cjs  0 h-10 r      P!    -o                  Pl    0       y-c              @    E    HY    h    P     0           e-700 group-hover:scale-110 transition-t!              Ե                                                                             ^                                           $cj    +4    ʕcj    L:    ʕcj    L:    ʕcj    2            an className=\"t        O    -o                          Ѕ     Ե        `Xh{  q       O    -o                       </button>\n                       D                 @            (\n            <button onClick={() => h      O    -o        0           let/test_client_auth.cjs nter ju      P!    -o                  Pl           der                   E    HY    H    P            -200 dark:hover:border-emera      O    -o          Ե                                                                                    6                                    $cj    ҽ4    ʕcj    4Rb    ʕcj    4Rb    ʕcj    a                  O                            late-100 dark:bo        Ѕ     Ե        `Xh{  -o                                  <MessageCircle className               D                 @       p     <span className=\"font-      O    -o                        0       Γ    let/test_firestore.cjs  O          P!    -o                  Pl           xt-                   E    HY    (    P            utton>\n          O    -o                     ram  Ե                                                                             n                                           $cj    Byd4    ʕcj        ʕcj        ʕcj    S            -o                  l hover:border-sky-200 dark:hove        Ѕ     Ե        `Xh{          sm active:scale-[0.98]\">\n                   O                   D                 @       P     ame=\"w1      O    -o                  te-800 flex item      0           let/test_firestore2.cjs               P!    -o                  Pl                                E    HY        P                O    -o                        <span clas   e=\" Ե                                                                             &       0                                    $cj    f4    ʕcj    l0    ʕcj    l0    ʕcj    ^                    pan>\n            </button>\n          )              Ѕ     Ե        `Xh{             <button onClick={() =      O    -o                         D                 @       0     O    -o                  -slate-900/50 border border-slat      0           let/test_fix_ref.cjs    :border-!      P!    -o                  Pl                             l$    E    HY        P            o                  n                <div className=   10 h Ե                                                                                                                         $cj    \N~4    ʕcj    Q    ʕcj    Q    ʕcj    Ӗ              <Globe classNa         h-5\" /1      O    -o          Ѕ     Ե    h    `Xh{  t-bold text-slat      O    -o                  an>\n                  D                 @                            text-slate-400 dark:text-slate-500 trunA            0       o    let/test_framer.cjs     button>\A      P!    -o                  Pl           \n}                   E    HY        P                    "-o           O,cAAc;AQ              Ե                                                                                    (                                    $cj    C{4    ʕcj    xh    ʕcj    xh    ʕcj    h            ;AACF,cAAM,UAAU,        O    -o                          Ѕ     Ե    H    `Xh{        O    -o                  K,SAAS;AAAA,YACrB,UAAU,K               D                 @            AAY;AAAA,UAC7B,CAAC;AAAA,QACH;AAAA,MACFq      O    -o        0       O    let/test_logs.cjs       ACf,GAAGa      P!    -o                  Pl    p       ACV              @    E    HY        P     p       ACvC,WAAW,IAAI,WAAW,MAAM,KAA      O    -o          Ե                                                                                                                        $cj    (^g4    ʕcj    u    ʕcj    u    ʕcj    Lt                  O                            I,WAAU,gCACb;AAA        Ѕ     Ե    (    `Xh{  -o                  AAA,UAEV,iCAAC,aAAU,WAAU,aAArB;AAAA;AAAA               D                 @            A;AAAA;AAAA;AAAA,MAKA;A      O    -o                        0       /    let/test_referral.cjs   O          P!    -o                  Pl    P        Cb,                  E    HY         P     P       ;AAAA,aAEA;A      O    -o                     AiE, Ե                                                                                    *                                    $cj    '4    ʕcj        ʕcj        ʕcj    /            -o                  AA;AAAA;AAAA;AAAA,aAA4G;AAAA,MAC        Ѕ     Ե        `Xh{          AAAA;AAAA;AAAA;AAAA,aAAqE,KADvE;AAAA;AAA!      O                   D                 @            AAA,aAA      O    -o                  ArG;AAAA;AAAA;AA      0       0    let/test_referral_history.py          P!    -o                  Pl    0                             E    HY    h    P     0            O    -o                  B;AAAA;AAAA;AAAA   A,mB Ե                                                                                                                        $cj    F4    ʕcj    `    ʕcj    `    ʕcj    =`                    ;AAAA,QA        B,YACf,uBAAC,YAAO,SAAS,M	              Ѕ     Ե        `Xh{  ,SAAI,WAAU,2BACb;AAAA,mCAAC,SAAIQ	      O    -o                         D                 @            O    -o                  gDAA+C,wBAA/D;AAAA;AAAA;AAAA;AAA      0       Ї    let/test_refs.cjs       AA,UACA,      P!    -o                  Pl                            @    E    HY    H    P            o                  ,GAAG,WAAU,mPACzE;AAAA,iCAAC,SAA   AU,2 Ե                                                                                                                        $cj    }i4    ʕcj        ʕcj        ʕcj                AA,iBAKA;AAAA,UA        ,UAAK,WA      O    -o          Ѕ     Ե        `Xh{  ;AAAA;AAAA,eAQA;      O    -o                  AM,eAAe,               D                 @       p                    WAAU,qMACb,iCAAC,SAAM,WAAU,aAAjB;AAAA;AA            0       z    let/tsconfig.json       ,YACA,uB      P!    -o      p    Pl           AJz                  E    HY    (	    P                ;AAAA;AAAA;AAAA,iBAA8G;AAAA,aAPhH;AAAA;A              Ե                                                                             L                                            $cj    4    ʕcj        ʕcj        ʕcj    	j            
+X-Forwarded-Hos        O    -o                          Ѕ     Ե    
+    `Xh{        O    -o    rded-For: 2404:1c40:5f:68b4:d445:7062:               D                 @       P     ade: websocket
+Connection: upgrade
+pr      O    -o        0       }    let/tsconfig.node.json ;0                \5vŐ    p    Pl    P       .0                   E    HY    HP    P            -58490078092.asia-southeast1!      O    -o     ion: Ե                                                                                    e             	                       $cj    4    ʕcj        ʕcj        ʕcj    (V            1      O              5:7062:a696:6d74]";proto=https        Ѕ     Ե    Q    `Xh{  -o    -6501f52e6163943e-00
+x-cloud-trace-context: 258f9cfe0               D                 @       0     CURE-aistudio_auth_tokeA            -o  1dSo91ZnbYjlzotm7HcMw=
+
+Xh{        A                  }        *o                        (<U    f    B B h   PD                                                f    b h   B                                                        p    T<           <U                                                                        Bh                            Bh                         T<    Q       f    b B h m                                         A      T<           (<U    f    b B h m                                 
+      T<         f     h : m m   B                                   
+      T<                       <U                                                                      Bhm                          Bhm                 -o          Q       f     B h m s                       	      T<    -o                 (<U    f     B h m s               a	      T<    -o              f    "h : m m : s s   B             	      T<    -o                                <U                                                                    Bhms                        Bhms                              Q       f    " E o                  T<    -o                          Q       f    b E B h                 T<    -o                                 (<U    f    b E B h         T<    -o                              f     E   h   B     1      T<    -o                                            <U                                                                E   Bh                       E   Bh                                 Q       f     E B h m                                                              (<U    f     E B h m                                               P    f    E   h : m m   B -o                                         @                   <U                                                              E   Bhm                     E   Bhm                              Q       f     E B h m s                                                            (<U    f     E B h m s                                                 f    bE   h : m m : s s   B                                            "c           <U                                                            E   Bhms                   E   Bhms                    "c    Q       f    b E H m                                               "c           (<U    f    b E H m                                       "c        f     E   H H : m m                                 1      "c                       <U                                                                  E    Hm                      E    Hm                 -o          Q       f     E H m s                       A      "c    -o                 (<U    f     E H m s                      "c    -o          `D    f    BE   H H : m m : s s   0             "c    -o         PE    Q    !                        !                        1                               0       A              &    ?    '    ``(o  @              Q       u
+    p    !       !       A&               }    P       0                                      0       A              ?                     Z(o  @              Q              @                               bez-TZ  -o          Q                  @                    bg           command!       en_IN                   A              '                    a(o  @                     @                        
+    
+     o    $o    䢮                                          1                                               !       -o          1                                               1                                              1                                              1          @   z)o  0l
+                1                                              1                                              1                                              1                                              1                                              1       	                                       1       
+                                       1                                              1                                              1                                              1                                              1             )o  |     7            1            !+o          k            1                                              1           	  a)o  @6    i            1                                              1                                              1                                              1                                              1                                                     p             p}_            
+          V$    $V$    䢮                q  q                        !       ff_Adlm_GH -o  A΄e  A               U$                                          Q          o  P~_    @}    }     !    
+       ff-Adlm-GH             Q              }    }        P!           ff-GH   Y!    ʕcj           !            p}_            
+    "    V$    V$    䢮                q  q                        !       ff_Adlm_GM -o         A               V$                                          Q                                  "           ff-GW                   !       ff_Adlm_LR -o          q      9m    \5vq
+/           a l o j)o  (     e                          Xh{  HXh{  "o                 Xh{          d     d     d         Xh{          +!           a    a    a    +!    a    a    a    +!                    efal                        p6  o  6  o  6  o          A              PXl                    IA  #        Q              $                    $           dje-NE                         De                        
+    @%            䢮                                               A               p                                   P       1       nb_SJ   $                 0       A              '                     (o                       	            3            
+    p&    q    Ԁq    䢮                                               A               q                                   P       A              0         ց    (o  @              A                                                               A              Ձ                     (o                 A              1c    @c    05     @*o                 A                  `    %    g(o  @>                     #-o  #-o  '    T             X X X   e                                                    f      e                    o                    e  f               e                                        f                                                         f                            e                    e         f      o                    e                    e                        f                           d      e                  f                                             &          f      &                    o                    &  f               e                                                                                  @-T                   @-T                      {                 e              MWh           e  7                                                                    d    H,                   |j    en       US  en_US                                                          MT    f      o                                              f                                                       f    " -                                                 f                                                  o          PNT    MT    f                                                       f                                                       f                                                      f             o                                             MT    f                                                      f                                                       f                                           o          f                                                             MT    f                                                       f     W     d    @d                                f             o                      d    `d    f                                                              MT    f                                                       f                                           o          f                                                      f                                                            MT    f                                                      f             o                                        f                                                       f                                                             MT    f                                           o          f                            o                        f           %bj    Сd     d                          f                                           js                 MT    f           P       #N    B a m   3    3            f           Q
+      @      P       SL     -o         f                           
+            P       Ã    f     i n g 1                               	      3    !     MT    f                                       a	      P       f         m i d n i g h t                               f     3           @8               
+            f                 P       P       3    m o r n i n g 1                                   T            X X X   o                                              f                                         3    A      f                                                       f                           n                               f                               4           Ȯ    J    f                           P       L    B p m                  pb`       o  f                           #x               0    P0    f                         ?          ?                 f     "                    i a t e d       3    -o  f                                                            -        0 , -     q      #x      \5v       h           8d           H           (           d           Q           T           (m           8m           5<       By.j3           8           d           a           a           a           a           x<           d           f    " :     0:    3    -o                         ȝd           Hm           X           S<           H7           X7                                                                                   |j    en       US  en_US            f        &      @T       ?     `          T"                                    8    
+       h7    
+       7    
+       (a"    
+       8    
+       ^"    
+       |j                                   |j                                          p-o  d                                                                                                                           0       S`        0n               @       #x      \5v       Qur.  D    pg`    @       1                       p4<    p3            !       H                  Q              r                    =    	       hms:en_US o w   c    1                                              1                                              A              0?                    'o                1                                            !       ccp                     1              m    F    V     )4    A               m    p>    A    `'o                A                                                               A                  p@    `    W(o                A              `l            "n   0(o  }            A              `}                    <*o                A              ?                     0(o  '              A               A                    'o                       @                                                                                                                               0                                               A              0?            @    'o                1     o~    `    o~    `    ect, useCallback } from 'react';
+import { useAuth } from '../components/AuthProvider';
+import { collection, query, onSnapshot, doc, writeBatch, serverTimestamp, setDoc, orderBy, deleteDoc, increment, updateDoc, getDocs, deleteField, getDoc, limit, FieldPath } from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
+import { getCachedDoc, getCachedQuery, clearCache } from '../lib/cache';
+import { uploadImageOrFallback } from '../lib/imageUpload';
+import { processReferralCommission, processRegistrationReferral } from '../lib/referral';
+import { Trash2, CheckCircle, XCircle, Users, ShieldAlert, ShieldCheck, Wallet, ListChecks, Settings, User, Eye, Calculator, MessageSquare, Globe, Coins, Megaphone, Gamepad2, CreditCard, Lock, BellRing, RefreshCw, Smartphone, Mail, Camera, MessageCircle, Send, BookOpen, Layers, Copy, HelpCircle, Database, Search, Download, Gift } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
+
+export function AdminPanel() {
+  const { profile } = useAuth();
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'jobs' | 'submissions' | 'settings' | 'requests' | 'users' | 'drives' | 'courses' | 'faqs' | 'gifts'>('dashboard');
+  
+  // Gift Codes States
+  const [giftCodes, setGiftCodes] = useState<any[]>([]);
+  const [newGiftCode, setNewGiftCode] = useState('');
+  const [giftType, setGiftType] = useState<'fixed' | 'random'>('fixed');
+  const [giftAmount, setGiftAmount] = useState<number | ''>(10);
+  const [giftMinAmount, setGiftMinAmount] = useState<number | ''>(5);
+  const [giftMaxAmount, setGiftMaxAmount] = useState<number | ''>(50);
+  const [giftMaxUses, setGiftMaxUses] = useState<number | ''>(1);
+  const [giftExpiresInHours, setGiftExpiresInHours] = useState<number | ''>(24);
+  const [isCreatingGift, setIsCreatingGift] = useState(false);
+
+  // Courses Administration States
+  const [adminCourses, setAdminCourses] = useState<any[]>([]);
+  const [newCourseTitle, setNewCourseTitle] = useState('');
+  const [newCourseDesc, setNewCourseDesc] = useState('');
+  const [newCourseThumbnail, setNewCourseThumbnail] = useState('');
+  const [newCourseLink, setNewCourseLink] = useState('');
+  const [newCourseCategory, setNewCourseCategory] = useState<'টাস্ক কমপ্লিট' | 'টাকা উইথড্র' | 'অন্যান্য'>('টাস্ক কমপ্লিট');
+  const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
+  const [courseItems, setCourseItems] = useState<{ title: string; description: string; thumbnailUrl: string; videoLink: string; }[]>([]);
+  const [optTitle, setOptTitle] = useState('');
+  const [optDesc, setOptDesc] = useState('');
+  const [optThumbnail, setOptThumbnail] = useState('');
+  const [optLink, setOptLink] = useState('');
+  
+  const [jobs, setJobs] = useState<any[]>([]);
+  const [userList, setUserList] = useState<any[]>([]);
+  const [showNotifyModal, setShowNotifyModal] = useState(false);
+  const [notifyTarget, setNotifyTarget] = useState<'all' | string>('all');
+  const [notifyTitle, setNotifyTitle] = useState('');
+  const [notifyMessage, setNotifyMessage] = useState('');
+  const [isSendingNotification, setIsSendingNotification] = useState(false);
+  const [submissions, setSubmissions] = useState<any[]>([]);
+  const [paymentRequests, setPaymentRequests] = useState<any[]>([]);
+  const [spinRewards, setSpinRewards] = useState<number[]>([1, 2, 5, 10, 0, 50, 100, 0]);
+  const [referralSettings, setReferralSettings] = useState({ fixedBonus: 5, gen2FixedBonus: 3, gen3FixedBonus: 1, gen1Percent: 0, gen2Percent: 0, gen3Percent: 0 });
+  const [bannerSettings, setBannerSettings] = useState({ text: 'Welcome to HMF Income! Complete tasks and earn money daily.', link: '#' });
+  const [gameSettings, setGameSettings] = useState({ spinTaskReq: 0, spinReferReq: 0, mathTaskReq: 0, mathReferReq: 0 });
+  const [partnerSettings, setPartnerSettings] = useState({ requiredReferrals: 10, dailyBonus: 100, enabled: true, withdrawEnabled: true });
+  const [withdrawSettings, setWithdrawSettings] = useState({ mainMin: 50, mainFee: 0, bonusMin: 50, bonusFee: 0, referralMin: 50, referralFee: 0, tasksMin: 50, tasksFee: 0, mainAmounts: "110, 210, 310, 410, 510", bonusAmounts: "110, 210, 310, 410, 510", referralAmounts: "110, 210, 310, 410, 510", tasksAmounts: "110, 210, 310, 410, 510", partnerAmounts: "110, 210, 310, 410, 510", giftAmounts: "110, 210, 310, 410, 510" });
+  const [depositSettings, setDepositSettings] = useState({ bkashNumber: '017XX-XXXXXX', nagadNumber: '017XX-XXXXXX', minDeposit: 100, maxDeposit: 25000, bkashEnabled: true, nagadEnabled: true, bkashQrUrl: '', nagadQrUrl: '' });
+  const [activationSettings, setActivationSettings] = useState({ mode: 'free', fee: 50 });
+  const [supportSettings, setSupportSettings] = useState({ email: 'support@example.com', whatsapp: '', telegram: '', facebook: '' });
+  const [popupSettings, setPopupSettings] = useState({ 
+    telegramText: 'Join Telegram',
+    telegramLink: 'https://t.me/', 
+    skipText: 'Skip', 
+    skipLink: '#',
+    title: 'Welcome!',
+    subtitle: 'Join our official channel for updates'
+  });
+  const [siteSettings, setSiteSettings] = useState({ siteName: '', logoUrl: '', telegramUrl: '', apkUrl: 'https://www.mediafire.com/file/glio303il0rsfr4/app-release.apk/file', dailyTaskLimit: 0, driveOffersEnabled: true, coursesEnabled: true, adsViewEnabled: false, reviewsEnabled: true, adsViewLink: '', adsViewText: 'Watch Ads' });
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [viewingScreenshot, setViewingScreenshot] = useState<string | null>(null);
+  const [settingsSubTab, setSettingsSubTab] = useState<'identity' | 'gateways' | 'rewards' | 'security' | 'danger'>('identity');
+  
+  const [faqsList, setFaqsList] = useState<{question_en: string; answer_en: string; question_bn: string; answer_bn: string}[]>([]);
+  const [newFaq, setNewFaq] = useState({ question_en: '', answer_en: '', question_bn: '', answer_bn: '' });
+  const [editingFaqIndex, setEditingFaqIndex] = useState<number | null>(null);
+
+  const [employeeConfigUser, setEmployeeConfigUser] = useState<any | null>(null);
+  const [employeePermissions, setEmployeePermissions] = useState<string[]>([]);
+  const [userSearchTerm, setUserSearchTerm] = useState('');
+
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    isPrompt?: boolean;
+    promptExpected?: string;
+    onConfirm: () => void;
+  } | null>(null);
+
+  const [promptInput, setPromptInput] = useState('');
+  
+  const [editingJobId, setEditingJobId] = useState<string | null>(null);
+
+  const [newJob, setNewJob] = useState({
+    title: '',
+    description: '',
+    reward: 3,
+    link: '',
+    type: 'Facebook',
+    icon: 'MessageCircle', // hardcode or select
+    color: 'text-blue-500',
+    bg: 'bg-blue-100',
+    requiredProofs: ['text'] as string[],
+    allowedCompletions: 1, // Total job slots
+    userLimit: 1, // 0 for unlimited per user, 1 for once, 2 for twice etc
+    deadline: '',
+    isAccountSell: false,
+    todaysPassword: '',
+    reviewComments: [] as string[]
+  });
+
+  const handleEditJobClick = (job: any) => {
+    setNewJob({
+      title: job.title || '',
+      description: job.description || '',
+      reward: job.reward || 0,
+      link: job.link || '',
+      type: job.type || 'Other',
+      icon: job.icon || 'MessageCircle',
+      color: job.color || 'text-blue-500',
+      bg: job.bg || 'bg-blue-100',
+      requiredProofs: job.requiredProofs || ['text'],
+      allowedCompletions: job.allowedCompletions || 1,
+      userLimit: job.userLimit || 1,
+      deadline: job.deadline || '',
+      isAccountSell: job.isAccountSell || false,
+      todaysPassword: job.todaysPassword || '',
+      reviewComments: job.reviewComments || []
+    });
+    setEditingJobId(job.id);
+  };
+
+  const handleCancelEditJob = () => {
+    setNewJob({
+      title: '', description: '', reward: 3, link: '', type: 'Facebook', icon: 'MessageCircle', color: 'text-blue-500', bg: 'bg-blue-100', requiredProofs: ['text'], allowedCompletions: 1, userLimit: 1, deadline: '', isAccountSell: false, todaysPassword: '', reviewComments: []
+    });
+    setEditingJobId(null);
+  };
+
+  const [newDriveTitle, setNewDriveTitle] = useState('');
+  const [newDriveOperator, setNewDriveOperator] = useState('Grameenphone');
+  const [newDriveValidity, setNewDriveValidity] = useState('30 Days');
+  const [newDriveOriginalPrice, setNewDriveOriginalPrice] = useState('');
+  const [newDriveSalePrice, setNewDriveSalePrice] = useState('');
+  const [adminOffers, setAdminOffers] = useState<any[]>([]);
+
+  const isFullAdmin = profile?.role === 'admin' || auth.currentUser?.email === '

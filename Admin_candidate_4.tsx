@@ -1,13 +1,3 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../components/AuthProvider';
-import { collection, query, onSnapshot, doc, writeBatch, serverTimestamp, setDoc, orderBy, deleteDoc, increment, updateDoc, getDocs, deleteField, getDoc, limit, FieldPath } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
-import { getCachedDoc, getCachedQuery, clearCache } from '../lib/cache';
-import { uploadImageOrFallback } from '../lib/imageUpload';
-import { processReferralCommission, processRegistrationReferral } from '../lib/referral';
-import { Trash2, CheckCircle, XCircle, Users, ShieldAlert, ShieldCheck, Wallet, ListChecks, Settings, User, Eye, Calculator, MessageSquare, Globe, Coins, Megaphone, Gamepad2, CreditCard, Lock, BellRing, RefreshCw, Smartphone, Mail, Camera, MessageCircle, Send, BookOpen, Layers, Copy, HelpCircle, Database, Search, Download, Gift } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
-import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 
 export function AdminPanel() {
@@ -32,7 +22,7 @@ export function AdminPanel() {
   const [newCourseDesc, setNewCourseDesc] = useState('');
   const [newCourseThumbnail, setNewCourseThumbnail] = useState('');
   const [newCourseLink, setNewCourseLink] = useState('');
-  const [newCourseCategory, setNewCourseCategory] = useState<' ' | ' ' | ''>(' ');
+  const [newCourseCategory, setNewCourseCategory] = useState<'টাস্ক কমপ্লিট' | 'টাকা উইথড্র' | 'অন্যান্য'>('টাস্ক কমপ্লিট');
   const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
   const [courseItems, setCourseItems] = useState<{ title: string; description: string; thumbnailUrl: string; videoLink: string; }[]>([]);
   const [optTitle, setOptTitle] = useState('');
@@ -90,7 +80,6 @@ export function AdminPanel() {
 
   const [promptInput, setPromptInput] = useState('');
   
-  const [editingUserBalance, setEditingUserBalance] = useState<{ id: string; fullName: string; main: number; bonus: number; referral: number; partner: number; tasks: number } | null>(null);
   const [editingJobId, setEditingJobId] = useState<string | null>(null);
 
   const [newJob, setNewJob] = useState({
@@ -267,6 +256,350 @@ export function AdminPanel() {
     }
   };
 
+  const handleFixBonusAmounts = async () => {
+    try {
+      toast.success("Fixing bonus amounts started...");
+      const { collection, getDocs, updateDoc, doc, increment, setDoc } = await import('firebase/firestore');
+      
+      let fixedCount = 0;
+      let permissionErrors = 0;
+      
+      for (const user of userList) {
+        const userId = user.id;
+        try {
+          const refSnap = await getDocs(collection(db, `users/${userId}/referrals`));
+          
+          for (const rDoc of refSnap.docs) {
+            const data = rDoc.data();
+            let diff = 0;
+            let newBonus = 0;
+            
+            if (data.level === 1 && data.bonusEarned > 5) {
+              diff = data.bonusEarned - 5; newBonus = 5;
+            } else if (data.level === 2 && data.bonusEarned > 3) {
+              diff = data.bonusEarned - 3; newBonus = 3;
+            } else if (data.level === 3 && data.bonusEarned > 1) {
+              diff = data.bonusEarned - 1; newBonus = 1;
+            }
+            
+            if (diff > 0) {
+               let updated = false;
+               try {
+                 await updateDoc(rDoc.ref, { bonusEarned: newBonus });
+                 updated = true;
+               } catch(err) {
+                 console.warn("Could not fix ref doc", err);
+                 permissionErrors++;
+               }
+               
+               try {
+                 await updateDoc(doc(db, "users", userId), {
+                   "balances.referral": increment(-diff)
+                 });
+                 await setDoc(doc(db, "leaderboard", userId), {
+                   totalIncome: increment(-diff)
+                 }, { merge: true });
+                 if (!updated) updated = true; 
+               } catch (err) {
+                  console.warn("Could not fix user balance", err);
+               }
+               
+               if (updated) fixedCount++;
+            }
+          }
+        } catch (e) {
+           permissionErrors++;
+           console.error("Failed for user", userId, e);
+        }
+      }
+      
+      if (fixedCount > 0) {
+        toast.success(`Fixed ${fixedCount} referrals!`);
+        loadData(true);
+      } else if (permissionErrors > 0) {
+        toast.error(`Permission denied on ${permissionErrors} operations.`);
+      } else {
+        toast.success("No referrals needed fixing.");
+      }
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  };
+
+  const handleFixOldReferrals = async () => {
+    try {
+      toast.success("Fix referrals started...");
+      console.log("Fix referrals started");
+      const loadingToast = toast.loading("Finding and processing old referrals...");
+      const { query, collection, where, getDocs, updateDoc, doc, serverTimestamp, increment, setDoc, addDoc } = await import('firebase/firestore');
+      
+      // Get referral settings
+      const { getDoc } = await import('firebase/firestore');
+      const settingsDoc = await getDoc(doc(db, "settings", "referral"));
+      let gen1 = 10, gen2 = 0, gen3 = 0;
+      if (settingsDoc.exists()) {
+        const data = settingsDoc.data();
+        gen1 = data.fixedBonus || 0;
+        gen2 = data.gen2FixedBonus || 0;
+        gen3 = data.gen3FixedBonus || 0;
+      }
+      const bonuses = [gen1, gen2, gen3];
+
+      // Query all users to avoid index requirements
+      const q = query(collection(db, "users"));
+      const snapshot = await getDocs(q);
+      let processed = 0;
+      let alreadyPaid = 0;
+      let logMsg = "";
+      
+      for (const userDoc of snapshot.docs) {
+        const data = userDoc.data();
+        
+        if (data.usedReferCode && data.usedReferCode !== 'none') {
+          const sanitizedCode = data.usedReferCode.replace(/[\u200B-\u200D\uFEFF\s]/g, '').trim().toUpperCase();
+          
+          if (data.usedReferCode !== sanitizedCode) {
+            await updateDoc(doc(db, "users", userDoc.id), { usedReferCode: sanitizedCode });
+          }
+
+          // Check if referrer actually received the referral
+          const referrerQuery = query(collection(db, "users"), where("myReferCode", "==", sanitizedCode));
+          const referrerSnapshot = await getDocs(referrerQuery);
+          
+          if (!referrerSnapshot.empty) {
+            const referrerDoc = referrerSnapshot.docs[0];
+            const referrerId = referrerDoc.id;
+            
+            // Allow matching by email or just checking if they've been paid
+            let missed = false;
+            
+            // Only process if the user is ACTIVE!
+            if (data.isActive) {
+              if (data.email) {
+                const refSubQuery = query(collection(db, `users/${referrerId}/referrals`), where("referredEmail", "==", data.email));
+                const refSubSnapshot = await getDocs(refSubQuery);
+                if (refSubSnapshot.empty) missed = true;
+              } else {
+                missed = !data.referralBonusPaid;
+              }
+            } else {
+              // If user is INACTIVE but referralBonusPaid is true, fix it so they can be processed later when they activate!
+              if (data.referralBonusPaid) {
+                await updateDoc(doc(db, "users", userDoc.id), { referralBonusPaid: false });
+              }
+            }
+            
+            if (missed) {
+               console.log("Found missed referral for user:", data.email || userDoc.id, "referred by", sanitizedCode);
+               
+               // Manually process it directly here so it never fails
+               let currentReferCode = sanitizedCode;
+               for (let level = 0; level < 3; level++) {
+                  if (!currentReferCode || currentReferCode === 'none') break;
+                  const fixedBonus = bonuses[level];
+                  
+                  const refQ = query(collection(db, "users"), where("myReferCode", "==", currentReferCode));
+                  const refSnap = await getDocs(refQ);
+                  if (refSnap.empty) break;
+                  
+                  const rDoc = refSnap.docs[0];
+                  const rId = rDoc.id;
+                  const rData = rDoc.data();
+                  
+                  // Add to subcollection if level 1 (or all levels depending on logic)
+                  await addDoc(collection(db, `users/${rId}/referrals`), {
+                    referredEmail: data.email || 'No Email',
+                    referredName: data.fullName || 'Anonymous',
+                    bonusEarned: fixedBonus,
+                    level: level + 1,
+                    createdAt: serverTimestamp()
+                  });
+                  
+                  const userUpdates: any = {
+                    totalReferrals: increment(level === 0 ? 1 : 0)
+                  };
+                  if (fixedBonus > 0) {
+                    userUpdates["balances.referral"] = increment(fixedBonus);
+                  }
+                  await updateDoc(doc(db, "users", rId), userUpdates);
+                  
+                  const leaderboardRef = doc(db, 'leaderboard', rId);
+                  await setDoc(leaderboardRef, {
+                    fullName: rData.fullName || 'User',
+                    referrals: increment(level === 0 ? 1 : 0),
+                    bonus: increment(0),
+                    totalIncome: increment(fixedBonus),
+                    updatedAt: serverTimestamp()
+                  }, { merge: true });
+                  
+                  currentReferCode = rData.usedReferCode ? rData.usedReferCode.replace(/[\u200B-\u200D\uFEFF\s]/g, '').trim().toUpperCase() : '';
+               }
+               
+               await updateDoc(doc(db, "users", userDoc.id), { referralBonusPaid: true });
+               processed++;
+               continue;
+            }
+          }
+        }
+        
+        if (data.referralBonusPaid) {
+          alreadyPaid++;
+        }
+      }
+      
+      // 
+      toast.success(`Successfully processed ${processed} missed referrals (skipped ${alreadyPaid} valid).`);
+      loadData(true);
+    } catch (e) {
+      // 
+      toast.error("Failed to process old referrals: " + (e as any).message);
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    
+    // Default to the first allowed tab if current activeTab is not allowed
+    if (!isFullAdmin && !userPermissions.includes(activeTab) && allowedTabs.length > 0) {
+      setActiveTab(allowedTabs[0].id as any);
+    }
+    
+    if (activeTab === 'settings') {
+       loadSettings();
+    }
+    loadData();
+  }, [isAdmin, activeTab, loadSettings, loadData]);
+
+  if (!isAdmin) return <div className="p-10 text-center">Access Denied</div>;
+
+  const handleCreateGiftCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newGiftCode || newGiftCode.length < 5) {
+      toast.error('Code must be at least 5 characters');
+      return;
+    }
+    
+    setIsCreatingGift(true);
+    try {
+      const expiresAt = new Date();
+      expiresAt.setHours(expiresAt.getHours() + (Number(giftExpiresInHours) || 24));
+      
+      await setDoc(doc(db, "giftCodes", newGiftCode.trim().toUpperCase()), {
+        code: newGiftCode.trim().toUpperCase(),
+        type: giftType,
+        amount: giftType === 'fixed' ? (Number(giftAmount) || 0) : 0,
+        minAmount: giftType === 'random' ? (Number(giftMinAmount) || 0) : 0,
+        maxAmount: giftType === 'random' ? (Number(giftMaxAmount) || 0) : 0,
+        maxUses: Number(giftMaxUses) || 0,
+        usedBy: [],
+        expiresAt: expiresAt,
+        status: 'active',
+        createdAt: serverTimestamp(),
+        createdBy: auth.currentUser?.email || 'admin'
+      });
+      
+      toast.success('Gift Code Created!');
+      setNewGiftCode('');
+      loadData(true);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, 'giftCodes');
+      toast.error('Failed to create code');
+    } finally {
+      setIsCreatingGift(false);
+    }
+  };
+
+  const handleDeleteGiftCode = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this gift code?')) return;
+    try {
+      await deleteDoc(doc(db, "giftCodes", id));
+      toast.success('Gift code deleted');
+      loadData(true);
+    } catch (err) {
+      toast.error('Failed to delete code');
+    }
+  };
+
+  const handleSaveFaqs = async (updatedFaqs: any[]) => {
+    setIsSavingSettings(true);
+    try {
+      await setDoc(doc(db, "settings", "faqs"), {
+        faqs: updatedFaqs,
+        updatedAt: serverTimestamp()
+      });
+      toast.success('FAQs updated!');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, 'settings/faqs');
+    } finally {
+      setIsSavingSettings(false);
+      setNewFaq({ question_en: '', answer_en: '', question_bn: '', answer_bn: '' });
+      setEditingFaqIndex(null);
+    }
+  };
+
+  const handleAddFaq = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editingFaqIndex !== null) {
+      const updated = [...faqsList];
+      updated[editingFaqIndex] = newFaq;
+      handleSaveFaqs(updated);
+    } else {
+      handleSaveFaqs([...faqsList, newFaq]);
+    }
+  };
+
+  const handleDeleteFaq = (index: number) => {
+    if(window.confirm('Are you sure you want to delete this FAQ?')) {
+      const updated = faqsList.filter((_, i) => i !== index);
+      handleSaveFaqs(updated);
+    }
+  };
+
+  const handleCancelEditFaq = () => {
+    setEditingFaqIndex(null);
+    setNewFaq({ question_en: '', answer_en: '', question_bn: '', answer_bn: '' });
+  };
+
+  const handleSaveActivationSettings = async () => {
+    setIsSavingSettings(true);
+    try {
+      await setDoc(doc(db, "settings", "activation"), {
+        mode: activationSettings.mode,
+        fee: activationSettings.fee,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      toast.success("Activation settings saved!");
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, 'settings/activation');
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
+  const handleUploadImage = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logo') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Image must be smaller than 2MB.");
+      return;
+    }
+
+    const toastId = toast.loading(`Uploading ${type}...`);
+    try {
+      const imageUrl = await uploadImageOrFallback(file, 400);
+
+      setSiteSettings(prev => ({
+        ...prev,
+        logoUrl: imageUrl
+      }));
+      toast.success(`${type} uploaded successfully!`, { id: toastId });
+    } catch (err: any) {
+      toast.error(err.message || `Failed to upload ${type}`, { id: toastId });
+    }
+  };
+
   const handleSaveSiteSettings = async () => {
     setIsSavingSettings(true);
     try {
@@ -380,7 +713,7 @@ export function AdminPanel() {
     setConfirmDialog({
       isOpen: true,
       title: 'Reject User Job',
-      message: `Are you sure you want to reject this job? ${job.totalCost} will be refunded to the user's main balance.`,
+      message: `Are you sure you want to reject this job? ৳${job.totalCost} will be refunded to the user's main balance.`,
       onConfirm: async () => {
         try {
           const batch = writeBatch(db);
@@ -503,7 +836,7 @@ export function AdminPanel() {
             const notifRef = doc(collection(db, "users", userId, "notifications"));
             batch.set(notifRef, {
               title: status === 'approved' ? 'Task Approved' : 'Task Rejected',
-              message: `Your submission for "${subTitle}" was ${status}. ${status === 'approved' ? `You earned ${safeReward}!` : ''}`,
+              message: `Your submission for "${subTitle}" was ${status}. ${status === 'approved' ? `You earned ৳${safeReward}!` : ''}`,
               type: status === 'approved' ? 'task_approved' : 'task_rejected',
               read: false,
               createdAt: serverTimestamp()
@@ -708,7 +1041,7 @@ export function AdminPanel() {
             const notifRef = doc(collection(db, "users", reqUserId, "notifications"));
             batch.set(notifRef, {
               title: `${reqType === 'deposit' ? 'Deposit' : reqType === 'activation' ? 'Account Activation' : 'Withdrawal'} ${status}`,
-              message: `Your ${reqType} request of ${reqAmount} has been ${status}.`,
+              message: `Your ${reqType} request of ৳${reqAmount} has been ${status}.`,
               type: `payment_${status}`,
               read: false,
               createdAt: serverTimestamp()
@@ -882,47 +1215,6 @@ export function AdminPanel() {
     }
   };
 
-
-  const handleSaveFaqs = async (updatedFaqs: any[]) => {
-    setIsSavingSettings(true);
-    try {
-      await setDoc(doc(db, "settings", "faqs"), {
-        faqs: updatedFaqs,
-        updatedAt: serverTimestamp()
-      });
-      toast.success('FAQs updated!');
-    } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, 'settings/faqs');
-    } finally {
-      setIsSavingSettings(false);
-      setNewFaq({ question_en: '', answer_en: '', question_bn: '', answer_bn: '' });
-      setEditingFaqIndex(null);
-    }
-  };
-
-  const handleAddFaq = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (editingFaqIndex !== null) {
-      const updated = [...faqsList];
-      updated[editingFaqIndex] = newFaq;
-      handleSaveFaqs(updated);
-    } else {
-      handleSaveFaqs([...faqsList, newFaq]);
-    }
-  };
-
-  const handleDeleteFaq = (index: number) => {
-    if(window.confirm('Are you sure you want to delete this FAQ?')) {
-      const updated = faqsList.filter((_, i) => i !== index);
-      handleSaveFaqs(updated);
-    }
-  };
-
-  const handleCancelEditFaq = () => {
-    setEditingFaqIndex(null);
-    setNewFaq({ question_en: '', answer_en: '', question_bn: '', answer_bn: '' });
-  };
-
   return (
     <div className="pt-6 px-4 pb-20">
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
@@ -978,7 +1270,7 @@ export function AdminPanel() {
                 <Database className="w-5 h-5 text-indigo-200" /> cPanel Ready Build (.zip)
               </h4>
               <p className="text-xs text-blue-100 max-w-xl leading-relaxed">
-                 cPanel -       <b>dist.zip</b>       cPanel- <code className="bg-blue-700/50 px-1.5 py-0.5 rounded text-[11px] font-mono">public_html</code>      
+                আপনার cPanel হোস্টিং-এ আপলোড করার জন্য সম্পূর্ণ প্রস্তুত করা <b>dist.zip</b> বিল্ড ফাইলটি ডাউনলোড করুন। এটি সরাসরি cPanel-এর <code className="bg-blue-700/50 px-1.5 py-0.5 rounded text-[11px] font-mono">public_html</code> ফোল্ডারে আপলোড করে এক্সট্র্যাক্ট করতে পারবেন।
               </p>
             </div>
             <a 
@@ -999,7 +1291,7 @@ export function AdminPanel() {
               <div className="flex flex-col gap-2">
                 <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Total Approved Deposits</span>
                 <span className="text-3xl font-black text-slate-900 dark:text-white">
-                  {paymentRequests.filter(r => r.type === 'deposit' && r.status === 'approved').reduce((acc, curr) => acc + Number(curr.amount || 0), 0).toLocaleString()}
+                  ৳{paymentRequests.filter(r => r.type === 'deposit' && r.status === 'approved').reduce((acc, curr) => acc + Number(curr.amount || 0), 0).toLocaleString()}
                 </span>
                 <span className="text-[10px] font-bold text-slate-500 uppercase">
                   {paymentRequests.filter(r => r.type === 'deposit' && r.status === 'approved').length} Transactions
@@ -1011,7 +1303,7 @@ export function AdminPanel() {
               <div className="flex flex-col gap-2">
                 <span className="text-xs font-bold text-rose-600 dark:text-rose-400 uppercase tracking-widest">Total Approved Withdrawals</span>
                 <span className="text-3xl font-black text-slate-900 dark:text-white">
-                  {paymentRequests.filter(r => r.type === 'withdraw' && r.status === 'approved').reduce((acc, curr) => acc + Number(curr.amount || 0), 0).toLocaleString()}
+                  ৳{paymentRequests.filter(r => r.type === 'withdraw' && r.status === 'approved').reduce((acc, curr) => acc + Number(curr.amount || 0), 0).toLocaleString()}
                 </span>
                 <span className="text-[10px] font-bold text-slate-500 uppercase">
                   {paymentRequests.filter(r => r.type === 'withdraw' && r.status === 'approved').length} Transactions
@@ -1023,7 +1315,7 @@ export function AdminPanel() {
               <div className="flex flex-col gap-2">
                 <span className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-widest">Pending Deposits</span>
                 <span className="text-3xl font-black text-slate-900 dark:text-white">
-                  {paymentRequests.filter(r => r.type === 'deposit' && r.status === 'pending').reduce((acc, curr) => acc + Number(curr.amount || 0), 0).toLocaleString()}
+                  ৳{paymentRequests.filter(r => r.type === 'deposit' && r.status === 'pending').reduce((acc, curr) => acc + Number(curr.amount || 0), 0).toLocaleString()}
                 </span>
                 <span className="text-[10px] font-bold text-slate-500 uppercase">
                   {paymentRequests.filter(r => r.type === 'deposit' && r.status === 'pending').length} Action Required
@@ -1035,7 +1327,7 @@ export function AdminPanel() {
               <div className="flex flex-col gap-2">
                 <span className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest">Pending Withdrawals</span>
                 <span className="text-3xl font-black text-slate-900 dark:text-white">
-                  {paymentRequests.filter(r => r.type === 'withdraw' && r.status === 'pending').reduce((acc, curr) => acc + Number(curr.amount || 0), 0).toLocaleString()}
+                  ৳{paymentRequests.filter(r => r.type === 'withdraw' && r.status === 'pending').reduce((acc, curr) => acc + Number(curr.amount || 0), 0).toLocaleString()}
                 </span>
                 <span className="text-[10px] font-bold text-slate-500 uppercase">
                   {paymentRequests.filter(r => r.type === 'withdraw' && r.status === 'pending').length} Action Required
@@ -1068,11 +1360,11 @@ export function AdminPanel() {
                           {req.status}
                         </span>
                       </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">{req.method || 'System'}  {new Date(req.createdAt?.toDate()).toLocaleString()}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">{req.method || 'System'} • {new Date(req.createdAt?.toDate()).toLocaleString()}</p>
                     </div>
                   </div>
                   <div className={`font-black text-lg ${req.type === 'deposit' ? 'text-emerald-500' : 'text-rose-500'}`}>
-                    {req.type === 'deposit' ? '+' : '-'}{req.amount}
+                    {req.type === 'deposit' ? '+' : '-'}৳{req.amount}
                   </div>
                 </div>
               ))}
@@ -1121,7 +1413,7 @@ export function AdminPanel() {
                     </div>
                     <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 truncate max-w-[150px]">{sub.userEmail}</p>
                     <div className="w-1 h-1 rounded-full bg-slate-300"></div>
-                    <p className="text-xs font-black text-blue-600 dark:text-blue-400">{sub.reward}</p>
+                    <p className="text-xs font-black text-blue-600 dark:text-blue-400">৳{sub.reward}</p>
                   </div>
                 </div>
               </div>
@@ -1292,17 +1584,17 @@ export function AdminPanel() {
                     const newType = e.target.value;
                     let updatedJob = { ...newJob, type: newType };
                     if (newType === 'Review') {
-                      updatedJob.title = "German Doner Kebab (GDK)   ";
-                      updatedJob.description = "      (5 Star)                      ";
+                      updatedJob.title = "German Doner Kebab (GDK) ৫ স্টার রিভিউ";
+                      updatedJob.description = "গুগল ম্যাপে গিয়ে অবশ্যই ৫ স্টার (5 Star) রেটিং দিয়ে আপনার জন্য নির্ধারিত কমেন্টটি পেস্ট করতে হবে। অবশ্যই স্ক্রিনশট এবং যে নাম দিয়ে রিভিউ দিয়েছেন তা প্রুফ হিসেবে সাবমিট করবেন।";
                       updatedJob.link = "https://www.google.com/search?shndl=30&shem=rimspwouoe&q=German+Doner+Kebab+(GDK)&kgmid=/g/11wpz8mg0y";
                       updatedJob.icon = 'Star';
                       updatedJob.color = 'text-amber-500';
                       updatedJob.requiredProofs = ['text', 'screenshot', 'username'];
                       
                       const defaultComments = [
-                        "Ive tried GDK in other locations, and Metrocenter branch is just as good. Consistent taste, clean, and fast.",
+                        "I’ve tried GDK in other locations, and Metrocenter branch is just as good. Consistent taste, clean, and fast.",
                         "Super convenient inside Metrocenter. Grabbed a Kebab Box between shopping trips. No long wait even during lunch rush.fas",
-                        "What makes GDK different is the sauce selection. Tried Garlic + Chilli. Kebab was packed well and didnt get soggy.",
+                        "What makes GDK different is the sauce selection. Tried Garlic + Chilli. Kebab was packed well and didn’t get soggy.",
                         "The waffle bread is absolutely incredible! GDK always delivers high-quality donor and the service is extremely friendly.",
                         "Amazing kebab! Fresh ingredients, tasty sauces, and super clean. Best place in Metrocenter for a quick bite.",
                         "Really friendly staff and super quick service. The donor meat is perfectly seasoned and not greasy at all.",
@@ -1341,7 +1633,7 @@ export function AdminPanel() {
                 </select>
               </div>
               <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-1 block">Reward ()</label>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-1 block">Reward (৳)</label>
                 <input type="number" placeholder="0.00" required value={newJob.reward} onChange={e => setNewJob({...newJob, reward: Number(e.target.value)})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-black text-blue-600" />
               </div>
             </div>
@@ -1410,14 +1702,14 @@ export function AdminPanel() {
               <div className="p-4 bg-amber-50 dark:bg-amber-950/20 rounded-3xl space-y-3 border border-amber-100 dark:border-amber-900/30">
                 <div className="flex items-center justify-between">
                   <p className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest pl-1">
-                    Google Review Comments (    )
+                    Google Review Comments (১টি লাইনে ১টি কমেন্ট লিখুন)
                   </p>
                   <span className="text-[10px] bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 font-bold px-2 py-0.5 rounded-full">
-                    {Array.isArray(newJob.reviewComments) ? newJob.reviewComments.length : 0} 
+                    {Array.isArray(newJob.reviewComments) ? newJob.reviewComments.length : 0}টি কমেন্ট
                   </span>
                 </div>
                 <textarea
-                  placeholder="       -          ,       (randomly)   "
+                  placeholder="এখানে প্রতি লাইনে একটি করে কমেন্ট লিখুন। ২০-৩০টি বা তার বেশি কমেন্ট লিখতে পারেন। ব্যবহারকারী যখন কাজটি করবেন, তখন এখান থেকে একটি কমেন্ট এলোমেলোভাবে (randomly) তাকে দেওয়া হবে।"
                   value={Array.isArray(newJob.reviewComments) ? newJob.reviewComments.join('\n') : ''}
                   onChange={e => {
                     const commentsArray = e.target.value.split('\n');
@@ -1426,7 +1718,7 @@ export function AdminPanel() {
                   className="w-full bg-white dark:bg-slate-800 border-none px-4 py-3 rounded-2xl text-xs font-bold h-36 placeholder:text-slate-400 focus:ring-1 focus:ring-amber-500"
                 />
                 <p className="text-[9px] text-amber-600 dark:text-amber-500 font-bold pl-1 leading-relaxed">
-                  *       ,                           
+                  * গুগল ম্যাপে ব্যবহারকারী যখন রিভিউর কাজটি করবেন, তখন আমাদের ওয়েবসাইট স্বয়ংক্রিয়ভাবে একটি করে কমেন্ট কপি করার জন্য স্ক্রিনে দেখাবে। এর মাধ্যমে ভিন্ন ভিন্ন ব্যবহারকারী ভিন্ন ভিন্ন কমেন্ট দিয়ে গুগল ম্যাপে ৫ স্টার রেটিং দিবে।
                 </p>
               </div>
             )}
@@ -1471,9 +1763,9 @@ export function AdminPanel() {
                         </p>
                       </div>
                       <div className="text-right shrink-0 ml-3">
-                        <p className="text-xs font-black text-slate-700 dark:text-slate-300">Rate: {job.reward}</p>
+                        <p className="text-xs font-black text-slate-700 dark:text-slate-300">Rate: ৳{job.reward}</p>
                         <p className="text-[10px] font-bold text-slate-400">Slots: {job.allowedCompletions}</p>
-                        <p className="text-[10px] font-black text-emerald-600">Total: {job.totalCost}</p>
+                        <p className="text-[10px] font-black text-emerald-600">Total: ৳{job.totalCost}</p>
                         <p className="text-[8px] font-black text-slate-450 uppercase mt-1">By: {job.postedBy}</p>
                       </div>
                     </div>
@@ -1511,7 +1803,7 @@ export function AdminPanel() {
                       {job.status}
                     </span>
                   </div>
-                  <p className="text-[10px] font-black text-blue-500/80 uppercase tracking-widest">{job.reward} &bull; {job.type} &bull; Slots: {job.remainingSlots}/{job.allowedCompletions}</p>
+                  <p className="text-[10px] font-black text-blue-500/80 uppercase tracking-widest">৳{job.reward} &bull; {job.type} &bull; Slots: {job.remainingSlots}/{job.allowedCompletions}</p>
                 </div>
                 <div className="flex items-center gap-2 ml-4">
                   <button onClick={() => handleEditJobClick(job)} className="p-3 text-blue-500 bg-blue-50 dark:bg-blue-900/30 rounded-2xl hover:scale-105 active:scale-90 transition-all">
@@ -1565,7 +1857,7 @@ export function AdminPanel() {
                     </span>
                     <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{new Date(req.createdAt?.toDate()).toLocaleTimeString()}</span>
                   </div>
-                  <h4 className="font-black text-2xl text-slate-900 dark:text-white leading-none mt-2">{req.amount}</h4>
+                  <h4 className="font-black text-2xl text-slate-900 dark:text-white leading-none mt-2">৳{req.amount}</h4>
                   <div className="flex items-center gap-2 mt-2">
                     <div className="w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500">
                       <User className="w-3 h-3" />
@@ -1720,10 +2012,10 @@ export function AdminPanel() {
                 <div key={req.id} className="bg-white dark:bg-slate-800 p-3 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex justify-between items-center opacity-70">
                   <div className="flex-1 overflow-hidden pr-4">
                     <p className="font-black text-[13px] text-slate-800 dark:text-slate-200 italic uppercase flex items-center gap-1.5">
-                      {req.amount} &bull; {req.type}
+                      ৳{req.amount} &bull; {req.type}
                       {req.method && <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 rounded text-[9px] not-italic">{req.method}</span>}
                     </p>
-                    <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold truncate tracking-widest uppercase">{req.userEmail} {req.account ? ` ${req.account}` : ''}</p>
+                    <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold truncate tracking-widest uppercase">{req.userEmail} {req.account ? `• ${req.account}` : ''}</p>
                   </div>
                   <div className={`text-[9px] px-3 py-1 rounded-full font-black uppercase tracking-widest border ${req.status === 'approved' ? 'bg-emerald-100 text-emerald-600 border-emerald-200' : 'bg-rose-100 text-rose-600 border-rose-200'}`}>
                     {req.status}
@@ -1755,17 +2047,17 @@ export function AdminPanel() {
               
               {giftType === 'fixed' ? (
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Amount ()</label>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Amount (৳)</label>
                   <input type="number" min="1" value={giftAmount} onChange={(e) => setGiftAmount(e.target.value === '' ? '' : isNaN(parseFloat(e.target.value)) ? "" : parseFloat(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" required />
                 </div>
               ) : (
                 <>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Min Amount ()</label>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Min Amount (৳)</label>
                     <input type="number" min="1" value={giftMinAmount} onChange={(e) => setGiftMinAmount(e.target.value === '' ? '' : isNaN(parseFloat(e.target.value)) ? "" : parseFloat(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" required />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Max Amount ()</label>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Max Amount (৳)</label>
                     <input type="number" min="1" value={giftMaxAmount} onChange={(e) => setGiftMaxAmount(e.target.value === '' ? '' : isNaN(parseFloat(e.target.value)) ? "" : parseFloat(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" required />
                   </div>
                 </>
@@ -1804,9 +2096,9 @@ export function AdminPanel() {
                       <div>
                         <h4 className="font-black font-mono text-slate-900 dark:text-white text-lg tracking-widest">{code.code}</h4>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                          {code.type === 'fixed' ? `${code.amount} Fixed` : `${code.minAmount} - ${code.maxAmount} Random`}
-                          <span className="mx-2 text-slate-300"></span>
-                          {code.usedBy?.length || 0} / {code.maxUses || ''} Uses
+                          {code.type === 'fixed' ? `৳${code.amount} Fixed` : `৳${code.minAmount} - ৳${code.maxAmount} Random`}
+                          <span className="mx-2 text-slate-300">•</span>
+                          {code.usedBy?.length || 0} / {code.maxUses || '∞'} Uses
                         </p>
                       </div>
                       <div className="flex flex-col items-end gap-2">
@@ -1928,7 +2220,7 @@ export function AdminPanel() {
             >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Package Title ( )</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Package Title (প্যাকের নাম)</label>
                   <input type="text" placeholder="e.g. GP 40GB + 800 Min Combo" required value={newDriveTitle} onChange={(e) => setNewDriveTitle(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 focus:ring-2 focus:ring-indigo-500 transition-all text-slate-900 dark:text-white" />
                 </div>
                 <div>
@@ -1945,15 +2237,15 @@ export function AdminPanel() {
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Validity ()</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Validity (মেয়াদ)</label>
                   <input type="text" placeholder="e.g. 30 Days" required value={newDriveValidity} onChange={(e) => setNewDriveValidity(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 text-slate-900 dark:text-white" />
                 </div>
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Original ()</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Original (৳)</label>
                   <input type="number" placeholder="e.g. 799" required value={newDriveOriginalPrice} onChange={(e) => setNewDriveOriginalPrice(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 text-slate-900 dark:text-white" />
                 </div>
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Sale ()</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Sale (৳)</label>
                   <input type="number" placeholder="e.g. 580" required value={newDriveSalePrice} onChange={(e) => setNewDriveSalePrice(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 text-slate-900 dark:text-white" />
                 </div>
               </div>
@@ -1993,7 +2285,7 @@ export function AdminPanel() {
                         <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">{of.validity}</span>
                       </div>
                       <h4 className="font-black text-slate-900 dark:text-white text-sm truncate uppercase">{of.title}</h4>
-                      <p className="text-xs font-bold text-slate-505 mt-1 dark:text-slate-400">Regular: <span className="line-through">{of.originalPrice}</span> &bull; Sale: <span className="text-emerald-550 dark:text-emerald-400">{of.salePrice}</span></p>
+                      <p className="text-xs font-bold text-slate-505 mt-1 dark:text-slate-400">Regular: <span className="line-through">৳{of.originalPrice}</span> &bull; Sale: <span className="text-emerald-550 dark:text-emerald-400">৳{of.salePrice}</span></p>
                     </div>
                     
                     <div className="flex items-center gap-2">
@@ -2042,14 +2334,14 @@ export function AdminPanel() {
           {/* Create/Edit Course Form */}
           <div className="bg-white dark:bg-slate-800 p-6 rounded-[32px] border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden">
             <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight text-sm mb-4">
-              {editingCourseId ? '    ' : '     '}
+              {editingCourseId ? 'কোর্স বা টিউটোরিয়াল এডিট করুন' : 'নতুন কোর্স বা টিউটোরিয়াল তৈরি করুন'}
             </h3>
             
             <form 
               onSubmit={async (e) => {
                 e.preventDefault();
                 if (!newCourseTitle || !newCourseDesc || !newCourseThumbnail || !newCourseLink) {
-                  toast.error("    ");
+                  toast.error("সবগুলো ঘর সঠিকভাবে পূরণ করুন");
                   return;
                 }
                 
@@ -2066,7 +2358,7 @@ export function AdminPanel() {
                     updatedAt: serverTimestamp()
                   }, { merge: true });
                   
-                  toast.success(editingCourseId ? "     !" : "    !");
+                  toast.success(editingCourseId ? "কোর্স বা টিউটোরিয়াল সফলভাবে আপডেট হয়েছে!" : "নতুন টিউটোরিয়াল সফলভাবে যুক্ত হয়েছে!");
                   await loadData(true);
                   
                   // Clear form
@@ -2074,11 +2366,11 @@ export function AdminPanel() {
                   setNewCourseDesc('');
                   setNewCourseThumbnail('');
                   setNewCourseLink('');
-                  setNewCourseCategory(' ');
+                  setNewCourseCategory('টাস্ক কমপ্লিট');
                   setCourseItems([]);
                   setEditingCourseId(null);
                 } catch (err) {
-                  toast.error("   ");
+                  toast.error("সেভ করতে ব্যর্থ হয়েছে");
                   console.error(err);
                 }
               }}
@@ -2086,10 +2378,10 @@ export function AdminPanel() {
             >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">  (Title)</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">কোর্সের শিরোনাম (Title)</label>
                   <input 
                     type="text" 
-                    placeholder="     " 
+                    placeholder="উদাঃ সঠিক উপায়ে ডেইলি স্পিন খেলুন" 
                     required 
                     value={newCourseTitle} 
                     onChange={(e) => setNewCourseTitle(e.target.value)} 
@@ -2097,22 +2389,22 @@ export function AdminPanel() {
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">  (Category)</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">টিউটোরিয়াল ক্যাটাগরি (Category)</label>
                   <select 
                     value={newCourseCategory} 
                     onChange={(e) => setNewCourseCategory(e.target.value as any)} 
                     className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-555"
                   >
-                    <option value=" "> </option>
-                    <option value=" "> </option>
-                    <option value=""> </option>
+                    <option value="টাস্ক কমপ্লিট">টাস্ক কমপ্লিট</option>
+                    <option value="টাকা উইথড্র">টাকা উইথড্র</option>
+                    <option value="অন্যান্য">অন্যান্য হেল্প</option>
                   </select>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">   (Thumbnail URL)</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">থাম্বনেইল ইমেজ লিংক (Thumbnail URL)</label>
                   <input 
                     type="url" 
                     placeholder="https://images.unsplash.com/..." 
@@ -2123,7 +2415,7 @@ export function AdminPanel() {
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">    (Video/Instruction Link)</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">ভিডিও বা রেফারেল লিংক (Video/Instruction Link)</label>
                   <input 
                     type="url" 
                     placeholder="https://youtube.com/watch?v=..." 
@@ -2136,9 +2428,9 @@ export function AdminPanel() {
               </div>
 
               <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">    (Detailed Description)</label>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">পূর্ণাঙ্গ ডেসক্রিপশন বা নির্দেশনা (Detailed Description)</label>
                 <textarea 
-                  placeholder="             ..." 
+                  placeholder="ধাপে ধাপে কিভাবে টাস্ক সম্পন্ন করবে বা কিভাবে উইথড্র করবে তার বিস্তারিত বিবরণ লিখুন..." 
                   required 
                   rows={4} 
                   value={newCourseDesc} 
@@ -2152,24 +2444,24 @@ export function AdminPanel() {
                 <div className="flex items-center gap-1.5 border-b border-slate-100 dark:border-slate-800 pb-2">
                   <Layers className="w-4 h-4 text-purple-600 dark:text-purple-400" />
                   <div className="flex-1">
-                    <h4 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tight">   /     (Multiple Option Items)</h4>
+                    <h4 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tight">আলাদা আলাদা অপশন / বহুবিধ টিউটোরিয়াল যোগ করুন (Multiple Option Items)</h4>
                     <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">Add sub-tutorials for How to complete tasks, How to withdraw, etc.</p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">  (Option Title)</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">অপশন শিরোনাম (Option Title)</label>
                     <input 
                       type="text" 
-                      placeholder=" .      " 
+                      placeholder="উদাঃ ১. কিভাবে সঠিক উপায়ে টাস্ক সম্পন্ন করবেন" 
                       value={optTitle} 
                       onChange={(e) => setOptTitle(e.target.value)} 
                       className="w-full bg-white dark:bg-slate-800 border-none px-4 py-2.5 rounded-xl text-xs font-bold ring-1 ring-slate-100 dark:ring-slate-800 focus:ring-2 focus:ring-purple-555 transition-all text-slate-900 dark:text-white" 
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">   (Option Thumbnail URL)</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">অপশন থাম্বনেইল লিংক (Option Thumbnail URL)</label>
                     <input 
                       type="url" 
                       placeholder="https://images.unsplash.com/..." 
@@ -2182,7 +2474,7 @@ export function AdminPanel() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block"> /  (Option Video/Instruction Link)</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">অপশন ভিডিও/টিউটোরিয়াল লিংক (Option Video/Instruction Link)</label>
                     <input 
                       type="url" 
                       placeholder="https://youtube.com/watch?v=..." 
@@ -2192,10 +2484,10 @@ export function AdminPanel() {
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">   (Option Description)</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">অপশন সংক্ষিপ্ত বিবরণ (Option Description)</label>
                     <input 
                       type="text" 
-                      placeholder="   --    " 
+                      placeholder="উদাঃ নিয়মগুলো এবং স্টেপ-বাই-স্টেপ সিক্রেট ভিডিও মেথড দেখুন।" 
                       value={optDesc} 
                       onChange={(e) => setOptDesc(e.target.value)} 
                       className="w-full bg-white dark:bg-slate-800 border-none px-4 py-2.5 rounded-xl text-xs font-bold ring-1 ring-slate-100 dark:ring-slate-800 focus:ring-2 focus:ring-purple-555 transition-all text-slate-900 dark:text-white" 
@@ -2207,12 +2499,12 @@ export function AdminPanel() {
                   type="button"
                   onClick={() => {
                     if (!optTitle || !optLink) {
-                      toast.error("     ");
+                      toast.error("অপশন টাইটেল ও টিউটোরিয়াল লিংক আবশ্যক");
                       return;
                     }
                     const newItem = {
                       title: optTitle,
-                      description: optDesc || '  ',
+                      description: optDesc || 'ভিডিও টিউটোরিয়াল দেখুন।',
                       thumbnailUrl: optThumbnail || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=600&auto=format&fit=crop',
                       videoLink: optLink
                     };
@@ -2222,17 +2514,17 @@ export function AdminPanel() {
                     setOptDesc('');
                     setOptThumbnail('');
                     setOptLink('');
-                    toast.success("     !");
+                    toast.success("অপশনটি সফলভাবে নিচে লিস্টে যুক্ত হয়েছে!");
                   }}
                   className="bg-purple-600 hover:bg-purple-550 text-white font-black px-5 py-2.5 rounded-xl text-[10px] uppercase tracking-wider flex items-center gap-1 hover:scale-98 active:scale-95 transition-all"
                 >
-                       (+ Add Option)
+                  সবুজ লিস্টে অপশন যোগ করুন (+ Add Option)
                 </button>
 
                 {/* Render added list items */}
                 {courseItems.length > 0 && (
                   <div className="space-y-2 pt-3 border-t border-slate-100 dark:border-slate-800/80">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">  ({courseItems.length})</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">যুক্তকৃত অপশনসমূহ ({courseItems.length})</p>
                     <div className="grid gap-2 max-h-[220px] overflow-y-auto pr-1">
                       {courseItems.map((item, index) => (
                         <div key={index} className="bg-white dark:bg-slate-900/60 p-3 rounded-xl border border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-3">
@@ -2250,11 +2542,11 @@ export function AdminPanel() {
                             type="button" 
                             onClick={() => {
                               setCourseItems(prev => prev.filter((_, idx) => idx !== index));
-                              toast.success("   !");
+                              toast.success("টি বাদ দেওয়া হয়েছে!");
                             }}
                             className="text-[9px] font-black uppercase text-rose-500 hover:text-rose-600 hover:underline shrink-0"
                           >
-                             
+                            বাদ দিন
                           </button>
                         </div>
                       ))}
@@ -2268,7 +2560,7 @@ export function AdminPanel() {
                   type="submit" 
                   className="flex-1 bg-purple-600 hover:bg-purple-550 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-purple-600/10 transition-all text-xs"
                 >
-                  {editingCourseId ? '   (Save Changes)' : '     (Create)'}
+                  {editingCourseId ? 'আপডেট সেভ করুন (Save Changes)' : 'কোর্স বা টিউটোরিয়াল তৈরি করুন (Create)'}
                 </button>
                 
                 {editingCourseId && (
@@ -2279,13 +2571,13 @@ export function AdminPanel() {
                       setNewCourseDesc('');
                       setNewCourseThumbnail('');
                       setNewCourseLink('');
-                      setNewCourseCategory(' ');
+                      setNewCourseCategory('টাস্ক কমপ্লিট');
                       setCourseItems([]);
                       setEditingCourseId(null);
                     }}
                     className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold px-6 py-3.5 rounded-2xl text-xs"
                   >
-                     (Cancel)
+                    বাতিল (Cancel)
                   </button>
                 )}
               </div>
@@ -2295,7 +2587,7 @@ export function AdminPanel() {
           {/* Admin Courses List */}
           <div className="space-y-4">
             <div className="flex items-center justify-between px-1">
-              <h3 className="font-black dark:text-white uppercase tracking-tight text-xs">    ({adminCourses.length})</h3>
+              <h3 className="font-black dark:text-white uppercase tracking-tight text-xs">লাইভ কোর্স এবং টিউটোরিয়ালসমূহ ({adminCourses.length})</h3>
               
               <button 
                 onClick={async () => {
@@ -2303,27 +2595,27 @@ export function AdminPanel() {
                     const batch = writeBatch(db);
                     const DEFAULT_ITEMS = [
                       {
-                        title: "      ",
-                        description: "           ,                       ",
+                        title: "নিয়ম মেনে প্রতিদিনের কাজ সম্পন্ন করার গাইডলাইন",
+                        description: "আমাদের অ্যাপে দেওয়া প্রতিদিনের টাস্ক বা কাজগুলো কিভাবে সঠিক নিয়মে সম্পন্ন করবেন, কোন কোন ভুলগুলো পরিহার করবেন এবং সঠিক উপায়ে আর্নিং ব্যালেন্স যোগ করবেন তা বিস্তারিত দেখুন। ভুল নিয়মে কাজ করলে আইডি ব্লক হতে পারে।",
                         thumbnailUrl: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=600&auto=format&fit=crop",
                         videoLink: "https://www.youtube.com",
-                        category: " ",
+                        category: "টাস্ক কমপ্লিট",
                         status: 'active'
                       },
                       {
-                        title: "        ",
-                        description: ",                              ",
+                        title: "বিকাশ ও নগদে সফলভাবে উইথড্র বা টাকা তোলার নিয়ম",
+                        description: "বিকাশ, নগদ বা রকেটের মাধ্যমে কিভাবে সফলভাবে আপনার কষ্টার্জিত টাকা মাত্র ১ মিনিটে উইথড্র নিবেন তা ধাপে ধাপে শিখুন। পেমেন্ট রিকুয়েস্ট দেওয়ার পর এডমিন লাইংথ অনুযায়ী কতক্ষণে টাকা পাবেন তা জানুন।",
                         thumbnailUrl: "https://images.unsplash.com/photo-1559526324-4b87b5e36e44?q=80&w=600&auto=format&fit=crop",
                         videoLink: "https://www.youtube.com",
-                        category: " ",
+                        category: "টাকা উইথড্র",
                         status: 'active'
                       },
                       {
-                        title: "        ",
-                        description: "                     ",
+                        title: "ডেইলি স্পিন ও কুইজ গেম খেলে আনলিমিটেড আয়ের উপায়",
+                        description: "প্লাটফর্মে প্রতিদিন কোনো লিমিট ছাড়া কিভাবে আনলিমিটেড স্পিন এবং সহজ ম্যাথ কুইজ সমাধান করে অতিরিক্ত রিওয়ার্ড আর্ন করবেন তার পূর্ণাঙ্গ সিক্রেট নিয়মাবলি।",
                         thumbnailUrl: "https://images.unsplash.com/photo-1606167668584-78701c57f13d?q=80&w=600&auto=format&fit=crop",
                         videoLink: "https://www.youtube.com",
-                        category: "",
+                        category: "অন্যান্য",
                         status: 'active'
                       }
                     ];
@@ -2332,20 +2624,20 @@ export function AdminPanel() {
                       batch.set(doc(db, "courses", id), it);
                     });
                     await batch.commit();
-                    toast.success("      !");
+                    toast.success("ডিফল্ট উদাহরণ কোর্স সফলভাবে ইম্পোর্ট করা হয়েছে!");
                   } catch (err) {
-                    toast.error("  ");
+                    toast.error("ইম্পোর্ট ব্যর্থ হয়েছে");
                   }
                 }}
                 className="text-[10px] font-black uppercase text-purple-600 hover:text-purple-550 underline"
               >
-                    
+                ডিফল্ট নমুনা বাটন লোড করুন
               </button>
             </div>
 
             {adminCourses.length === 0 && (
               <div className="text-center py-12 bg-white dark:bg-slate-800/40 rounded-[32px] border-2 border-dashed border-slate-100 dark:border-slate-800">
-                <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">       </p>
+                <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">এখনো কোনো কোর্স বা টিউটোরিয়াল তৈরি করা হয়নি।</p>
               </div>
             )}
 
@@ -2379,14 +2671,14 @@ export function AdminPanel() {
                         setNewCourseDesc(course.description || '');
                         setNewCourseThumbnail(course.thumbnailUrl || '');
                         setNewCourseLink(course.videoLink || '');
-                        setNewCourseCategory(course.category || ' ');
+                        setNewCourseCategory(course.category || 'টাস্ক কমপ্লিট');
                         setCourseItems(course.items || []);
                         setEditingCourseId(course.id);
-                        toast.success("    !");
+                        toast.success("সম্পাদনার জন্য ডাটা লোড হয়েছে!");
                       }}
                       className="text-[10px] font-black uppercase px-2.5 py-1.5 rounded-xl border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:text-slate-350"
                     >
-                      
+                      এডিট
                     </button>
                     
                     <button 
@@ -2394,26 +2686,26 @@ export function AdminPanel() {
                         try {
                           const toggledStatus = course.status === 'active' ? 'inactive' : 'active';
                           await updateDoc(doc(db, "courses", course.id), { status: toggledStatus });
-                          toast.success(`  ${toggledStatus}  `);
+                          toast.success(`কործ স্ট্যাটাস ${toggledStatus} সফল হয়েছে`);
                           await loadData(true);
                         } catch (err) {
-                          toast.error("  ");
+                          toast.error("অবস্থা পরিবর্তনে ব্যর্থতা");
                         }
                       }}
                       className={`text-[10px] font-black uppercase px-2.5 py-1.5 rounded-xl border ${course.status === 'active' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-50 text-slate-400 border-slate-100'}`}
                     >
-                      {course.status === 'active' ? '' : ''}
+                      {course.status === 'active' ? 'চলমান' : 'বন্ধ'}
                     </button>
 
                     <button 
                       onClick={async () => {
-                        if (confirm("      ?")) {
+                        if (confirm("এই টিউটোরিয়ালটি কি চিরতরে মুছে ফেলতে চান?")) {
                           try {
                             await deleteDoc(doc(db, "courses", course.id));
-                            toast.success("  !");
+                            toast.success("মুছে ফেলা হয়েছে!");
                             await loadData(true);
                           } catch (err) {
-                            toast.error("!");
+                            toast.error("ফেইল্ড!");
                           }
                         }
                       }}
@@ -2443,9 +2735,21 @@ export function AdminPanel() {
             >
               Delete Duplicate Admins
             </button>
+            <button
+              type="button"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleFixOldReferrals(); }}
+              className="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold"
+            >
+              Fix Old Referrals
+            </button>
             
-            
-            
+            <button
+              type="button"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleFixBonusAmounts(); }}
+              className="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold ml-2"
+            >
+              Fix Bonus Amounts
+            </button>
             <button
               type="button"
               onClick={(e) => {
@@ -2522,25 +2826,25 @@ export function AdminPanel() {
                   <div className="mt-4 flex flex-wrap gap-2">
                     <div className="bg-slate-50 dark:bg-slate-900/50 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-700">
                       <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">Main Balance</p>
-                      <p className="text-xs font-black text-slate-900 dark:text-white leading-tight">{(user.balances?.main || 0).toFixed(2)}</p>
+                      <p className="text-xs font-black text-slate-900 dark:text-white leading-tight">৳{(user.balances?.main || 0).toFixed(2)}</p>
                     </div>
                     <div className="bg-slate-50 dark:bg-slate-900/50 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-700">
-                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">Bonus Earnings</p>
-                      <p className="text-xs font-black text-slate-900 dark:text-white leading-tight">{(user.balances?.bonus || 0).toFixed(2)}</p>
+                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">Bonus</p>
+                      <p className="text-xs font-black text-slate-900 dark:text-white leading-tight">৳{(user.balances?.bonus || 0).toFixed(2)}</p>
                     </div>
                     <div className="bg-slate-50 dark:bg-slate-900/50 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-700">
-                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">Referral Earnings</p>
-                      <p className="text-xs font-black text-slate-900 dark:text-white leading-tight">{(user.balances?.referral || 0).toFixed(2)}</p>
+                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">Referral</p>
+                      <p className="text-xs font-black text-slate-900 dark:text-white leading-tight">৳{(user.balances?.referral || 0).toFixed(2)}</p>
                     </div>
                     <div className="bg-slate-50 dark:bg-slate-900/50 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-700">
-                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">Task Earnings</p>
-                      <p className="text-xs font-black text-slate-900 dark:text-white leading-tight">{(
+                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">Tasks</p>
+                      <p className="text-xs font-black text-slate-900 dark:text-white leading-tight">৳{(
                         Object.values(user.balances?.tasks || {}).reduce((a: any, b: any) => Number(a || 0) + Number(b || 0), 0) as number
                       ).toFixed(2)}</p>
                     </div>
                     <div className="bg-indigo-50 dark:bg-indigo-900/30 px-3 py-1.5 rounded-xl border border-indigo-100 dark:border-indigo-800/50">
                       <p className="text-[8px] font-black text-indigo-500 dark:text-indigo-400 uppercase tracking-widest leading-none mb-0.5">Total</p>
-                      <p className="text-xs font-black text-indigo-700 dark:text-indigo-300 leading-tight">{(
+                      <p className="text-xs font-black text-indigo-700 dark:text-indigo-300 leading-tight">৳{(
                         Number(user.balances?.main || 0) +
                         Number(user.balances?.bonus || 0) +
                         Number(user.balances?.referral || 0) +
@@ -2562,23 +2866,6 @@ export function AdminPanel() {
                   >
                     <BellRing className="w-4 h-4" /> Notify
                   </button>
-
-                  <button
-                    onClick={() => {
-                      setEditingUserBalance({
-                        id: user.id,
-                        fullName: user.fullName || 'Anonymous',
-                        main: Number(user.balances?.main || 0),
-                        bonus: Number(user.balances?.bonus || 0),
-                        referral: Number(user.balances?.referral || 0),
-                        partner: Number(user.balances?.partner || 0),
-                        tasks: Number(Object.values(user.balances?.tasks || {}).reduce((a: any, b: any) => Number(a || 0) + Number(b || 0), 0))
-                      });
-                    }}
-                    className="flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-[0.1em] text-[10px] transition-all active:scale-95 bg-emerald-100 text-emerald-600 shadow-lg shadow-emerald-500/10 hover:bg-emerald-200"
-                  >
-                    <Settings className="w-4 h-4" /> Edit Balance
-                  </button>
                   {isFullAdmin && user.role !== 'admin' && (
                     <button 
                       onClick={() => {
@@ -2590,23 +2877,6 @@ export function AdminPanel() {
                       <ShieldCheck className="w-4 h-4" /> Config Employee
                     </button>
                   )}
-
-                  <button
-                    onClick={() => {
-                      setEditingUserBalance({
-                        id: user.id,
-                        fullName: user.fullName || 'Anonymous',
-                        main: Number(user.balances?.main || 0),
-                        bonus: Number(user.balances?.bonus || 0),
-                        referral: Number(user.balances?.referral || 0),
-                        partner: Number(user.balances?.partner || 0),
-                        tasks: Number(Object.values(user.balances?.tasks || {}).reduce((a: any, b: any) => Number(a || 0) + Number(b || 0), 0))
-                      });
-                    }}
-                    className="flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-[0.1em] text-[10px] transition-all active:scale-95 bg-emerald-100 text-emerald-600 shadow-lg shadow-emerald-500/10 hover:bg-emerald-200"
-                  >
-                    <Settings className="w-4 h-4" /> Edit Balance
-                  </button>
                   {isFullAdmin && user.role !== 'admin' && (
                     <button 
                       onClick={() => handleDeleteUser(user.id)}
@@ -2666,11 +2936,11 @@ export function AdminPanel() {
           {/* Settings Sub Tabs Menu */}
           <div className="flex bg-slate-100 dark:bg-slate-900/50 p-1.5 rounded-[24px] overflow-x-auto gap-2 no-scrollbar ring-1 ring-slate-200 dark:ring-slate-800/60">
             {[
-              { id: 'identity', label: '  ', sub: 'Identity & Info', icon: Globe, color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-950/20' },
-              { id: 'gateways', label: '  ', sub: 'Deposit & Cashout', icon: Wallet, color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-950/20' },
-              { id: 'rewards', label: '  ', sub: 'Referrals & Spins', icon: Coins, color: 'text-orange-500', bg: 'bg-orange-50 dark:bg-orange-950/20' },
-              { id: 'security', label: '  ', sub: 'Gates & Popups', icon: Lock, color: 'text-indigo-500', bg: 'bg-indigo-50 dark:bg-indigo-950/20' },
-              { id: 'danger', label: ' ', sub: 'System Reset', icon: Trash2, color: 'text-rose-500', bg: 'bg-rose-50 dark:bg-rose-950/20' }
+              { id: 'identity', label: 'আইডেন্টিটি ও সাধারণ', sub: 'Identity & Info', icon: Globe, color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-950/20' },
+              { id: 'gateways', label: 'গেটওয়ে ও উইথড্র', sub: 'Deposit & Cashout', icon: Wallet, color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-950/20' },
+              { id: 'rewards', label: 'বোনাস ও রিওয়ার্ড', sub: 'Referrals & Spins', icon: Coins, color: 'text-orange-500', bg: 'bg-orange-50 dark:bg-orange-950/20' },
+              { id: 'security', label: 'নিরাপত্তা ও সিস্টেম', sub: 'Gates & Popups', icon: Lock, color: 'text-indigo-500', bg: 'bg-indigo-50 dark:bg-indigo-950/20' },
+              { id: 'danger', label: 'ফ্যাক্টরি রিসেট', sub: 'System Reset', icon: Trash2, color: 'text-rose-500', bg: 'bg-rose-50 dark:bg-rose-950/20' }
             ].map(st => (
               <button
                 key={st.id}
@@ -2951,7 +3221,7 @@ export function AdminPanel() {
               <div className="grid grid-cols-3 gap-2">
                 {[1, 2, 3].map(gen => (
                   <div key={gen} className="group">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Gen {gen} ()</label>
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Gen {gen} (৳)</label>
                     <input 
                       type="number" 
                       value={gen === 1 ? referralSettings.fixedBonus : (gen === 2 ? referralSettings.gen2FixedBonus : referralSettings.gen3FixedBonus)} 
@@ -3014,7 +3284,7 @@ export function AdminPanel() {
                   <input type="number" value={partnerSettings.requiredReferrals} onChange={(e) => setPartnerSettings(prev => ({ ...prev, requiredReferrals: Number(e.target.value) }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-black ring-1 ring-slate-100 dark:ring-slate-800" />
                 </div>
                 <div className="group">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Daily Bonus ()</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Daily Bonus (৳)</label>
                   <input type="number" value={partnerSettings.dailyBonus} onChange={(e) => setPartnerSettings(prev => ({ ...prev, dailyBonus: Number(e.target.value) }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-black text-indigo-500 ring-1 ring-slate-100 dark:ring-slate-800" />
                 </div>
               </div>
@@ -3065,7 +3335,7 @@ export function AdminPanel() {
                 <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-3">Spin Requirements</p>
                 <div className="space-y-2">
                   <div className="flex justify-between items-center bg-white dark:bg-slate-800 px-3 py-2 rounded-xl shadow-sm">
-                    <span className="text-[9px] font-bold text-slate-400">Task Earnings</span>
+                    <span className="text-[9px] font-bold text-slate-400">Tasks</span>
                     <input type="number" value={gameSettings.spinTaskReq} onChange={(e) => setGameSettings(prev => ({ ...prev, spinTaskReq: Number(e.target.value) }))} className="w-10 bg-transparent border-none p-0 text-right text-xs font-black" />
                   </div>
                   <div className="flex justify-between items-center bg-white dark:bg-slate-800 px-3 py-2 rounded-xl shadow-sm">
@@ -3078,7 +3348,7 @@ export function AdminPanel() {
                 <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-3">Math Requirements</p>
                 <div className="space-y-2">
                   <div className="flex justify-between items-center bg-white dark:bg-slate-800 px-3 py-2 rounded-xl shadow-sm">
-                    <span className="text-[9px] font-bold text-slate-400">Task Earnings</span>
+                    <span className="text-[9px] font-bold text-slate-400">Tasks</span>
                     <input type="number" value={gameSettings.mathTaskReq} onChange={(e) => setGameSettings(prev => ({ ...prev, mathTaskReq: Number(e.target.value) }))} className="w-10 bg-transparent border-none p-0 text-right text-xs font-black" />
                   </div>
                   <div className="flex justify-between items-center bg-white dark:bg-slate-800 px-3 py-2 rounded-xl shadow-sm">
@@ -3116,7 +3386,7 @@ export function AdminPanel() {
                 <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
                   <span className="text-xs font-black uppercase text-slate-400">Mandatory Fee</span>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-black text-cyan-500"></span>
+                    <span className="text-sm font-black text-cyan-500">৳</span>
                     <input type="number" value={activationSettings.fee} onChange={(e) => setActivationSettings(prev => ({ ...prev, fee: Number(e.target.value) }))} className="w-16 bg-white dark:bg-slate-800 border-none rounded-xl text-center text-sm font-black p-2 ring-1 ring-slate-100 dark:ring-slate-700" />
                   </div>
                 </div>
@@ -3152,7 +3422,7 @@ export function AdminPanel() {
                   <span className={`text-[10px] font-black uppercase tracking-widest ${wallet.color} w-16`}>{wallet.key}</span>
                   <div className="flex-1 flex gap-2 justify-end">
                     <div className="flex flex-col items-end">
-                      <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Min </span>
+                      <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Min ৳</span>
                       <input type="number" value={wallet.min} onChange={(e) => setWithdrawSettings(prev => ({ ...prev, [wallet.minSetter]: Number(e.target.value) }))} className="w-14 bg-white dark:bg-slate-800 text-[11px] font-black p-1.5 rounded-lg text-center" />
                     </div>
                     <div className="flex flex-col items-end">
@@ -3165,7 +3435,7 @@ export function AdminPanel() {
             </div>
 
             <div className="mt-4 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-3xl space-y-2 ring-1 ring-slate-100 dark:ring-slate-800">
-              <span className="text-[10px] font-black uppercase tracking-widest text-indigo-500 block">Withdraw Option Amounts ()</span>
+              <span className="text-[10px] font-black uppercase tracking-widest text-indigo-500 block">Withdraw Option Amounts (৳)</span>
               <p className="text-[9px] text-slate-400 font-bold uppercase leading-tight">Comma-separated withdraw options for each wallet</p>
               
               <div className="space-y-3 mt-3">
@@ -3241,11 +3511,11 @@ export function AdminPanel() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="group">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Min ()</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Min (৳)</label>
                   <input type="number" value={depositSettings.minDeposit} onChange={(e) => setDepositSettings(prev => ({ ...prev, minDeposit: Number(e.target.value) }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-black" />
                 </div>
                 <div className="group">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Max ()</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Max (৳)</label>
                   <input type="number" value={depositSettings.maxDeposit} onChange={(e) => setDepositSettings(prev => ({ ...prev, maxDeposit: Number(e.target.value) }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-black opacity-50" />
                 </div>
               </div>
@@ -3433,56 +3703,6 @@ export function AdminPanel() {
         </div>
       )}
 
-
-      {/* Edit User Balance Modal */}
-      {editingUserBalance && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white dark:bg-slate-800 rounded-3xl p-6 w-full max-w-md shadow-2xl">
-            <h3 className="font-black text-slate-900 dark:text-white uppercase tracking-tight mb-4">Edit Balances: {editingUserBalance.fullName}</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Main Balance</label>
-                <input type="number" step="0.01" value={editingUserBalance.main} onChange={e => setEditingUserBalance({...editingUserBalance, main: parseFloat(e.target.value) || 0})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" />
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Bonus Balance</label>
-                <input type="number" step="0.01" value={editingUserBalance.bonus} onChange={e => setEditingUserBalance({...editingUserBalance, bonus: parseFloat(e.target.value) || 0})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" />
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Referral Balance</label>
-                <input type="number" step="0.01" value={editingUserBalance.referral} onChange={e => setEditingUserBalance({...editingUserBalance, referral: parseFloat(e.target.value) || 0})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" />
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Partner Balance</label>
-                <input type="number" step="0.01" value={editingUserBalance.partner} onChange={e => setEditingUserBalance({...editingUserBalance, partner: parseFloat(e.target.value) || 0})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" />
-              </div>
-            </div>
-            <div className="flex gap-3 mt-6">
-              <button onClick={() => setEditingUserBalance(null)} className="flex-1 py-3 text-slate-600 dark:text-slate-300 font-bold bg-slate-100 dark:bg-slate-700 rounded-2xl text-xs uppercase tracking-wider">Cancel</button>
-              <button onClick={async () => {
-                try {
-                  const { updateDoc, doc, setDoc } = await import('firebase/firestore');
-                  const { db } = await import('../lib/firebase');
-                  await updateDoc(doc(db, "users", editingUserBalance.id), {
-                    "balances.main": editingUserBalance.main,
-                    "balances.bonus": editingUserBalance.bonus,
-                    "balances.referral": editingUserBalance.referral,
-                    "balances.partner": editingUserBalance.partner,
-                  });
-                  await setDoc(doc(db, "leaderboard", editingUserBalance.id), {
-                    totalIncome: editingUserBalance.main + editingUserBalance.bonus + editingUserBalance.referral + editingUserBalance.partner + editingUserBalance.tasks
-                  }, { merge: true });
-                  toast.success("Balances updated!");
-                  setEditingUserBalance(null);
-                  loadData(true);
-                } catch(err: any) {
-                  toast.error(err.message);
-                }
-              }} className="flex-1 py-3 text-white font-bold bg-indigo-500 rounded-2xl text-xs uppercase tracking-wider">Save</button>
-            </div>
-          </motion.div>
-        </div>
-      )}
       {showNotifyModal && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4">
           <motion.div
@@ -3579,4 +3799,500 @@ export function AdminPanel() {
       )}
     </div>
   );
+`M            ݀   \5v                      0       2       <       >       @       B       G       I       P       R       [       ]       b       d       s       u              ;	i         ݀   \5v                                   %       '       +       -       0       2       4       6       ;       0i  E       ݀   let/test_referral.cjs                   @       e      y   \5vgetDeviceId(): string {
+  let deviceId = localStorage.getItem('device_unique_id');
+  
+  if (!deviceId) {
+    // Generate a new unique ID if not exists
+    const fingerprint = [
+      navigator.userAgent,
+      screen.width,
+      screen.height,
+      screen.colorDepth,
+      new Date().getTimezoneOffset(),
+      navigator.language
+    ].join('|');
+    
+    // Simple hash function for the fingerprint
+    let hash = 0;
+    for (let i = 0; i < fingerprint.length; i++) {
+      const char = fingerprint.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    
+    const random = Math.random().toString(36).substring(2, 10);
+    deviceId = `DEV-${Math.abs(hash).toString(36)}-${random}`;
+    localStorage.setItem('device_unique_id', deviceId);
+  }
+  
+  return deviceId;
 }
+            i    i  i  i  figuration
+export const firebaseConfig = {
+  apiKey: "AIzaSyAxHUsTMyrfmd0gnaKS-LXXc_qnB7zqP5Q",
+  authDomain: "hmf-income-app.firebaseapp.com",
+  projectId: "hmf-income-app",
+  storageBucket: "hmf-income-app.firebasestorage.app",
+  messagingSenderId: "1008180221188",
+  appId: "1:1008180221188:web:428ac4e198cbb88794ec51",
+  measurementId: "G-WJX5EBBL4             import { clsx, type ClassValue } from "clsx"
+import { twMerge } from "tailwind-merge"
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(input@      4      import { toast } from "react-hot-toast";
+
+export async function fileToBase64AndCompress(file: File, maxDim: number = 600): Promise<string> {
+  try {
+    if (typeof window !== 'undefined' && 'createImageBitmap' in window) {
+      const img = await createImageBitmap(file);
+      const canvas = document.createElement('canvas');
+      let width = img.width;
+      let height = img.height;
+      if (width > height) {
+        if (width > maxDim) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        }
+      } else {
+        if (height > maxDim) {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+      }
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        return dataUrl;
+      }
+    }
+  } catch (e) {
+    console.warn("createImageBitmap fallback:", e);
+  }
+
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      const sizeMb = (result.length * (3/4)) / (1024 * 1024);
+      if (sizeMb < 0.5) {
+        resolve(result);
+        return;
+      }
+      const img = new Image();
+      img.src = result;
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          if (width > height) {
+            if (width > maxDim) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            }
+          } else {
+            if (height > maxDim) {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(result);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+          resolve(dataUrl);
+        } catch (e) {
+          console.error("Canvas compression failed", e);
+          resolve(result);
+        }
+      };
+      img.onerror = (err) => {
+        console.error("Image loading failed", err);
+        resolve(result);
+      };
+    };
+    reader.onerror = (err) => {
+      reject(new Error("FileReader failed: " + (reader.error?.message || "Unknown error")));
+    };
+  });
+}
+
+export async function uploadImageOrFallback(
+  file: File,
+  fallbackMaxDim: number = 600,
+  onProgress?: (progress: number) => void
+): Promise<string> {
+  const cloudName = (import.meta as any).env.VITE_CLOUDINARY_CLOUD_NAME;
+  const uploadPreset = (import.meta as any).env.VITE_CLOUDINARY_UPLOAD_PRESET;
+  const isConfigured = cloudName && 
+                       uploadPreset && 
+                       cloudName !== "your_cloud_name_here" && 
+                       uploadPreset !== "your_upload_preset_here" && 
+                       cloudName.trim() !== "" && 
+                       uploadPreset.trim() !== "";
+
+  if (!isConfigured) {
+    if (onProgress) onProgress(30);
+    const base64Url = await fileToBase64AndCompress(file, fallbackMaxDim);
+    if (onProgress) onProgress(100);
+    return base64Url;
+  }
+
+  try {
+    if (onProgress) onProgress(20);
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', uploadPreset);
+
+    if (onProgress) onProgress(50);
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (onProgress) onProgress(80);
+    if (!res.ok) {
+      const errData = await res.json();
+      throw new Error(errData.error?.message || "Failed to upload image to Cloudinary");
+    }
+
+    const data = await res.json();
+    if (onProgress) onProgress(100);
+    return data.secure_url;
+  } catch (error) {
+    console.warn("Cloudinary upload failed, falling back to base64:", error);
+    if (onProgress) onProgress(30);
+    const base64Url = await fileToBase64AndCompress(file, fallbackMaxDim);
+    if (onProgress) onProgress(100);
+    return base64Url;
+ p            import confetti from 'canvas-confetti';
+
+/**
+ * Triggers a simple standard confetti burst from the bottom center.
+ */
+export function triggerConfetti() {
+  if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
+    window.navigator.vibrate([100, 50, 100]);
+  }
+  confetti({
+    particleCount: 80,
+    spread: 60,
+    origin: { y: 0.75 },
+    colors: ['#6366f1', '#a855f7', '#ec4899', '#3b82f6', '#10b981', '#f59e0b']
+  });
+}
+
+/**
+ * Triggers a premium realistic confetti explosion with varied velocities and decays.
+ */
+export function triggerRealisticConfetti() {
+  if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
+    window.navigator.vibrate([100, 50, 100]);
+  }
+  const count = 150;
+  const defaults = {
+    origin: { y: 0.7 },
+    colors: ['#6366f1', '#a855f7', '#ec4899', '#3b82f6', '#10b981', '#f59e0b']
+  };
+
+  const fire = (particleRatio: number, opts: any) => {
+    confetti({
+      ...defaults,
+      ...opts,
+      particleCount: Math.floor(count * particleRatio)
+    });
+  };
+
+  fire(0.25, {
+    spread: 26,
+    startVelocity: 55,
+  });
+  fire(0.2, {
+    spread: 60,
+  });
+  fire(0.35, {
+    spread: 100,
+    decay: 0.91,
+    scalar: 0.8
+  });
+  fire(0.1, {
+    spread: 120,
+    startVelocity: 25,
+    decay: 0.92,
+    scalar: 1.2
+  });
+  fire(0.1, {
+    spread: 120,
+    startVelocity: 45,
+  });
+}
+
+/**
+ * Triggers a spectacular stream from both sides of the screen (Left and Right borders).
+ * Runs for a specified duration in milliseconds (default: 1.5 seconds)
+ */
+export function triggerSchoolPrideConfetti(durationMs: number = 1500) {
+  const end = Date.now() + durationMs;
+  const colors = ['#6366f1', '#a855f7', '#ec4899', '#3b82f6', '#10b981', '#f59e0b'];
+
+  (function frame() {
+    confetti({
+      particleCount: 3,
+      angle: 60,
+      spread: 55,
+      origin: { x: 0, y: 0.85 },
+      colors: colors
+    });
+    confetti({
+      particleCount: 3,
+      angle: 120,
+      spread: 55,
+      origin: { x: 1, y: 0.85 },
+      colors: colors
+    });
+
+    if (Date.now() < end) {
+      requestAnimationFrame(frame);
+    }
+  }());
+}
+
+/**
+ * Triggers continuous floating mini fireworks at random visual coordinates.
+ */
+export function triggerFireworksConfetti(durationMs: number = 2000) {
+  const animationEnd = Date.now() + durationMs;
+  const defaults = { startVelocity: 25, spread: 360, ticks: 50, zIndex: 99 };
+
+  const randomInRange = (min: number, max: number) => {
+    return Math.random() * (max - min) + min;
+  };
+
+  const interval = setInterval(() => {
+    const timeLeft = animationEnd - Date.now();
+
+    if (timeLeft <= 0) {
+      return clearInterval(interval);
+    }
+
+    const particleCount = 25 * (timeLeft / durationMs);
+    confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.15, 0.45), y: Math.random() - 0.2 } });
+    confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.55, 0.85), y: Math.random() - 0.2 } });
+  }, 200);               \5vmp } from 'firebase/firestore';
+
+export interface GiftCode {
+  id?: string;
+  code: string;
+  type: 'fixed' | 'random';
+  amount?: number;
+  minAmount?: number;
+  maxAmount?: number;
+  maxUses: number;
+  usedBy: string[];
+  expiresAt: Timestamp | null;
+  status: 'active' | 'expired' | 'exhausted';
+  createdAt: Timestamp;
+  createdBy: string;
+}
+              !      0 i  0 i  @i  @i   increment, collection, addDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { db } from './firebase';
+import { getCachedDoc } from './cache';
+
+export async function processReferralCommission(userId: string, amountEarned: number, type: string) {
+  if (!amountEarned || amountEarned <= 0) return;
+  
+  try {
+    const userDoc = await getDoc(doc(db, "users", userId));
+    if (!userDoc.exists()) return;
+    
+    let currentReferCode = userDoc.data().usedReferCode;
+    
+    if (!currentReferCode || currentReferCode === 'none') {
+      return;
+    }
+    // Sanitize the code
+    currentReferCode = currentReferCode.replace(/[\u200B-\u200D\uFEFF\s]/g, '').trim().toUpperCase();
+    
+    // Get the referral settings for percentage
+    const refDoc = await getCachedDoc(doc(db, "settings", "referral"));
+    let gen1 = 0, gen2 = 0, gen3 = 0;
+    if (refDoc.exists()) {
+      const data = refDoc.data();
+      gen1 = data.gen1Percent || data.percentageCommission || 0;
+      gen2 = data.gen2Percent || 0;
+      gen3 = data.gen3Percent || 0;
+    }
+    
+    const percents = [gen1, gen2, gen3];
+    
+    if (percents.every(p => p <= 0)) return;
+    
+    const { query, where, getDocs } = await import('firebase/firestore');
+    
+    const sourceUserEmail = userDoc.data().email;
+
+    for (let level = 0; level < 3; level++) {
+      if (!currentReferCode || currentReferCode === 'none') break;
+      const percentage = percents[level];
+      
+      
+    const q = query(collection(db, "users"), where("myReferCode", "==", currentReferCode));
+    const querySnapshot = await getDocs(q);
+    console.log("Query for refer code:", currentReferCode, " empty:", querySnapshot.empty);
+
+      
+      if (querySnapshot.empty) break;
+      
+      const referrerDoc = querySnapshot.docs[0];
+      const referrerId = referrerDoc.id;
+      const referrerData = referrerDoc.data();
+      
+      if (percentage > 0) {
+        const commissionAmount = parseFloat(((amountEarned * percentage) / 100).toFixed(4));
+        if (commissionAmount > 0) {
+          // Add referral commission to referrer
+          await updateDoc(doc(db, "users", referrerId), {
+            "balances.referral": increment(commissionAmount)
+          });
+          
+          await addDoc(collection(db, `users/${referrerId}/transactions`), {
+            amount: commissionAmount,
+            type: `referral`,
+            status: `approved`,
+            createdAt: serverTimestamp(),
+            account: sourceUserEmail
+          });
+          
+          await addDoc(collection(db, `users/${referrerId}/notifications`), {
+            title: 'New Referral Commission',
+            message: `You earned ৳${commissionAmount} commission from ${sourceUserEmail}'s task.`,
+            type: 'referral_commission',
+            read: false,
+            createdAt: serverTimestamp()
+          });
+          
+          const leaderboardRef = doc(db, 'leaderboard', referrerId);
+          await setDoc(leaderboardRef, {
+            fullName: referrerData.fullName || 'User',
+            bonus: increment(0),
+            referrals: increment(0),
+            totalIncome: increment(commissionAmount),
+            updatedAt: serverTimestamp()
+          }, { merge: true });
+        }
+      }
+      
+      // Move to next generation
+      currentReferCode = referrerData.usedReferCode ? referrerData.usedReferCode.replace(/[\u200B-\u200D\uFEFF\s]/g, '').trim() : '';
+    }
+  } catch (error) {
+    console.error("Error processing referral commission:", error);
+  }
+}
+
+export async function processRegistrationReferral(userId: string) {
+  try {
+    
+    const userDoc = await getDoc(doc(db, "users", userId));
+    console.log("processRegistrationReferral started for userId:", userId, " exists:", userDoc.exists());
+    if (!userDoc.exists()) return;
+    const userData = userDoc.data();
+    console.log("userData.referralBonusPaid:", userData.referralBonusPaid, " usedReferCode:", userData.usedReferCode);
+
+    if (userData.referralBonusPaid) return; // Already paid
+    
+    let currentReferCode = userData.usedReferCode;
+    if (!currentReferCode || currentReferCode === 'none') {
+      return;
+    }
+    // Sanitize the code to remove any zero-width spaces or whitespace
+    currentReferCode = currentReferCode.replace(/[\u200B-\u200D\uFEFF\s]/g, '').trim().toUpperCase();
+
+    let gen1 = 5, gen2 = 3, gen3 = 1;
+    const refDoc = await getCachedDoc(doc(db, "settings", "referral"));
+    if (refDoc && refDoc.exists()) {
+      const data = refDoc.data();
+      gen1 = data.fixedBonus || 0;
+      gen2 = data.gen2FixedBonus || 0;
+      gen3 = data.gen3FixedBonus || 0;
+    }
+    
+    const bonuses = [gen1, gen2, gen3];
+    const { query, where, getDocs } = await import('firebase/firestore');
+    
+    for (let level = 0; level < 3; level++) {
+      if (!currentReferCode || currentReferCode === 'none') break;
+      const fixedBonus = bonuses[level];
+      
+      const q = query(collection(db, "users"), where("myReferCode", "==", currentReferCode));
+      const querySnapshot = await getDocs(q);
+      
+      if (querySnapshot.empty) break;
+      
+      const referrerDoc = querySnapshot.docs[0];
+      const referrerId = referrerDoc.id;
+      const referrerData = referrerDoc.data();
+      
+      // Always record the referral
+      await addDoc(collection(db, `users/${referrerId}/referrals`), {
+        referredEmail: userData.email,
+        referredName: userData.fullName || 'Anonymous',
+        bonusEarned: fixedBonus,
+        level: level + 1,
+        createdAt: serverTimestamp()
+      });
+
+      const userUpdates: any = {
+        totalReferrals: increment(level === 0 ? 1 : 0)
+      };
+
+      if (fixedBonus > 0) {
+        userUpdates["balances.referral"] = increment(fixedBonus);
+      }
+      
+      await updateDoc(doc(db, "users", referrerId), userUpdates);
+      
+      if (fixedBonus > 0) {
+        await addDoc(collection(db, `users/${referrerId}/notifications`), {
+          title: 'New Referral Bonus',
+          message: `You earned ৳${fixedBonus} for referring ${userData.email || 'a new user'}.`,
+          type: 'referral_bonus',
+          read: false,
+          createdAt: serverTimestamp()
+        });
+      }
+      
+      const leaderboardRef = doc(db, 'leaderboard', referrerId);
+      await setDoc(leaderboardRef, {
+        fullName: referrerData.fullName || 'User',
+        referrals: increment(level === 0 ? 1 : 0),
+        bonus: increment(0),
+        totalIncome: increment(fixedBonus),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
+      currentReferCode = referrerData.usedReferCode ? referrerData.usedReferCode.replace(/[\u200B-\u200D\uFEFF\s]/g, '').trim() : '';
+    }
+
+    // Mark as paid
+    await updateDoc(doc(db, "users", userId), {
+      referralBonusPaid: true
+    });
+    
+  } catch (error) {
+    console.error("Error processing registration referral:", error);
+  }
+}
+             import { getDoc, getDocs, DocumentReference, DocumentSnapshot, Query, QuerySnapshot } from 'firebase/firestore';
+
+const docCache =

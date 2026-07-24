@@ -1,13 +1,3 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../components/AuthProvider';
-import { collection, query, onSnapshot, doc, writeBatch, serverTimestamp, setDoc, orderBy, deleteDoc, increment, updateDoc, getDocs, deleteField, getDoc, limit, FieldPath } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
-import { getCachedDoc, getCachedQuery, clearCache } from '../lib/cache';
-import { uploadImageOrFallback } from '../lib/imageUpload';
-import { processReferralCommission, processRegistrationReferral } from '../lib/referral';
-import { Trash2, CheckCircle, XCircle, Users, ShieldAlert, ShieldCheck, Wallet, ListChecks, Settings, User, Eye, Calculator, MessageSquare, Globe, Coins, Megaphone, Gamepad2, CreditCard, Lock, BellRing, RefreshCw, Smartphone, Mail, Camera, MessageCircle, Send, BookOpen, Layers, Copy, HelpCircle, Database, Search, Download, Gift } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
-import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 
 export function AdminPanel() {
@@ -32,7 +22,7 @@ export function AdminPanel() {
   const [newCourseDesc, setNewCourseDesc] = useState('');
   const [newCourseThumbnail, setNewCourseThumbnail] = useState('');
   const [newCourseLink, setNewCourseLink] = useState('');
-  const [newCourseCategory, setNewCourseCategory] = useState<' ' | ' ' | ''>(' ');
+  const [newCourseCategory, setNewCourseCategory] = useState<'টাস্ক কমপ্লিট' | 'টাকা উইথড্র' | 'অন্যান্য'>('টাস্ক কমপ্লিট');
   const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
   const [courseItems, setCourseItems] = useState<{ title: string; description: string; thumbnailUrl: string; videoLink: string; }[]>([]);
   const [optTitle, setOptTitle] = useState('');
@@ -90,7 +80,6 @@ export function AdminPanel() {
 
   const [promptInput, setPromptInput] = useState('');
   
-  const [editingUserBalance, setEditingUserBalance] = useState<{ id: string; fullName: string; main: number; bonus: number; referral: number; partner: number; tasks: number } | null>(null);
   const [editingJobId, setEditingJobId] = useState<string | null>(null);
 
   const [newJob, setNewJob] = useState({
@@ -267,6 +256,350 @@ export function AdminPanel() {
     }
   };
 
+  const handleFixBonusAmounts = async () => {
+    try {
+      toast.success("Fixing bonus amounts started...");
+      const { collection, getDocs, updateDoc, doc, increment, setDoc } = await import('firebase/firestore');
+      
+      let fixedCount = 0;
+      let permissionErrors = 0;
+      
+      for (const user of userList) {
+        const userId = user.id;
+        try {
+          const refSnap = await getDocs(collection(db, `users/${userId}/referrals`));
+          
+          for (const rDoc of refSnap.docs) {
+            const data = rDoc.data();
+            let diff = 0;
+            let newBonus = 0;
+            
+            if (data.level === 1 && data.bonusEarned > 5) {
+              diff = data.bonusEarned - 5; newBonus = 5;
+            } else if (data.level === 2 && data.bonusEarned > 3) {
+              diff = data.bonusEarned - 3; newBonus = 3;
+            } else if (data.level === 3 && data.bonusEarned > 1) {
+              diff = data.bonusEarned - 1; newBonus = 1;
+            }
+            
+            if (diff > 0) {
+               let updated = false;
+               try {
+                 await updateDoc(rDoc.ref, { bonusEarned: newBonus });
+                 updated = true;
+               } catch(err) {
+                 console.warn("Could not fix ref doc", err);
+                 permissionErrors++;
+               }
+               
+               try {
+                 await updateDoc(doc(db, "users", userId), {
+                   "balances.referral": increment(-diff)
+                 });
+                 await setDoc(doc(db, "leaderboard", userId), {
+                   totalIncome: increment(-diff)
+                 }, { merge: true });
+                 if (!updated) updated = true; 
+               } catch (err) {
+                  console.warn("Could not fix user balance", err);
+               }
+               
+               if (updated) fixedCount++;
+            }
+          }
+        } catch (e) {
+           permissionErrors++;
+           console.error("Failed for user", userId, e);
+        }
+      }
+      
+      if (fixedCount > 0) {
+        toast.success(`Fixed ${fixedCount} referrals!`);
+        loadData(true);
+      } else if (permissionErrors > 0) {
+        toast.error(`Permission denied on ${permissionErrors} operations.`);
+      } else {
+        toast.success("No referrals needed fixing.");
+      }
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  };
+
+  const handleFixOldReferrals = async () => {
+    try {
+      toast.success("Fix referrals started...");
+      console.log("Fix referrals started");
+      const loadingToast = toast.loading("Finding and processing old referrals...");
+      const { query, collection, where, getDocs, updateDoc, doc, serverTimestamp, increment, setDoc, addDoc } = await import('firebase/firestore');
+      
+      // Get referral settings
+      const { getDoc } = await import('firebase/firestore');
+      const settingsDoc = await getDoc(doc(db, "settings", "referral"));
+      let gen1 = 10, gen2 = 0, gen3 = 0;
+      if (settingsDoc.exists()) {
+        const data = settingsDoc.data();
+        gen1 = data.fixedBonus || 0;
+        gen2 = data.gen2FixedBonus || 0;
+        gen3 = data.gen3FixedBonus || 0;
+      }
+      const bonuses = [gen1, gen2, gen3];
+
+      // Query all users to avoid index requirements
+      const q = query(collection(db, "users"));
+      const snapshot = await getDocs(q);
+      let processed = 0;
+      let alreadyPaid = 0;
+      let logMsg = "";
+      
+      for (const userDoc of snapshot.docs) {
+        const data = userDoc.data();
+        
+        if (data.usedReferCode && data.usedReferCode !== 'none') {
+          const sanitizedCode = data.usedReferCode.replace(/[\u200B-\u200D\uFEFF\s]/g, '').trim().toUpperCase();
+          
+          if (data.usedReferCode !== sanitizedCode) {
+            await updateDoc(doc(db, "users", userDoc.id), { usedReferCode: sanitizedCode });
+          }
+
+          // Check if referrer actually received the referral
+          const referrerQuery = query(collection(db, "users"), where("myReferCode", "==", sanitizedCode));
+          const referrerSnapshot = await getDocs(referrerQuery);
+          
+          if (!referrerSnapshot.empty) {
+            const referrerDoc = referrerSnapshot.docs[0];
+            const referrerId = referrerDoc.id;
+            
+            // Allow matching by email or just checking if they've been paid
+            let missed = false;
+            
+            // Only process if the user is ACTIVE!
+            if (data.isActive) {
+              if (data.email) {
+                const refSubQuery = query(collection(db, `users/${referrerId}/referrals`), where("referredEmail", "==", data.email));
+                const refSubSnapshot = await getDocs(refSubQuery);
+                if (refSubSnapshot.empty) missed = true;
+              } else {
+                missed = !data.referralBonusPaid;
+              }
+            } else {
+              // If user is INACTIVE but referralBonusPaid is true, fix it so they can be processed later when they activate!
+              if (data.referralBonusPaid) {
+                await updateDoc(doc(db, "users", userDoc.id), { referralBonusPaid: false });
+              }
+            }
+            
+            if (missed) {
+               console.log("Found missed referral for user:", data.email || userDoc.id, "referred by", sanitizedCode);
+               
+               // Manually process it directly here so it never fails
+               let currentReferCode = sanitizedCode;
+               for (let level = 0; level < 3; level++) {
+                  if (!currentReferCode || currentReferCode === 'none') break;
+                  const fixedBonus = bonuses[level];
+                  
+                  const refQ = query(collection(db, "users"), where("myReferCode", "==", currentReferCode));
+                  const refSnap = await getDocs(refQ);
+                  if (refSnap.empty) break;
+                  
+                  const rDoc = refSnap.docs[0];
+                  const rId = rDoc.id;
+                  const rData = rDoc.data();
+                  
+                  // Add to subcollection if level 1 (or all levels depending on logic)
+                  await addDoc(collection(db, `users/${rId}/referrals`), {
+                    referredEmail: data.email || 'No Email',
+                    referredName: data.fullName || 'Anonymous',
+                    bonusEarned: fixedBonus,
+                    level: level + 1,
+                    createdAt: serverTimestamp()
+                  });
+                  
+                  const userUpdates: any = {
+                    totalReferrals: increment(level === 0 ? 1 : 0)
+                  };
+                  if (fixedBonus > 0) {
+                    userUpdates["balances.referral"] = increment(fixedBonus);
+                  }
+                  await updateDoc(doc(db, "users", rId), userUpdates);
+                  
+                  const leaderboardRef = doc(db, 'leaderboard', rId);
+                  await setDoc(leaderboardRef, {
+                    fullName: rData.fullName || 'User',
+                    referrals: increment(level === 0 ? 1 : 0),
+                    bonus: increment(0),
+                    totalIncome: increment(fixedBonus),
+                    updatedAt: serverTimestamp()
+                  }, { merge: true });
+                  
+                  currentReferCode = rData.usedReferCode ? rData.usedReferCode.replace(/[\u200B-\u200D\uFEFF\s]/g, '').trim().toUpperCase() : '';
+               }
+               
+               await updateDoc(doc(db, "users", userDoc.id), { referralBonusPaid: true });
+               processed++;
+               continue;
+            }
+          }
+        }
+        
+        if (data.referralBonusPaid) {
+          alreadyPaid++;
+        }
+      }
+      
+      // 
+      toast.success(`Successfully processed ${processed} missed referrals (skipped ${alreadyPaid} valid).`);
+      loadData(true);
+    } catch (e) {
+      // 
+      toast.error("Failed to process old referrals: " + (e as any).message);
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    
+    // Default to the first allowed tab if current activeTab is not allowed
+    if (!isFullAdmin && !userPermissions.includes(activeTab) && allowedTabs.length > 0) {
+      setActiveTab(allowedTabs[0].id as any);
+    }
+    
+    if (activeTab === 'settings') {
+       loadSettings();
+    }
+    loadData();
+  }, [isAdmin, activeTab, loadSettings, loadData]);
+
+  if (!isAdmin) return <div className="p-10 text-center">Access Denied</div>;
+
+  const handleCreateGiftCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newGiftCode || newGiftCode.length < 5) {
+      toast.error('Code must be at least 5 characters');
+      return;
+    }
+    
+    setIsCreatingGift(true);
+    try {
+      const expiresAt = new Date();
+      expiresAt.setHours(expiresAt.getHours() + (Number(giftExpiresInHours) || 24));
+      
+      await setDoc(doc(db, "giftCodes", newGiftCode.trim().toUpperCase()), {
+        code: newGiftCode.trim().toUpperCase(),
+        type: giftType,
+        amount: giftType === 'fixed' ? (Number(giftAmount) || 0) : 0,
+        minAmount: giftType === 'random' ? (Number(giftMinAmount) || 0) : 0,
+        maxAmount: giftType === 'random' ? (Number(giftMaxAmount) || 0) : 0,
+        maxUses: Number(giftMaxUses) || 0,
+        usedBy: [],
+        expiresAt: expiresAt,
+        status: 'active',
+        createdAt: serverTimestamp(),
+        createdBy: auth.currentUser?.email || 'admin'
+      });
+      
+      toast.success('Gift Code Created!');
+      setNewGiftCode('');
+      loadData(true);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, 'giftCodes');
+      toast.error('Failed to create code');
+    } finally {
+      setIsCreatingGift(false);
+    }
+  };
+
+  const handleDeleteGiftCode = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this gift code?')) return;
+    try {
+      await deleteDoc(doc(db, "giftCodes", id));
+      toast.success('Gift code deleted');
+      loadData(true);
+    } catch (err) {
+      toast.error('Failed to delete code');
+    }
+  };
+
+  const handleSaveFaqs = async (updatedFaqs: any[]) => {
+    setIsSavingSettings(true);
+    try {
+      await setDoc(doc(db, "settings", "faqs"), {
+        faqs: updatedFaqs,
+        updatedAt: serverTimestamp()
+      });
+      toast.success('FAQs updated!');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, 'settings/faqs');
+    } finally {
+      setIsSavingSettings(false);
+      setNewFaq({ question_en: '', answer_en: '', question_bn: '', answer_bn: '' });
+      setEditingFaqIndex(null);
+    }
+  };
+
+  const handleAddFaq = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editingFaqIndex !== null) {
+      const updated = [...faqsList];
+      updated[editingFaqIndex] = newFaq;
+      handleSaveFaqs(updated);
+    } else {
+      handleSaveFaqs([...faqsList, newFaq]);
+    }
+  };
+
+  const handleDeleteFaq = (index: number) => {
+    if(window.confirm('Are you sure you want to delete this FAQ?')) {
+      const updated = faqsList.filter((_, i) => i !== index);
+      handleSaveFaqs(updated);
+    }
+  };
+
+  const handleCancelEditFaq = () => {
+    setEditingFaqIndex(null);
+    setNewFaq({ question_en: '', answer_en: '', question_bn: '', answer_bn: '' });
+  };
+
+  const handleSaveActivationSettings = async () => {
+    setIsSavingSettings(true);
+    try {
+      await setDoc(doc(db, "settings", "activation"), {
+        mode: activationSettings.mode,
+        fee: activationSettings.fee,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      toast.success("Activation settings saved!");
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, 'settings/activation');
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
+  const handleUploadImage = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logo') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Image must be smaller than 2MB.");
+      return;
+    }
+
+    const toastId = toast.loading(`Uploading ${type}...`);
+    try {
+      const imageUrl = await uploadImageOrFallback(file, 400);
+
+      setSiteSettings(prev => ({
+        ...prev,
+        logoUrl: imageUrl
+      }));
+      toast.success(`${type} uploaded successfully!`, { id: toastId });
+    } catch (err: any) {
+      toast.error(err.message || `Failed to upload ${type}`, { id: toastId });
+    }
+  };
+
   const handleSaveSiteSettings = async () => {
     setIsSavingSettings(true);
     try {
@@ -380,7 +713,7 @@ export function AdminPanel() {
     setConfirmDialog({
       isOpen: true,
       title: 'Reject User Job',
-      message: `Are you sure you want to reject this job? ${job.totalCost} will be refunded to the user's main balance.`,
+      message: `Are you sure you want to reject this job? ৳${job.totalCost} will be refunded to the user's main balance.`,
       onConfirm: async () => {
         try {
           const batch = writeBatch(db);
@@ -503,7 +836,7 @@ export function AdminPanel() {
             const notifRef = doc(collection(db, "users", userId, "notifications"));
             batch.set(notifRef, {
               title: status === 'approved' ? 'Task Approved' : 'Task Rejected',
-              message: `Your submission for "${subTitle}" was ${status}. ${status === 'approved' ? `You earned ${safeReward}!` : ''}`,
+              message: `Your submission for "${subTitle}" was ${status}. ${status === 'approved' ? `You earned ৳${safeReward}!` : ''}`,
               type: status === 'approved' ? 'task_approved' : 'task_rejected',
               read: false,
               createdAt: serverTimestamp()
@@ -708,7 +1041,7 @@ export function AdminPanel() {
             const notifRef = doc(collection(db, "users", reqUserId, "notifications"));
             batch.set(notifRef, {
               title: `${reqType === 'deposit' ? 'Deposit' : reqType === 'activation' ? 'Account Activation' : 'Withdrawal'} ${status}`,
-              message: `Your ${reqType} request of ${reqAmount} has been ${status}.`,
+              message: `Your ${reqType} request of ৳${reqAmount} has been ${status}.`,
               type: `payment_${status}`,
               read: false,
               createdAt: serverTimestamp()
@@ -882,90 +1215,16 @@ export function AdminPanel() {
     }
   };
 
-
-  const handleSaveFaqs = async (updatedFaqs: any[]) => {
-    setIsSavingSettings(true);
-    try {
-      await setDoc(doc(db, "settings", "faqs"), {
-        faqs: updatedFaqs,
-        updatedAt: serverTimestamp()
-      });
-      toast.success('FAQs updated!');
-    } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, 'settings/faqs');
-    } finally {
-      setIsSavingSettings(false);
-      setNewFaq({ question_en: '', answer_en: '', question_bn: '', answer_bn: '' });
-      setEditingFaqIndex(null);
-    }
-  };
-
-  const handleAddFaq = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (editingFaqIndex !== null) {
-      const updated = [...faqsList];
-      updated[editingFaqIndex] = newFaq;
-      handleSaveFaqs(updated);
-    } else {
-      handleSaveFaqs([...faqsList, newFaq]);
-    }
-  };
-
-  const handleDeleteFaq = (index: number) => {
-    if(window.confirm('Are you sure you want to delete this FAQ?')) {
-      const updated = faqsList.filter((_, i) => i !== index);
-      handleSaveFaqs(updated);
-    }
-  };
-
-  const handleCancelEditFaq = () => {
-    setEditingFaqIndex(null);
-    setNewFaq({ question_en: '', answer_en: '', question_bn: '', answer_bn: '' });
-  };
-
   return (
     <div className="pt-6 px-4 pb-20">
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <h2 className="text-2xl font-bold text-[#0D47A1] dark:text-blue-400">Admin Panel</h2>
         <button
-          onClick={async () => {
-            const toastId = toast.loading('Syncing latest admin data...');
-            try {
-              clearCache();
-              await Promise.all([
-                loadSettings(true),
-                loadData(true)
-              ]);
-              toast.success('Admin data synced fully!', { id: toastId });
-            } catch (err) {
-              toast.error('Failed to sync admin data', { id: toastId });
-            }
-          }}
-          className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-full font-black text-[10px] uppercase tracking-widest transition-all border border-slate-200 dark:border-slate-700 active:scale-95"
-        >
-          <RefreshCw className="w-3.5 h-3.5" />
-          Sync Live Data
         </button>
       </div>
       <div className="flex bg-slate-100 dark:bg-slate-900/50 p-1.5 rounded-[20px] mb-8 flex-wrap gap-1.5 ring-1 ring-slate-200 dark:ring-slate-800">
         {allowedTabs.map(tab => (
           <button 
-            key={tab.id}
-            onClick={() => {
-              if (tab.id === 'migrate') {
-                navigate('/admin/migrate');
-              } else {
-                setActiveTab(tab.id as any);
-              }
-            }} 
-            className={`flex-1 min-w-[80px] py-2.5 px-2 rounded-[14px] text-[11px] font-black uppercase tracking-wider transition-all flex flex-col items-center gap-1 active:scale-95 ${
-              activeTab === tab.id 
-                ? 'bg-white dark:bg-slate-800 shadow-md shadow-slate-200 dark:shadow-black/20 text-slate-900 dark:text-white ring-1 ring-slate-200 dark:ring-slate-700' 
-                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-            }`}
-          >
-            <tab.icon className={`w-4 h-4 ${activeTab === tab.id ? tab.color : 'text-slate-400'}`} />
-            {tab.label}
           </button>
         ))}
       </div>
@@ -978,7 +1237,7 @@ export function AdminPanel() {
                 <Database className="w-5 h-5 text-indigo-200" /> cPanel Ready Build (.zip)
               </h4>
               <p className="text-xs text-blue-100 max-w-xl leading-relaxed">
-                 cPanel -       <b>dist.zip</b>       cPanel- <code className="bg-blue-700/50 px-1.5 py-0.5 rounded text-[11px] font-mono">public_html</code>      
+                আপনার cPanel হোস্টিং-এ আপলোড করার জন্য সম্পূর্ণ প্রস্তুত করা <b>dist.zip</b> বিল্ড ফাইলটি ডাউনলোড করুন। এটি সরাসরি cPanel-এর <code className="bg-blue-700/50 px-1.5 py-0.5 rounded text-[11px] font-mono">public_html</code> ফোল্ডারে আপলোড করে এক্সট্র্যাক্ট করতে পারবেন।
               </p>
             </div>
             <a 
@@ -999,7 +1258,7 @@ export function AdminPanel() {
               <div className="flex flex-col gap-2">
                 <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Total Approved Deposits</span>
                 <span className="text-3xl font-black text-slate-900 dark:text-white">
-                  {paymentRequests.filter(r => r.type === 'deposit' && r.status === 'approved').reduce((acc, curr) => acc + Number(curr.amount || 0), 0).toLocaleString()}
+                  ৳{paymentRequests.filter(r => r.type === 'deposit' && r.status === 'approved').reduce((acc, curr) => acc + Number(curr.amount || 0), 0).toLocaleString()}
                 </span>
                 <span className="text-[10px] font-bold text-slate-500 uppercase">
                   {paymentRequests.filter(r => r.type === 'deposit' && r.status === 'approved').length} Transactions
@@ -1011,7 +1270,7 @@ export function AdminPanel() {
               <div className="flex flex-col gap-2">
                 <span className="text-xs font-bold text-rose-600 dark:text-rose-400 uppercase tracking-widest">Total Approved Withdrawals</span>
                 <span className="text-3xl font-black text-slate-900 dark:text-white">
-                  {paymentRequests.filter(r => r.type === 'withdraw' && r.status === 'approved').reduce((acc, curr) => acc + Number(curr.amount || 0), 0).toLocaleString()}
+                  ৳{paymentRequests.filter(r => r.type === 'withdraw' && r.status === 'approved').reduce((acc, curr) => acc + Number(curr.amount || 0), 0).toLocaleString()}
                 </span>
                 <span className="text-[10px] font-bold text-slate-500 uppercase">
                   {paymentRequests.filter(r => r.type === 'withdraw' && r.status === 'approved').length} Transactions
@@ -1023,7 +1282,7 @@ export function AdminPanel() {
               <div className="flex flex-col gap-2">
                 <span className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-widest">Pending Deposits</span>
                 <span className="text-3xl font-black text-slate-900 dark:text-white">
-                  {paymentRequests.filter(r => r.type === 'deposit' && r.status === 'pending').reduce((acc, curr) => acc + Number(curr.amount || 0), 0).toLocaleString()}
+                  ৳{paymentRequests.filter(r => r.type === 'deposit' && r.status === 'pending').reduce((acc, curr) => acc + Number(curr.amount || 0), 0).toLocaleString()}
                 </span>
                 <span className="text-[10px] font-bold text-slate-500 uppercase">
                   {paymentRequests.filter(r => r.type === 'deposit' && r.status === 'pending').length} Action Required
@@ -1035,7 +1294,7 @@ export function AdminPanel() {
               <div className="flex flex-col gap-2">
                 <span className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest">Pending Withdrawals</span>
                 <span className="text-3xl font-black text-slate-900 dark:text-white">
-                  {paymentRequests.filter(r => r.type === 'withdraw' && r.status === 'pending').reduce((acc, curr) => acc + Number(curr.amount || 0), 0).toLocaleString()}
+                  ৳{paymentRequests.filter(r => r.type === 'withdraw' && r.status === 'pending').reduce((acc, curr) => acc + Number(curr.amount || 0), 0).toLocaleString()}
                 </span>
                 <span className="text-[10px] font-bold text-slate-500 uppercase">
                   {paymentRequests.filter(r => r.type === 'withdraw' && r.status === 'pending').length} Action Required
@@ -1068,11 +1327,11 @@ export function AdminPanel() {
                           {req.status}
                         </span>
                       </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">{req.method || 'System'}  {new Date(req.createdAt?.toDate()).toLocaleString()}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">{req.method || 'System'} • {new Date(req.createdAt?.toDate()).toLocaleString()}</p>
                     </div>
                   </div>
                   <div className={`font-black text-lg ${req.type === 'deposit' ? 'text-emerald-500' : 'text-rose-500'}`}>
-                    {req.type === 'deposit' ? '+' : '-'}{req.amount}
+                    {req.type === 'deposit' ? '+' : '-'}৳{req.amount}
                   </div>
                 </div>
               ))}
@@ -1121,7 +1380,7 @@ export function AdminPanel() {
                     </div>
                     <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 truncate max-w-[150px]">{sub.userEmail}</p>
                     <div className="w-1 h-1 rounded-full bg-slate-300"></div>
-                    <p className="text-xs font-black text-blue-600 dark:text-blue-400">{sub.reward}</p>
+                    <p className="text-xs font-black text-blue-600 dark:text-blue-400">৳{sub.reward}</p>
                   </div>
                 </div>
               </div>
@@ -1136,14 +1395,6 @@ export function AdminPanel() {
                         <p className="text-sm font-medium dark:text-slate-200 break-all">{sub.proofs.text}</p>
                       </div>
                       <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(sub.proofs.text);
-                          toast.success("Comment copied!");
-                        }}
-                        className="p-1 px-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors shrink-0 self-center"
-                        title="Copy Comment"
-                      >
-                        <Copy className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   )}
@@ -1154,14 +1405,6 @@ export function AdminPanel() {
                         <p className="text-sm font-mono font-bold text-indigo-500 break-all">{sub.proofs.username}</p>
                       </div>
                       <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(sub.proofs.username);
-                          toast.success("Username copied!");
-                        }}
-                        className="p-1 px-1.5 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors shrink-0 self-center"
-                        title="Copy Username"
-                      >
-                        <Copy className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   )}
@@ -1172,14 +1415,6 @@ export function AdminPanel() {
                         <p className="text-sm font-mono font-bold text-rose-500 break-all">{sub.proofs.password}</p>
                       </div>
                       <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(sub.proofs.password);
-                          toast.success("Password copied!");
-                        }}
-                        className="p-1 px-1.5 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors shrink-0 self-center"
-                        title="Copy Password"
-                      >
-                        <Copy className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   )}
@@ -1190,14 +1425,6 @@ export function AdminPanel() {
                         <p className="text-sm font-mono font-bold text-emerald-500 break-all">{sub.proofs.twoFactorCode}</p>
                       </div>
                       <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(sub.proofs.twoFactorCode);
-                          toast.success("2FA copied!");
-                        }}
-                        className="p-1 px-1.5 rounded-lg text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors shrink-0 self-center"
-                        title="Copy 2FA"
-                      >
-                        <Copy className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   )}
@@ -1208,24 +1435,12 @@ export function AdminPanel() {
                         <a href={sub.proofs.videoUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-blue-500 underline truncate block">{sub.proofs.videoUrl}</a>
                       </div>
                       <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(sub.proofs.videoUrl);
-                          toast.success("Video URL copied!");
-                        }}
-                        className="p-1 px-1.5 rounded-lg text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors shrink-0 self-center"
-                        title="Copy Video URL"
-                      >
-                        <Copy className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   )}
                   {sub.proofs.screenshot && (
                     <div className="pt-2">
                       <button 
-                        onClick={() => setViewingScreenshot(sub.proofs.screenshot)}
-                        className="flex items-center gap-2 text-xs font-black text-white bg-emerald-600 dark:bg-emerald-500 px-4 py-2 rounded-xl hover:scale-[1.02] active:scale-95 transition-all w-fit shadow-md cursor-pointer"
-                      >
-                        <Eye className="w-3.5 h-3.5" /> View Proof Image
                       </button>
                     </div>
                   )}
@@ -1234,16 +1449,8 @@ export function AdminPanel() {
               
               <div className="grid grid-cols-2 gap-3">
                 <button 
-                  onClick={() => reviewSubmission(sub.id, sub.userId, sub.reward, sub.title, sub.jobType || 'Other', sub.jobId, 'approved')} 
-                  className="bg-emerald-500 hover:bg-emerald-600 text-white py-3 rounded-2xl font-black uppercase tracking-widest text-[11px] flex justify-center items-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-95 transition-all"
-                >
-                  <CheckCircle className="w-4 h-4"/> Approve
                 </button>
                 <button 
-                  onClick={() => reviewSubmission(sub.id, sub.userId, sub.reward, sub.title, sub.jobType || 'Other', sub.jobId, 'rejected')} 
-                  className="bg-rose-500 hover:bg-rose-600 text-white py-3 rounded-2xl font-black uppercase tracking-widest text-[11px] flex justify-center items-center gap-2 shadow-lg shadow-rose-500/20 active:scale-95 transition-all"
-                >
-                  <XCircle className="w-4 h-4" /> Reject
                 </button>
               </div>
             </motion.div>
@@ -1275,132 +1482,6 @@ export function AdminPanel() {
               <h3 className="font-black text-lg dark:text-white uppercase tracking-tight italic">{editingJobId ? 'Edit Task' : 'Create New Task'}</h3>
               {editingJobId && (
                 <button type="button" onClick={handleCancelEditJob} className="text-xs font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">Cancel Edit</button>
-              )}
-            </div>
-            <div className="grid gap-3">
-              <input type="text" placeholder="Task Title" required value={newJob.title} onChange={e => setNewJob({...newJob, title: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold placeholder:text-slate-400" />
-              <textarea placeholder="Job Description / Instructions" required value={newJob.description} onChange={e => setNewJob({...newJob, description: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold h-24 placeholder:text-slate-400" />
-              <input type="text" placeholder="Action Link (e.g. Telegram Group Link, URL)" value={newJob.link || ''} onChange={e => setNewJob({...newJob, link: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold placeholder:text-slate-400 text-blue-500" />
-            </div>
-            
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-1 block">Category</label>
-                <select 
-                  value={newJob.type} 
-                  onChange={e => {
-                    const newType = e.target.value;
-                    let updatedJob = { ...newJob, type: newType };
-                    if (newType === 'Review') {
-                      updatedJob.title = "German Doner Kebab (GDK)   ";
-                      updatedJob.description = "      (5 Star)                      ";
-                      updatedJob.link = "https://www.google.com/search?shndl=30&shem=rimspwouoe&q=German+Doner+Kebab+(GDK)&kgmid=/g/11wpz8mg0y";
-                      updatedJob.icon = 'Star';
-                      updatedJob.color = 'text-amber-500';
-                      updatedJob.requiredProofs = ['text', 'screenshot', 'username'];
-                      
-                      const defaultComments = [
-                        "Ive tried GDK in other locations, and Metrocenter branch is just as good. Consistent taste, clean, and fast.",
-                        "Super convenient inside Metrocenter. Grabbed a Kebab Box between shopping trips. No long wait even during lunch rush.fas",
-                        "What makes GDK different is the sauce selection. Tried Garlic + Chilli. Kebab was packed well and didnt get soggy.",
-                        "The waffle bread is absolutely incredible! GDK always delivers high-quality donor and the service is extremely friendly.",
-                        "Amazing kebab! Fresh ingredients, tasty sauces, and super clean. Best place in Metrocenter for a quick bite.",
-                        "Really friendly staff and super quick service. The donor meat is perfectly seasoned and not greasy at all.",
-                        "Absolutely love GDK. The food is always piping hot, fresh, and full of flavor. Highly recommend the Boss Box!",
-                        "Best doner kebab around here. Friendly staff, modern clean seating, and consistently delicious food.",
-                        "German Doner Kebab never disappoints! The combination of garlic and spicy sauce is just amazing.",
-                        "Great dining experience at the Metrocenter branch. The doner wraps are fresh, juicy, and huge!",
-                        "I am absolutely in love with GDK's signature sauce. The meat is tender and the waffle bread is so soft.",
-                        "A must-visit spot inside Metrocenter! Super clean environment, polite workers, and top-tier kebabs.",
-                        "Really tasty and healthy portion sizes. The GDK doner is far superior to standard kebabs.",
-                        "Excellent service! The team is efficient even when it is crowded. The food is consistently outstanding.",
-                        "Outstanding taste and amazing packaging! Everything feels very hygienic and fresh.",
-                        "Highly impressed by the speed and cleanliness. The kebab was packed with meat and extremely flavorful.",
-                        "The chili sauce is perfectly spicy and pairs so well with the garlic sauce. Best doner ever!",
-                        "Lovely food and brilliant service! Great addition to Metrocenter, definitely coming back again.",
-                        "The meat is so tender and flavorful, and the veggies are incredibly crisp. Highly recommended!",
-                        "Quick, yummy, and very clean! Definitely my go-to spot whenever I visit Metrocenter.",
-                        "GDK is on another level. The waffle bread kebab is unique, tasty, and loaded with fresh fillings.",
-                        "Perfect quick lunch while shopping. Warm food, delicious taste, and lovely helpful staff.",
-                        "Their doner box with fries is top notch! Perfect blend of spices and very satisfying portion.",
-                        "Great service, clean tables, and incredible flavor. The doner is juicy and absolutely delicious.",
-                        "Highly professional staff, excellent customer service, and unmatched kebab quality. Simply the best.",
-                        "The bread is light and crispy, and the meat is beautifully cooked. Best fast food in Metrocenter!",
-                        "Brilliant taste, gorgeous sauces, and absolutely spot on. Will definitely recommend GDK to friends.",
-                        "Loved the Doner Spring Rolls and the classic kebab. GDK Metrocenter is always top notch!",
-                        "Super fast preparation and extremely delicious. The garlic sauce is out of this world!",
-                        "Super clean, very friendly service, and absolutely scrumptious kebabs. A solid five stars!"
-                      ];
-                      updatedJob.reviewComments = defaultComments;
-                    }
-                    setNewJob(updatedJob);
-                  }} 
-                  className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold"
-                >
-                  {['Facebook', 'Gmail', 'Instagram', 'Telegram', 'Review', 'Sell Accounts', 'Microjob', 'Typing', 'Watch Ads', 'Other'].map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-1 block">Reward ()</label>
-                <input type="number" placeholder="0.00" required value={newJob.reward} onChange={e => setNewJob({...newJob, reward: Number(e.target.value)})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-black text-blue-600" />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-1 block">Total Slots (All Users)</label>
-                <input type="number" value={newJob.allowedCompletions} onChange={e => setNewJob({...newJob, allowedCompletions: Number(e.target.value)})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold" placeholder="0 for unlimited" />
-              </div>
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-1 block">Max Per User</label>
-                <input type="number" value={newJob.userLimit} onChange={e => setNewJob({...newJob, userLimit: Number(e.target.value)})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold text-orange-500" placeholder="0 for unlimited" />
-              </div>
-            </div>
-
-            <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-3xl space-y-3">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 pl-1">Appearance & Requirements</p>
-              <div className="grid grid-cols-2 gap-2">
-                <select value={newJob.icon} onChange={e => setNewJob({...newJob, icon: e.target.value})} className="bg-white dark:bg-slate-800 border-none px-3 py-2 rounded-xl text-xs font-bold shadow-sm">
-                  <option value="Facebook">Facebook Profile</option>
-                  <option value="Instagram">Instagram Page</option>
-                  <option value="Youtube">Youtube Display</option>
-                  <option value="Mail">Email / Gmail</option>
-                  <option value="Monitor">Computer / Desktop</option>
-                  <option value="Smartphone">Mobile Device</option>
-                  <option value="Video">Video Player</option>
-                  <option value="Copy">Copy Task</option>
-                  <option value="Send">Direct Message</option>
-                  <option value="Key">Lock / Secure</option>
-                  <option value="MessageCircle">Chatting</option>
-                  <option value="Heart">Likes / Reaction</option>
-                  <option value="Star">Review / Star</option>
-                  <option value="Send">Telegram / Message</option>
-                  <option value="User">User Account</option>
-                  <option value="Globe">Global Link</option>
-                </select>
-                <input type="text" placeholder="Icon Color (e.g. text-blue-500)" value={newJob.color} onChange={e => setNewJob({...newJob, color: e.target.value})} className="bg-white dark:bg-slate-800 border-none px-3 py-2 rounded-xl text-xs font-bold shadow-sm" />
-              </div>
-            </div>
-
-            <div className="grid gap-3">
-              <input type="text" placeholder="Task Redirect Link (Full URL)" required value={newJob.link} onChange={e => setNewJob({...newJob, link: e.target.value})} className="w-full bg-slate-100 dark:bg-slate-900/50 border-none px-4 py-3 rounded-2xl text-xs font-bold italic text-blue-500" />
-            </div>
-            
-            <div className="space-y-3">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Required Proofs To Check</p>
-              <div className="flex gap-2 flex-wrap">
-                {['text', 'screenshot', 'username', 'password', 'videoUrl', '2facode'].map(p => (
-                  <button 
-                    type="button" 
-                    key={p} 
-                    onClick={() => toggleProof(p)} 
-                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all active:scale-90 ${
-                      newJob.requiredProofs.includes(p) 
-                      ? 'bg-slate-900 text-white border-slate-900 shadow-lg shadow-slate-900/20' 
-                      : 'bg-white text-slate-500 border-slate-100 dark:bg-slate-800 dark:border-slate-700'
-                    }`}
-                  >
-                    {p === '2facode' ? '2FA Code' : p}
                   </button>
                 ))}
               </div>
@@ -1410,14 +1491,14 @@ export function AdminPanel() {
               <div className="p-4 bg-amber-50 dark:bg-amber-950/20 rounded-3xl space-y-3 border border-amber-100 dark:border-amber-900/30">
                 <div className="flex items-center justify-between">
                   <p className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest pl-1">
-                    Google Review Comments (    )
+                    Google Review Comments (১টি লাইনে ১টি কমেন্ট লিখুন)
                   </p>
                   <span className="text-[10px] bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 font-bold px-2 py-0.5 rounded-full">
-                    {Array.isArray(newJob.reviewComments) ? newJob.reviewComments.length : 0} 
+                    {Array.isArray(newJob.reviewComments) ? newJob.reviewComments.length : 0}টি কমেন্ট
                   </span>
                 </div>
                 <textarea
-                  placeholder="       -          ,       (randomly)   "
+                  placeholder="এখানে প্রতি লাইনে একটি করে কমেন্ট লিখুন। ২০-৩০টি বা তার বেশি কমেন্ট লিখতে পারেন। ব্যবহারকারী যখন কাজটি করবেন, তখন এখান থেকে একটি কমেন্ট এলোমেলোভাবে (randomly) তাকে দেওয়া হবে।"
                   value={Array.isArray(newJob.reviewComments) ? newJob.reviewComments.join('\n') : ''}
                   onChange={e => {
                     const commentsArray = e.target.value.split('\n');
@@ -1426,7 +1507,7 @@ export function AdminPanel() {
                   className="w-full bg-white dark:bg-slate-800 border-none px-4 py-3 rounded-2xl text-xs font-bold h-36 placeholder:text-slate-400 focus:ring-1 focus:ring-amber-500"
                 />
                 <p className="text-[9px] text-amber-600 dark:text-amber-500 font-bold pl-1 leading-relaxed">
-                  *       ,                           
+                  * গুগল ম্যাপে ব্যবহারকারী যখন রিভিউর কাজটি করবেন, তখন আমাদের ওয়েবসাইট স্বয়ংক্রিয়ভাবে একটি করে কমেন্ট কপি করার জন্য স্ক্রিনে দেখাবে। এর মাধ্যমে ভিন্ন ভিন্ন ব্যবহারকারী ভিন্ন ভিন্ন কমেন্ট দিয়ে গুগল ম্যাপে ৫ স্টার রেটিং দিবে।
                 </p>
               </div>
             )}
@@ -1448,48 +1529,8 @@ export function AdminPanel() {
             </div>
             
             <button type="submit" className="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black uppercase tracking-[0.2em] py-4 rounded-2xl shadow-xl hover:scale-[1.02] active:scale-95 transition-all text-xs">{editingJobId ? 'Update Job Now' : 'Publish Job Now'}</button>
-          </form>
-
-          <div className="grid gap-3">
-            {jobs.filter(job => job.status === 'pending').length > 0 && (
-              <div className="space-y-3 mb-6">
-                <h3 className="font-black dark:text-white text-rose-500 uppercase tracking-tight text-xs mb-1 px-1 flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></div>
-                  Pending User Job Requests ({jobs.filter(job => job.status === 'pending').length})
-                </h3>
-                {jobs.filter(job => job.status === 'pending').map(job => (
-                  <div key={job.id} className="bg-amber-50/50 dark:bg-amber-950/10 p-4 rounded-3xl shadow-sm border border-amber-100 dark:border-amber-900/30 space-y-3">
-                    <div className="flex justify-between items-start">
-                      <div className="min-w-0 flex-1">
-                        <span className="text-[9px] font-black uppercase tracking-widest text-amber-600 bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 rounded-md">
-                          {job.type}
-                        </span>
-                        <h4 className="font-bold dark:text-white text-sm leading-snug truncate mt-1">{job.title}</h4>
-                        <p className="text-xs text-slate-550 dark:text-slate-400 mt-1 line-clamp-2">{job.description}</p>
-                        <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mt-1">
-                          Link: <a href={job.link} target="_blank" rel="noopener noreferrer" className="underline">{job.link}</a>
-                        </p>
-                      </div>
-                      <div className="text-right shrink-0 ml-3">
-                        <p className="text-xs font-black text-slate-700 dark:text-slate-300">Rate: {job.reward}</p>
-                        <p className="text-[10px] font-bold text-slate-400">Slots: {job.allowedCompletions}</p>
-                        <p className="text-[10px] font-black text-emerald-600">Total: {job.totalCost}</p>
-                        <p className="text-[8px] font-black text-slate-450 uppercase mt-1">By: {job.postedBy}</p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex gap-2 justify-end pt-2 border-t border-amber-100 dark:border-amber-900/10">
-                      <button 
-                        onClick={() => handleRejectJob(job)} 
-                        className="px-4 py-2 text-rose-650 bg-rose-50 dark:bg-rose-950/30 rounded-xl text-xs font-black uppercase tracking-wider hover:scale-105 active:scale-95 transition-all"
-                      >
-                        Reject & Refund
                       </button>
                       <button 
-                        onClick={() => handleApproveJob(job.id)} 
-                        className="px-4 py-2 text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl text-xs font-black uppercase tracking-wider hover:scale-105 active:scale-95 transition-all"
-                      >
-                        Approve Job
                       </button>
                     </div>
                   </div>
@@ -1511,14 +1552,12 @@ export function AdminPanel() {
                       {job.status}
                     </span>
                   </div>
-                  <p className="text-[10px] font-black text-blue-500/80 uppercase tracking-widest">{job.reward} &bull; {job.type} &bull; Slots: {job.remainingSlots}/{job.allowedCompletions}</p>
+                  <p className="text-[10px] font-black text-blue-500/80 uppercase tracking-widest">৳{job.reward} &bull; {job.type} &bull; Slots: {job.remainingSlots}/{job.allowedCompletions}</p>
                 </div>
                 <div className="flex items-center gap-2 ml-4">
                   <button onClick={() => handleEditJobClick(job)} className="p-3 text-blue-500 bg-blue-50 dark:bg-blue-900/30 rounded-2xl hover:scale-105 active:scale-90 transition-all">
-                    <Settings className="w-4 h-4" />
                   </button>
                   <button onClick={() => handleDeleteJob(job.id)} className="p-3 text-rose-500 bg-rose-50 dark:bg-rose-900/30 rounded-2xl hover:scale-105 active:scale-90 transition-all">
-                    <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
               </div>
@@ -1565,7 +1604,7 @@ export function AdminPanel() {
                     </span>
                     <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{new Date(req.createdAt?.toDate()).toLocaleTimeString()}</span>
                   </div>
-                  <h4 className="font-black text-2xl text-slate-900 dark:text-white leading-none mt-2">{req.amount}</h4>
+                  <h4 className="font-black text-2xl text-slate-900 dark:text-white leading-none mt-2">৳{req.amount}</h4>
                   <div className="flex items-center gap-2 mt-2">
                     <div className="w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500">
                       <User className="w-3 h-3" />
@@ -1597,14 +1636,6 @@ export function AdminPanel() {
                       <div className="flex items-center gap-1.5">
                         <span className="font-mono font-bold text-slate-700 dark:text-slate-200 tracking-wider text-[11px]">{req.account}</span>
                         <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(req.account);
-                            toast.success('Account copied!');
-                          }}
-                          className="hover:text-indigo-500 text-slate-400 transition p-0.5 rounded cursor-pointer active:scale-95"
-                          title="Copy Account Number"
-                        >
-                          <Copy className="w-3 h-3" />
                         </button>
                       </div>
                     </div>
@@ -1618,14 +1649,6 @@ export function AdminPanel() {
                         <span className="font-mono font-bold text-slate-700 dark:text-slate-200 tracking-wider text-[11px]">{req.account || 'Unknown'}</span>
                         {req.account && (
                           <button
-                            onClick={() => {
-                              navigator.clipboard.writeText(req.account);
-                              toast.success('Sender number copied!');
-                            }}
-                            className="hover:text-indigo-500 text-slate-400 transition p-0.5 rounded cursor-pointer active:scale-95"
-                            title="Copy Sender Number"
-                          >
-                            <Copy className="w-3 h-3" />
                           </button>
                         )}
                       </div>
@@ -1635,14 +1658,6 @@ export function AdminPanel() {
                       <div className="flex items-center gap-1.5">
                         <span className="font-mono font-bold text-indigo-600 selection:bg-indigo-100 tracking-wider text-[11px]">{req.trxId}</span>
                         <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(req.trxId);
-                            toast.success('Transaction ID copied!');
-                          }}
-                          className="hover:text-indigo-500 text-slate-400 transition p-0.5 rounded cursor-pointer active:scale-95"
-                          title="Copy Transaction ID"
-                        >
-                          <Copy className="w-3 h-3" />
                         </button>
                       </div>
                     </div>
@@ -1660,14 +1675,6 @@ export function AdminPanel() {
                         <span className="font-mono font-bold text-slate-700 dark:text-slate-200 tracking-wider text-[11px]">{req.account || 'Unknown'}</span>
                         {req.account && (
                           <button
-                            onClick={() => {
-                              navigator.clipboard.writeText(req.account);
-                              toast.success('Sender number copied!');
-                            }}
-                            className="hover:text-emerald-500 text-slate-400 transition p-0.5 rounded cursor-pointer active:scale-95"
-                            title="Copy Sender Number"
-                          >
-                            <Copy className="w-3 h-3" />
                           </button>
                         )}
                       </div>
@@ -1677,14 +1684,6 @@ export function AdminPanel() {
                       <div className="flex items-center gap-1.5">
                         <span className="font-mono font-bold text-emerald-600 tracking-wider text-[11px]">{req.trxId}</span>
                         <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(req.trxId);
-                            toast.success('Transaction ID copied!');
-                          }}
-                          className="hover:text-emerald-500 text-slate-400 transition p-0.5 rounded cursor-pointer active:scale-95"
-                          title="Copy Transaction ID"
-                        >
-                          <Copy className="w-3 h-3" />
                         </button>
                       </div>
                     </div>
@@ -1698,16 +1697,8 @@ export function AdminPanel() {
               
               <div className="grid grid-cols-2 gap-3">
                 <button 
-                  onClick={() => handlePaymentRequest(req.id, req.userId, req.amount, req.type, 'approved', req.transactionId, req.wallet)} 
-                  className="bg-emerald-500 hover:bg-emerald-600 text-white py-3 rounded-2xl font-black uppercase tracking-widest text-[11px] shadow-lg shadow-emerald-500/20 active:scale-95 transition-all"
-                >
-                  Pay Now
                 </button>
                 <button 
-                  onClick={() => handlePaymentRequest(req.id, req.userId, req.amount, req.type, 'rejected', req.transactionId, req.wallet)} 
-                  className="bg-rose-500 hover:bg-rose-600 text-white py-3 rounded-2xl font-black uppercase tracking-widest text-[11px] shadow-lg shadow-rose-500/20 active:scale-95 transition-all"
-                >
-                  Decline
                 </button>
               </div>
             </motion.div>
@@ -1720,10 +1711,10 @@ export function AdminPanel() {
                 <div key={req.id} className="bg-white dark:bg-slate-800 p-3 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex justify-between items-center opacity-70">
                   <div className="flex-1 overflow-hidden pr-4">
                     <p className="font-black text-[13px] text-slate-800 dark:text-slate-200 italic uppercase flex items-center gap-1.5">
-                      {req.amount} &bull; {req.type}
+                      ৳{req.amount} &bull; {req.type}
                       {req.method && <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 rounded text-[9px] not-italic">{req.method}</span>}
                     </p>
-                    <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold truncate tracking-widest uppercase">{req.userEmail} {req.account ? ` ${req.account}` : ''}</p>
+                    <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold truncate tracking-widest uppercase">{req.userEmail} {req.account ? `• ${req.account}` : ''}</p>
                   </div>
                   <div className={`text-[9px] px-3 py-1 rounded-full font-black uppercase tracking-widest border ${req.status === 'approved' ? 'bg-emerald-100 text-emerald-600 border-emerald-200' : 'bg-rose-100 text-rose-600 border-rose-200'}`}>
                     {req.status}
@@ -1755,17 +1746,17 @@ export function AdminPanel() {
               
               {giftType === 'fixed' ? (
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Amount ()</label>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Amount (৳)</label>
                   <input type="number" min="1" value={giftAmount} onChange={(e) => setGiftAmount(e.target.value === '' ? '' : isNaN(parseFloat(e.target.value)) ? "" : parseFloat(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" required />
                 </div>
               ) : (
                 <>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Min Amount ()</label>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Min Amount (৳)</label>
                     <input type="number" min="1" value={giftMinAmount} onChange={(e) => setGiftMinAmount(e.target.value === '' ? '' : isNaN(parseFloat(e.target.value)) ? "" : parseFloat(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" required />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Max Amount ()</label>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Max Amount (৳)</label>
                     <input type="number" min="1" value={giftMaxAmount} onChange={(e) => setGiftMaxAmount(e.target.value === '' ? '' : isNaN(parseFloat(e.target.value)) ? "" : parseFloat(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" required />
                   </div>
                 </>
@@ -1782,7 +1773,6 @@ export function AdminPanel() {
             </div>
 
             <button type="submit" disabled={isCreatingGift} className="w-full bg-[#0D47A1] hover:bg-blue-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg transition-all text-xs disabled:opacity-50">
-              {isCreatingGift ? 'Creating...' : 'Create Code'}
             </button>
           </form>
 
@@ -1804,9 +1794,9 @@ export function AdminPanel() {
                       <div>
                         <h4 className="font-black font-mono text-slate-900 dark:text-white text-lg tracking-widest">{code.code}</h4>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                          {code.type === 'fixed' ? `${code.amount} Fixed` : `${code.minAmount} - ${code.maxAmount} Random`}
-                          <span className="mx-2 text-slate-300"></span>
-                          {code.usedBy?.length || 0} / {code.maxUses || ''} Uses
+                          {code.type === 'fixed' ? `৳${code.amount} Fixed` : `৳${code.minAmount} - ৳${code.maxAmount} Random`}
+                          <span className="mx-2 text-slate-300">•</span>
+                          {code.usedBy?.length || 0} / {code.maxUses || '∞'} Uses
                         </p>
                       </div>
                       <div className="flex flex-col items-end gap-2">
@@ -1816,7 +1806,6 @@ export function AdminPanel() {
                           {isExpired ? 'EXPIRED' : code.status}
                         </span>
                         <button onClick={() => handleDeleteGiftCode(code.id)} className="p-2 text-rose-500 bg-rose-50 dark:bg-rose-900/30 rounded-lg hover:scale-105 active:scale-90 transition-all">
-                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
@@ -1835,22 +1824,6 @@ export function AdminPanel() {
               <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight text-sm">{editingFaqIndex !== null ? 'Edit FAQ' : 'Add New FAQ'}</h3>
               {editingFaqIndex !== null && (
                 <button type="button" onClick={handleCancelEditFaq} className="text-xs font-bold text-slate-500 hover:text-slate-700">Cancel</button>
-              )}
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <input type="text" placeholder="Question (English)" value={newFaq.question_en} onChange={(e) => setNewFaq({...newFaq, question_en: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" required />
-                <textarea placeholder="Answer (English)" value={newFaq.answer_en} onChange={(e) => setNewFaq({...newFaq, answer_en: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 h-24" required />
-              </div>
-              <div className="space-y-2">
-                <input type="text" placeholder="Question (Bengali)" value={newFaq.question_bn} onChange={(e) => setNewFaq({...newFaq, question_bn: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" required />
-                <textarea placeholder="Answer (Bengali)" value={newFaq.answer_bn} onChange={(e) => setNewFaq({...newFaq, answer_bn: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 h-24" required />
-              </div>
-            </div>
-
-            <button type="submit" disabled={isSavingSettings} className="w-full bg-[#0D47A1] hover:bg-blue-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg transition-all text-xs disabled:opacity-50">
-              {editingFaqIndex !== null ? 'Update FAQ' : 'Create FAQ'}
             </button>
           </form>
 
@@ -1870,10 +1843,8 @@ export function AdminPanel() {
                     <h4 className="font-bold text-slate-900 dark:text-white text-sm">{faq.question_en}</h4>
                     <div className="flex gap-2">
                       <button onClick={() => { setEditingFaqIndex(index); setNewFaq(faq); }} className="p-2 text-blue-500 bg-blue-50 dark:bg-blue-900/30 rounded-lg hover:scale-105 active:scale-90 transition-all">
-                        <Settings className="w-4 h-4" />
                       </button>
                       <button onClick={() => handleDeleteFaq(index)} className="p-2 text-rose-500 bg-rose-50 dark:bg-rose-900/30 rounded-lg hover:scale-105 active:scale-90 transition-all">
-                        <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
@@ -1928,7 +1899,7 @@ export function AdminPanel() {
             >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Package Title ( )</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Package Title (প্যাকের নাম)</label>
                   <input type="text" placeholder="e.g. GP 40GB + 800 Min Combo" required value={newDriveTitle} onChange={(e) => setNewDriveTitle(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 focus:ring-2 focus:ring-indigo-500 transition-all text-slate-900 dark:text-white" />
                 </div>
                 <div>
@@ -1945,21 +1916,20 @@ export function AdminPanel() {
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Validity ()</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Validity (মেয়াদ)</label>
                   <input type="text" placeholder="e.g. 30 Days" required value={newDriveValidity} onChange={(e) => setNewDriveValidity(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 text-slate-900 dark:text-white" />
                 </div>
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Original ()</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Original (৳)</label>
                   <input type="number" placeholder="e.g. 799" required value={newDriveOriginalPrice} onChange={(e) => setNewDriveOriginalPrice(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 text-slate-900 dark:text-white" />
                 </div>
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Sale ()</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Sale (৳)</label>
                   <input type="number" placeholder="e.g. 580" required value={newDriveSalePrice} onChange={(e) => setNewDriveSalePrice(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 text-slate-900 dark:text-white" />
                 </div>
               </div>
 
               <button type="submit" className="w-full bg-[#0D47A1] hover:bg-blue-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg transition-all text-xs">
-                Create Drive Pack
               </button>
             </form>
           </div>
@@ -1993,40 +1963,13 @@ export function AdminPanel() {
                         <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">{of.validity}</span>
                       </div>
                       <h4 className="font-black text-slate-900 dark:text-white text-sm truncate uppercase">{of.title}</h4>
-                      <p className="text-xs font-bold text-slate-505 mt-1 dark:text-slate-400">Regular: <span className="line-through">{of.originalPrice}</span> &bull; Sale: <span className="text-emerald-550 dark:text-emerald-400">{of.salePrice}</span></p>
+                      <p className="text-xs font-bold text-slate-505 mt-1 dark:text-slate-400">Regular: <span className="line-through">৳{of.originalPrice}</span> &bull; Sale: <span className="text-emerald-550 dark:text-emerald-400">৳{of.salePrice}</span></p>
                     </div>
                     
                     <div className="flex items-center gap-2">
                       <button 
-                        onClick={async () => {
-                          try {
-                            const newStatus = of.status === 'active' ? 'inactive' : 'active';
-                            await updateDoc(doc(db, "drive_offers", of.id), { status: newStatus });
-                            toast.success(`Package set ${newStatus}`);
-                            await loadData(true);
-                          } catch (e) {
-                            toast.error("Failed to alter status");
-                          }
-                        }}
-                        className={`text-[10px] font-black uppercase px-2.5 py-1.5 rounded-xl border ${of.status === 'active' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20' : 'bg-slate-50 text-slate-500 dark:bg-slate-900/20'}`}
-                      >
-                        {of.status === 'active' ? 'Active' : 'Paused'}
                       </button>
                       <button 
-                        onClick={async () => {
-                          if (confirm("Delete this Drive Pack?")) {
-                            try {
-                              await deleteDoc(doc(db, "drive_offers", of.id));
-                              toast.success("Pack deleted");
-                              await loadData(true);
-                            } catch (e) {
-                              toast.error("Failed to delete pack");
-                            }
-                          }
-                        }}
-                        className="p-2 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/30 text-rose-500 rounded-xl"
-                      >
-                        <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
@@ -2042,14 +1985,14 @@ export function AdminPanel() {
           {/* Create/Edit Course Form */}
           <div className="bg-white dark:bg-slate-800 p-6 rounded-[32px] border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden">
             <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight text-sm mb-4">
-              {editingCourseId ? '    ' : '     '}
+              {editingCourseId ? 'কোর্স বা টিউটোরিয়াল এডিট করুন' : 'নতুন কোর্স বা টিউটোরিয়াল তৈরি করুন'}
             </h3>
             
             <form 
               onSubmit={async (e) => {
                 e.preventDefault();
                 if (!newCourseTitle || !newCourseDesc || !newCourseThumbnail || !newCourseLink) {
-                  toast.error("    ");
+                  toast.error("সবগুলো ঘর সঠিকভাবে পূরণ করুন");
                   return;
                 }
                 
@@ -2066,7 +2009,7 @@ export function AdminPanel() {
                     updatedAt: serverTimestamp()
                   }, { merge: true });
                   
-                  toast.success(editingCourseId ? "     !" : "    !");
+                  toast.success(editingCourseId ? "কোর্স বা টিউটোরিয়াল সফলভাবে আপডেট হয়েছে!" : "নতুন টিউটোরিয়াল সফলভাবে যুক্ত হয়েছে!");
                   await loadData(true);
                   
                   // Clear form
@@ -2074,11 +2017,11 @@ export function AdminPanel() {
                   setNewCourseDesc('');
                   setNewCourseThumbnail('');
                   setNewCourseLink('');
-                  setNewCourseCategory(' ');
+                  setNewCourseCategory('টাস্ক কমপ্লিট');
                   setCourseItems([]);
                   setEditingCourseId(null);
                 } catch (err) {
-                  toast.error("   ");
+                  toast.error("সেভ করতে ব্যর্থ হয়েছে");
                   console.error(err);
                 }
               }}
@@ -2086,10 +2029,10 @@ export function AdminPanel() {
             >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">  (Title)</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">কোর্সের শিরোনাম (Title)</label>
                   <input 
                     type="text" 
-                    placeholder="     " 
+                    placeholder="উদাঃ সঠিক উপায়ে ডেইলি স্পিন খেলুন" 
                     required 
                     value={newCourseTitle} 
                     onChange={(e) => setNewCourseTitle(e.target.value)} 
@@ -2097,22 +2040,22 @@ export function AdminPanel() {
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">  (Category)</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">টিউটোরিয়াল ক্যাটাগরি (Category)</label>
                   <select 
                     value={newCourseCategory} 
                     onChange={(e) => setNewCourseCategory(e.target.value as any)} 
                     className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-555"
                   >
-                    <option value=" "> </option>
-                    <option value=" "> </option>
-                    <option value=""> </option>
+                    <option value="টাস্ক কমপ্লিট">টাস্ক কমপ্লিট</option>
+                    <option value="টাকা উইথড্র">টাকা উইথড্র</option>
+                    <option value="অন্যান্য">অন্যান্য হেল্প</option>
                   </select>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">   (Thumbnail URL)</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">থাম্বনেইল ইমেজ লিংক (Thumbnail URL)</label>
                   <input 
                     type="url" 
                     placeholder="https://images.unsplash.com/..." 
@@ -2123,7 +2066,7 @@ export function AdminPanel() {
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">    (Video/Instruction Link)</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">ভিডিও বা রেফারেল লিংক (Video/Instruction Link)</label>
                   <input 
                     type="url" 
                     placeholder="https://youtube.com/watch?v=..." 
@@ -2136,9 +2079,9 @@ export function AdminPanel() {
               </div>
 
               <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">    (Detailed Description)</label>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">পূর্ণাঙ্গ ডেসক্রিপশন বা নির্দেশনা (Detailed Description)</label>
                 <textarea 
-                  placeholder="             ..." 
+                  placeholder="ধাপে ধাপে কিভাবে টাস্ক সম্পন্ন করবে বা কিভাবে উইথড্র করবে তার বিস্তারিত বিবরণ লিখুন..." 
                   required 
                   rows={4} 
                   value={newCourseDesc} 
@@ -2152,24 +2095,24 @@ export function AdminPanel() {
                 <div className="flex items-center gap-1.5 border-b border-slate-100 dark:border-slate-800 pb-2">
                   <Layers className="w-4 h-4 text-purple-600 dark:text-purple-400" />
                   <div className="flex-1">
-                    <h4 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tight">   /     (Multiple Option Items)</h4>
+                    <h4 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tight">আলাদা আলাদা অপশন / বহুবিধ টিউটোরিয়াল যোগ করুন (Multiple Option Items)</h4>
                     <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">Add sub-tutorials for How to complete tasks, How to withdraw, etc.</p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">  (Option Title)</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">অপশন শিরোনাম (Option Title)</label>
                     <input 
                       type="text" 
-                      placeholder=" .      " 
+                      placeholder="উদাঃ ১. কিভাবে সঠিক উপায়ে টাস্ক সম্পন্ন করবেন" 
                       value={optTitle} 
                       onChange={(e) => setOptTitle(e.target.value)} 
                       className="w-full bg-white dark:bg-slate-800 border-none px-4 py-2.5 rounded-xl text-xs font-bold ring-1 ring-slate-100 dark:ring-slate-800 focus:ring-2 focus:ring-purple-555 transition-all text-slate-900 dark:text-white" 
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">   (Option Thumbnail URL)</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">অপশন থাম্বনেইল লিংক (Option Thumbnail URL)</label>
                     <input 
                       type="url" 
                       placeholder="https://images.unsplash.com/..." 
@@ -2182,7 +2125,7 @@ export function AdminPanel() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block"> /  (Option Video/Instruction Link)</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">অপশন ভিডিও/টিউটোরিয়াল লিংক (Option Video/Instruction Link)</label>
                     <input 
                       type="url" 
                       placeholder="https://youtube.com/watch?v=..." 
@@ -2192,10 +2135,10 @@ export function AdminPanel() {
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">   (Option Description)</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">অপশন সংক্ষিপ্ত বিবরণ (Option Description)</label>
                     <input 
                       type="text" 
-                      placeholder="   --    " 
+                      placeholder="উদাঃ নিয়মগুলো এবং স্টেপ-বাই-স্টেপ সিক্রেট ভিডিও মেথড দেখুন।" 
                       value={optDesc} 
                       onChange={(e) => setOptDesc(e.target.value)} 
                       className="w-full bg-white dark:bg-slate-800 border-none px-4 py-2.5 rounded-xl text-xs font-bold ring-1 ring-slate-100 dark:ring-slate-800 focus:ring-2 focus:ring-purple-555 transition-all text-slate-900 dark:text-white" 
@@ -2204,35 +2147,12 @@ export function AdminPanel() {
                 </div>
 
                 <button 
-                  type="button"
-                  onClick={() => {
-                    if (!optTitle || !optLink) {
-                      toast.error("     ");
-                      return;
-                    }
-                    const newItem = {
-                      title: optTitle,
-                      description: optDesc || '  ',
-                      thumbnailUrl: optThumbnail || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=600&auto=format&fit=crop',
-                      videoLink: optLink
-                    };
-                    setCourseItems(prev => [...prev, newItem]);
-                    // Clear option fields
-                    setOptTitle('');
-                    setOptDesc('');
-                    setOptThumbnail('');
-                    setOptLink('');
-                    toast.success("     !");
-                  }}
-                  className="bg-purple-600 hover:bg-purple-550 text-white font-black px-5 py-2.5 rounded-xl text-[10px] uppercase tracking-wider flex items-center gap-1 hover:scale-98 active:scale-95 transition-all"
-                >
-                       (+ Add Option)
                 </button>
 
                 {/* Render added list items */}
                 {courseItems.length > 0 && (
                   <div className="space-y-2 pt-3 border-t border-slate-100 dark:border-slate-800/80">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">  ({courseItems.length})</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">যুক্তকৃত অপশনসমূহ ({courseItems.length})</p>
                     <div className="grid gap-2 max-h-[220px] overflow-y-auto pr-1">
                       {courseItems.map((item, index) => (
                         <div key={index} className="bg-white dark:bg-slate-900/60 p-3 rounded-xl border border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-3">
@@ -2247,14 +2167,6 @@ export function AdminPanel() {
                             </div>
                           </div>
                           <button 
-                            type="button" 
-                            onClick={() => {
-                              setCourseItems(prev => prev.filter((_, idx) => idx !== index));
-                              toast.success("   !");
-                            }}
-                            className="text-[9px] font-black uppercase text-rose-500 hover:text-rose-600 hover:underline shrink-0"
-                          >
-                             
                           </button>
                         </div>
                       ))}
@@ -2265,27 +2177,10 @@ export function AdminPanel() {
 
               <div className="flex gap-2.5">
                 <button 
-                  type="submit" 
-                  className="flex-1 bg-purple-600 hover:bg-purple-550 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-purple-600/10 transition-all text-xs"
-                >
-                  {editingCourseId ? '   (Save Changes)' : '     (Create)'}
                 </button>
                 
                 {editingCourseId && (
                   <button 
-                    type="button"
-                    onClick={() => {
-                      setNewCourseTitle('');
-                      setNewCourseDesc('');
-                      setNewCourseThumbnail('');
-                      setNewCourseLink('');
-                      setNewCourseCategory(' ');
-                      setCourseItems([]);
-                      setEditingCourseId(null);
-                    }}
-                    className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold px-6 py-3.5 rounded-2xl text-xs"
-                  >
-                     (Cancel)
                   </button>
                 )}
               </div>
@@ -2295,57 +2190,15 @@ export function AdminPanel() {
           {/* Admin Courses List */}
           <div className="space-y-4">
             <div className="flex items-center justify-between px-1">
-              <h3 className="font-black dark:text-white uppercase tracking-tight text-xs">    ({adminCourses.length})</h3>
+              <h3 className="font-black dark:text-white uppercase tracking-tight text-xs">লাইভ কোর্স এবং টিউটোরিয়ালসমূহ ({adminCourses.length})</h3>
               
               <button 
-                onClick={async () => {
-                  try {
-                    const batch = writeBatch(db);
-                    const DEFAULT_ITEMS = [
-                      {
-                        title: "      ",
-                        description: "           ,                       ",
-                        thumbnailUrl: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=600&auto=format&fit=crop",
-                        videoLink: "https://www.youtube.com",
-                        category: " ",
-                        status: 'active'
-                      },
-                      {
-                        title: "        ",
-                        description: ",                              ",
-                        thumbnailUrl: "https://images.unsplash.com/photo-1559526324-4b87b5e36e44?q=80&w=600&auto=format&fit=crop",
-                        videoLink: "https://www.youtube.com",
-                        category: " ",
-                        status: 'active'
-                      },
-                      {
-                        title: "        ",
-                        description: "                     ",
-                        thumbnailUrl: "https://images.unsplash.com/photo-1606167668584-78701c57f13d?q=80&w=600&auto=format&fit=crop",
-                        videoLink: "https://www.youtube.com",
-                        category: "",
-                        status: 'active'
-                      }
-                    ];
-                    DEFAULT_ITEMS.forEach((it, ix) => {
-                      const id = `course_imported_${ix + Date.now()}`;
-                      batch.set(doc(db, "courses", id), it);
-                    });
-                    await batch.commit();
-                    toast.success("      !");
-                  } catch (err) {
-                    toast.error("  ");
-                  }
-                }}
-                className="text-[10px] font-black uppercase text-purple-600 hover:text-purple-550 underline"
-              >
-                    
               </button>
             </div>
 
             {adminCourses.length === 0 && (
               <div className="text-center py-12 bg-white dark:bg-slate-800/40 rounded-[32px] border-2 border-dashed border-slate-100 dark:border-slate-800">
-                <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">       </p>
+                <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">এখনো কোনো কোর্স বা টিউটোরিয়াল তৈরি করা হয়নি।</p>
               </div>
             )}
 
@@ -2374,52 +2227,12 @@ export function AdminPanel() {
 
                   <div className="flex items-center justify-end gap-2 w-full sm:w-auto shrink-0 border-t sm:border-y-0 border-slate-50 dark:border-slate-750/30 pt-3 sm:pt-0">
                     <button 
-                      onClick={() => {
-                        setNewCourseTitle(course.title || '');
-                        setNewCourseDesc(course.description || '');
-                        setNewCourseThumbnail(course.thumbnailUrl || '');
-                        setNewCourseLink(course.videoLink || '');
-                        setNewCourseCategory(course.category || ' ');
-                        setCourseItems(course.items || []);
-                        setEditingCourseId(course.id);
-                        toast.success("    !");
-                      }}
-                      className="text-[10px] font-black uppercase px-2.5 py-1.5 rounded-xl border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:text-slate-350"
-                    >
-                      
                     </button>
                     
                     <button 
-                      onClick={async () => {
-                        try {
-                          const toggledStatus = course.status === 'active' ? 'inactive' : 'active';
-                          await updateDoc(doc(db, "courses", course.id), { status: toggledStatus });
-                          toast.success(`  ${toggledStatus}  `);
-                          await loadData(true);
-                        } catch (err) {
-                          toast.error("  ");
-                        }
-                      }}
-                      className={`text-[10px] font-black uppercase px-2.5 py-1.5 rounded-xl border ${course.status === 'active' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-50 text-slate-400 border-slate-100'}`}
-                    >
-                      {course.status === 'active' ? '' : ''}
                     </button>
 
                     <button 
-                      onClick={async () => {
-                        if (confirm("      ?")) {
-                          try {
-                            await deleteDoc(doc(db, "courses", course.id));
-                            toast.success("  !");
-                            await loadData(true);
-                          } catch (err) {
-                            toast.error("!");
-                          }
-                        }
-                      }}
-                      className="p-2 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/40 text-rose-500 rounded-xl transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
@@ -2437,27 +2250,13 @@ export function AdminPanel() {
             </h3>
             
                         <button
-              type="button"
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteDuplicateAdmins(); }}
-              className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold"
-            >
-              Delete Duplicate Admins
+            </button>
+            <button
             </button>
             
-            
-            
             <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault(); e.stopPropagation();
-                setNotifyTarget('all');
-                setNotifyTitle('');
-                setNotifyMessage('');
-                setShowNotifyModal(true);
-              }}
-              className="bg-sky-500 hover:bg-sky-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold ml-2 flex items-center gap-1"
-            >
-              <BellRing className="w-3 h-3" /> Global Notify
+            </button>
+            <button
             </button>
             <div className="relative w-full sm:w-72">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
@@ -2522,25 +2321,25 @@ export function AdminPanel() {
                   <div className="mt-4 flex flex-wrap gap-2">
                     <div className="bg-slate-50 dark:bg-slate-900/50 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-700">
                       <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">Main Balance</p>
-                      <p className="text-xs font-black text-slate-900 dark:text-white leading-tight">{(user.balances?.main || 0).toFixed(2)}</p>
+                      <p className="text-xs font-black text-slate-900 dark:text-white leading-tight">৳{(user.balances?.main || 0).toFixed(2)}</p>
                     </div>
                     <div className="bg-slate-50 dark:bg-slate-900/50 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-700">
-                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">Bonus Earnings</p>
-                      <p className="text-xs font-black text-slate-900 dark:text-white leading-tight">{(user.balances?.bonus || 0).toFixed(2)}</p>
+                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">Bonus</p>
+                      <p className="text-xs font-black text-slate-900 dark:text-white leading-tight">৳{(user.balances?.bonus || 0).toFixed(2)}</p>
                     </div>
                     <div className="bg-slate-50 dark:bg-slate-900/50 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-700">
-                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">Referral Earnings</p>
-                      <p className="text-xs font-black text-slate-900 dark:text-white leading-tight">{(user.balances?.referral || 0).toFixed(2)}</p>
+                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">Referral</p>
+                      <p className="text-xs font-black text-slate-900 dark:text-white leading-tight">৳{(user.balances?.referral || 0).toFixed(2)}</p>
                     </div>
                     <div className="bg-slate-50 dark:bg-slate-900/50 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-700">
-                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">Task Earnings</p>
-                      <p className="text-xs font-black text-slate-900 dark:text-white leading-tight">{(
+                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">Tasks</p>
+                      <p className="text-xs font-black text-slate-900 dark:text-white leading-tight">৳{(
                         Object.values(user.balances?.tasks || {}).reduce((a: any, b: any) => Number(a || 0) + Number(b || 0), 0) as number
                       ).toFixed(2)}</p>
                     </div>
                     <div className="bg-indigo-50 dark:bg-indigo-900/30 px-3 py-1.5 rounded-xl border border-indigo-100 dark:border-indigo-800/50">
                       <p className="text-[8px] font-black text-indigo-500 dark:text-indigo-400 uppercase tracking-widest leading-none mb-0.5">Total</p>
-                      <p className="text-xs font-black text-indigo-700 dark:text-indigo-300 leading-tight">{(
+                      <p className="text-xs font-black text-indigo-700 dark:text-indigo-300 leading-tight">৳{(
                         Number(user.balances?.main || 0) +
                         Number(user.balances?.bonus || 0) +
                         Number(user.balances?.referral || 0) +
@@ -2552,107 +2351,20 @@ export function AdminPanel() {
                 
                 <div className="flex items-center gap-2 self-end md:self-center flex-wrap">
                   <button
-                    onClick={() => {
-                      setNotifyTarget(user.id);
-                      setNotifyTitle('');
-                      setNotifyMessage('');
-                      setShowNotifyModal(true);
-                    }}
-                    className="flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-[0.1em] text-[10px] transition-all active:scale-95 bg-sky-100 text-sky-600 shadow-lg shadow-sky-500/10 hover:bg-sky-200"
-                  >
-                    <BellRing className="w-4 h-4" /> Notify
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setEditingUserBalance({
-                        id: user.id,
-                        fullName: user.fullName || 'Anonymous',
-                        main: Number(user.balances?.main || 0),
-                        bonus: Number(user.balances?.bonus || 0),
-                        referral: Number(user.balances?.referral || 0),
-                        partner: Number(user.balances?.partner || 0),
-                        tasks: Number(Object.values(user.balances?.tasks || {}).reduce((a: any, b: any) => Number(a || 0) + Number(b || 0), 0))
-                      });
-                    }}
-                    className="flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-[0.1em] text-[10px] transition-all active:scale-95 bg-emerald-100 text-emerald-600 shadow-lg shadow-emerald-500/10 hover:bg-emerald-200"
-                  >
-                    <Settings className="w-4 h-4" /> Edit Balance
                   </button>
                   {isFullAdmin && user.role !== 'admin' && (
                     <button 
-                      onClick={() => {
-                        setEmployeeConfigUser(user);
-                        setEmployeePermissions(user.permissions || []);
-                      }}
-                      className="flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-[0.1em] text-[10px] transition-all active:scale-95 bg-purple-100 text-purple-600 shadow-lg shadow-purple-500/10 hover:bg-purple-200"
-                    >
-                      <ShieldCheck className="w-4 h-4" /> Config Employee
                     </button>
                   )}
-
-                  <button
-                    onClick={() => {
-                      setEditingUserBalance({
-                        id: user.id,
-                        fullName: user.fullName || 'Anonymous',
-                        main: Number(user.balances?.main || 0),
-                        bonus: Number(user.balances?.bonus || 0),
-                        referral: Number(user.balances?.referral || 0),
-                        partner: Number(user.balances?.partner || 0),
-                        tasks: Number(Object.values(user.balances?.tasks || {}).reduce((a: any, b: any) => Number(a || 0) + Number(b || 0), 0))
-                      });
-                    }}
-                    className="flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-[0.1em] text-[10px] transition-all active:scale-95 bg-emerald-100 text-emerald-600 shadow-lg shadow-emerald-500/10 hover:bg-emerald-200"
-                  >
-                    <Settings className="w-4 h-4" /> Edit Balance
-                  </button>
                   {isFullAdmin && user.role !== 'admin' && (
                     <button 
-                      onClick={() => handleDeleteUser(user.id)}
-                      className="flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-[0.1em] text-[10px] transition-all active:scale-95 bg-rose-100 text-rose-600 hover:bg-rose-200 shadow-lg shadow-rose-500/10"
-                    >
-                      <Trash2 className="w-4 h-4" /> Delete User
                     </button>
                   )}
                   {user.role !== 'admin' && (
                     <button 
-                      onClick={() => handleToggleActive(user.id, user.isActive || false)}
-                      className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-[0.1em] text-[10px] transition-all active:scale-95 disabled:opacity-30 ${
-                        !user.isActive 
-                          ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/20' 
-                          : 'bg-amber-500 text-white shadow-lg shadow-amber-500/20'
-                      }`}
-                    >
-                      {!user.isActive ? (
-                        <>
-                          <CheckCircle className="w-4 h-4" /> Activate
-                        </>
-                      ) : (
-                        <>
-                          <XCircle className="w-4 h-4" /> Deactivate
-                        </>
-                      )}
                     </button>
                   )}
                   <button 
-                    onClick={() => handleToggleBlock(user.id, user.isBlocked)}
-                    disabled={user.role === 'admin'}
-                    className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-[0.1em] text-[10px] transition-all active:scale-95 disabled:opacity-30 ${
-                      user.isBlocked 
-                        ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' 
-                        : 'bg-rose-500 text-white shadow-lg shadow-rose-500/20'
-                    }`}
-                  >
-                    {user.isBlocked ? (
-                      <>
-                        <ShieldCheck className="w-4 h-4" /> Grant Access
-                      </>
-                    ) : (
-                      <>
-                        <ShieldAlert className="w-4 h-4" /> Restrict User
-                      </>
-                    )}
                   </button>
                 </div>
               </motion.div>
@@ -2666,29 +2378,13 @@ export function AdminPanel() {
           {/* Settings Sub Tabs Menu */}
           <div className="flex bg-slate-100 dark:bg-slate-900/50 p-1.5 rounded-[24px] overflow-x-auto gap-2 no-scrollbar ring-1 ring-slate-200 dark:ring-slate-800/60">
             {[
-              { id: 'identity', label: '  ', sub: 'Identity & Info', icon: Globe, color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-950/20' },
-              { id: 'gateways', label: '  ', sub: 'Deposit & Cashout', icon: Wallet, color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-950/20' },
-              { id: 'rewards', label: '  ', sub: 'Referrals & Spins', icon: Coins, color: 'text-orange-500', bg: 'bg-orange-50 dark:bg-orange-950/20' },
-              { id: 'security', label: '  ', sub: 'Gates & Popups', icon: Lock, color: 'text-indigo-500', bg: 'bg-indigo-50 dark:bg-indigo-950/20' },
-              { id: 'danger', label: ' ', sub: 'System Reset', icon: Trash2, color: 'text-rose-500', bg: 'bg-rose-50 dark:bg-rose-950/20' }
+              { id: 'identity', label: 'আইডেন্টিটি ও সাধারণ', sub: 'Identity & Info', icon: Globe, color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-950/20' },
+              { id: 'gateways', label: 'গেটওয়ে ও উইথড্র', sub: 'Deposit & Cashout', icon: Wallet, color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-950/20' },
+              { id: 'rewards', label: 'বোনাস ও রিওয়ার্ড', sub: 'Referrals & Spins', icon: Coins, color: 'text-orange-500', bg: 'bg-orange-50 dark:bg-orange-950/20' },
+              { id: 'security', label: 'নিরাপত্তা ও সিস্টেম', sub: 'Gates & Popups', icon: Lock, color: 'text-indigo-500', bg: 'bg-indigo-50 dark:bg-indigo-950/20' },
+              { id: 'danger', label: 'ফ্যাক্টরি রিসেট', sub: 'System Reset', icon: Trash2, color: 'text-rose-500', bg: 'bg-rose-50 dark:bg-rose-950/20' }
             ].map(st => (
               <button
-                key={st.id}
-                type="button"
-                onClick={() => setSettingsSubTab(st.id as any)}
-                className={`flex-1 min-w-[170px] md:min-w-0 py-3 px-4 rounded-[18px] text-[11px] font-black transition-all duration-200 flex items-center gap-2.5 whitespace-nowrap active:scale-95 ${
-                  settingsSubTab === st.id
-                    ? 'bg-white dark:bg-slate-800 shadow-md text-slate-900 dark:text-white ring-1 ring-slate-200 dark:ring-slate-700'
-                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                }`}
-              >
-                <div className={`w-8 h-8 rounded-xl ${st.bg} flex items-center justify-center ${st.color}`}>
-                  <st.icon className="w-4 h-4" />
-                </div>
-                <div className="text-left flex flex-col">
-                  <span className="font-extrabold text-[12px] tracking-tight">{st.label}</span>
-                  <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider leading-none">{st.sub}</span>
-                </div>
               </button>
             ))}
           </div>
@@ -2729,7 +2425,6 @@ export function AdminPanel() {
                 </div>
                 
                 <button type="button" onClick={handleSavePopupSettings} disabled={isSavingSettings} className="mt-6 w-full bg-indigo-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-indigo-600/20 active:scale-95 transition-all text-xs flex items-center justify-center gap-2">
-                  {isSavingSettings ? <><RefreshCw className="w-4 h-4 animate-spin" /> Updating...</> : 'Save Popup'}
                 </button>
               </motion.div>
             )}
@@ -2759,50 +2454,6 @@ export function AdminPanel() {
                   <input type="text" value={siteSettings.logoUrl} onChange={(e) => setSiteSettings(prev => ({ ...prev, logoUrl: e.target.value }))} className="flex-1 bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-[11px] font-bold ring-1 ring-slate-100 dark:ring-slate-800" />
                   <div className="relative overflow-hidden group">
                     <button type="button" className="bg-slate-100 dark:bg-slate-700 px-4 py-3 rounded-2xl font-black text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-300">Upload</button>
-                    <input type="file" accept="image/*" onChange={(e) => handleUploadImage(e, 'logo')} className="absolute inset-0 opacity-0 cursor-pointer" />
-                  </div>
-                </div>
-                {siteSettings.logoUrl && <div className="mt-3 p-3 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 inline-block"><img src={siteSettings.logoUrl} alt="Logo Preview" className="h-8 object-contain" /></div>}
-              </div>
-              <div className="group">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-emerald-500">Floating Telegram URL</label>
-                <input type="text" value={siteSettings.telegramUrl} onChange={(e) => setSiteSettings(prev => ({ ...prev, telegramUrl: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-[11px] font-bold ring-1 ring-slate-100 dark:ring-slate-800" placeholder="https://t.me/yourchannel" />
-              </div>
-              <div className="group mt-3">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-emerald-500">Direct APK Download URL</label>
-                <input type="text" value={siteSettings.apkUrl || ''} onChange={(e) => setSiteSettings(prev => ({ ...prev, apkUrl: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-[11px] font-bold ring-1 ring-slate-100 dark:ring-slate-800" placeholder="https://example.com/app.apk" />
-                <p className="text-[9px] text-slate-500 pl-1 mt-1">If provided, this URL will be used for out-of-store direct APK installs instead of PWA installation.</p>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="group">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-emerald-500">Ads View Button Text</label>
-                  <input type="text" value={siteSettings.adsViewText} onChange={(e) => setSiteSettings(prev => ({ ...prev, adsViewText: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-[11px] font-bold ring-1 ring-slate-100 dark:ring-slate-800" placeholder="Watch Ads" />
-                </div>
-                <div className="group">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-emerald-500">Ads View Link</label>
-                  <input type="text" value={siteSettings.adsViewLink} onChange={(e) => setSiteSettings(prev => ({ ...prev, adsViewLink: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-[11px] font-bold ring-1 ring-slate-100 dark:ring-slate-800" placeholder="https://..." />
-                </div>
-              </div>
-              <div className="group">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-emerald-500">Daily Task Limit (Per User)</label>
-                <input type="number" value={siteSettings.dailyTaskLimit} onChange={(e) => setSiteSettings(prev => ({ ...prev, dailyTaskLimit: Number(e.target.value) }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-[11px] font-bold ring-1 ring-slate-100 dark:ring-slate-800" placeholder="0 for unlimited" />
-                <p className="text-[9px] text-slate-400 mt-1 px-1">Maximum tasks a user can submit in 24 hours.</p>
-              </div>
-              <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
-                <div>
-                  <h4 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tight">Drive Offer Option</h4>
-                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Enable/Disable Drive Offer page access</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className={`text-[10px] font-black uppercase tracking-widest ${siteSettings.driveOffersEnabled ? 'text-emerald-500' : 'text-slate-400'}`}>
-                    {siteSettings.driveOffersEnabled ? 'ON' : 'OFF'}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setSiteSettings(prev => ({ ...prev, driveOffersEnabled: !prev.driveOffersEnabled }))}
-                    className={`w-12 h-6 rounded-full transition-colors relative ${siteSettings.driveOffersEnabled ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-705'}`}
-                  >
-                    <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${siteSettings.driveOffersEnabled ? 'translate-x-6' : ''}`} />
                   </button>
                 </div>
               </div>
@@ -2816,11 +2467,6 @@ export function AdminPanel() {
                     {siteSettings.coursesEnabled !== false ? 'ON' : 'OFF'}
                   </span>
                   <button
-                    type="button"
-                    onClick={() => setSiteSettings(prev => ({ ...prev, coursesEnabled: !prev.coursesEnabled }))}
-                    className={`w-12 h-6 rounded-full transition-colors relative ${siteSettings.coursesEnabled !== false ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-705'}`}
-                  >
-                    <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${siteSettings.coursesEnabled !== false ? 'translate-x-6' : ''}`} />
                   </button>
                 </div>
               </div>
@@ -2834,11 +2480,6 @@ export function AdminPanel() {
                     {siteSettings.adsViewEnabled ? 'ON' : 'OFF'}
                   </span>
                   <button
-                    type="button"
-                    onClick={() => setSiteSettings(prev => ({ ...prev, adsViewEnabled: !prev.adsViewEnabled }))}
-                    className={`w-12 h-6 rounded-full transition-colors relative ${siteSettings.adsViewEnabled ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-705'}`}
-                  >
-                    <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${siteSettings.adsViewEnabled ? 'translate-x-6' : ''}`} />
                   </button>
                 </div>
               </div>
@@ -2852,50 +2493,12 @@ export function AdminPanel() {
                     {siteSettings.reviewsEnabled !== false ? 'ON' : 'OFF'}
                   </span>
                   <button
-                    type="button"
-                    onClick={() => setSiteSettings(prev => ({ ...prev, reviewsEnabled: prev.reviewsEnabled === false ? true : false }))}
-                    className={`w-12 h-6 rounded-full transition-colors relative ${siteSettings.reviewsEnabled !== false ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-705'}`}
-                  >
-                    <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${siteSettings.reviewsEnabled !== false ? 'translate-x-6' : ''}`} />
                   </button>
                 </div>
               </div>
             </div>
             
             <button onClick={handleSaveSiteSettings} disabled={isSavingSettings} className="mt-6 w-full bg-emerald-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-emerald-600/20 active:scale-95 transition-all text-xs">Update Identity</button>
-          </motion.div>
-
-          {/* Support Channels */}
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-500">
-                <MessageSquare className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Support Grid</h3>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Contact Config</p>
-              </div>
-            </div>
-            
-            <div className="grid gap-4">
-              <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-900 p-3 rounded-[20px] ring-1 ring-slate-100 dark:ring-slate-800">
-                <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 flex items-center justify-center text-slate-400"><Mail className="w-4 h-4" /></div>
-                <input type="email" value={supportSettings.email} onChange={(e) => setSupportSettings(prev => ({ ...prev, email: e.target.value }))} className="bg-transparent border-none p-0 flex-1 text-sm font-bold focus:ring-0" placeholder="Support Email" />
-              </div>
-              <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-900 p-3 rounded-[20px] ring-1 ring-slate-100 dark:ring-slate-800">
-                <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 flex items-center justify-center text-emerald-500"><Smartphone className="w-4 h-4" /></div>
-                <input type="text" value={supportSettings.whatsapp} onChange={(e) => setSupportSettings(prev => ({ ...prev, whatsapp: e.target.value }))} className="bg-transparent border-none p-0 flex-1 text-sm font-bold focus:ring-0" placeholder="WhatsApp Link" />
-              </div>
-              <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-900 p-3 rounded-[20px] ring-1 ring-slate-100 dark:ring-slate-800">
-                <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 flex items-center justify-center text-indigo-500"><Send className="w-4 h-4" /></div>
-                <input type="text" value={supportSettings.telegram} onChange={(e) => setSupportSettings(prev => ({ ...prev, telegram: e.target.value }))} className="bg-transparent border-none p-0 flex-1 text-sm font-bold focus:ring-0" placeholder="Telegram Link" />
-              </div>
-              <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-900 p-3 rounded-[20px] ring-1 ring-slate-100 dark:ring-slate-800">
-                <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 flex items-center justify-center text-blue-600"><MessageCircle className="w-4 h-4" /></div>
-                <input type="text" value={supportSettings.facebook} onChange={(e) => setSupportSettings(prev => ({ ...prev, facebook: e.target.value }))} className="bg-transparent border-none p-0 flex-1 text-sm font-bold focus:ring-0" placeholder="Facebook Profile" />
-              </div>
-            </div>
-            
             <button onClick={handleSaveSupportSettings} disabled={isSavingSettings} className="mt-6 w-full bg-blue-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-blue-600/20 active:scale-95 transition-all text-xs">Save Channels</button>
           </motion.div>
           </>)}
@@ -2933,49 +2536,6 @@ export function AdminPanel() {
             </div>
             
             <button onClick={handleSaveSpinSettings} disabled={isSavingSettings} className="mt-6 w-full bg-amber-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-amber-600/20 active:scale-95 transition-all text-xs">Sync Rewards</button>
-          </motion.div>
-
-          {/* Referral Engine */}
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-2xl bg-orange-50 dark:bg-orange-900/30 flex items-center justify-center text-orange-500">
-                <Coins className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Referral Engine</h3>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Yield Configuration</p>
-              </div>
-            </div>
-            
-            <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-2">
-                {[1, 2, 3].map(gen => (
-                  <div key={gen} className="group">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Gen {gen} ()</label>
-                    <input 
-                      type="number" 
-                      value={gen === 1 ? referralSettings.fixedBonus : (gen === 2 ? referralSettings.gen2FixedBonus : referralSettings.gen3FixedBonus)} 
-                      onChange={(e) => setReferralSettings(prev => ({ ...prev, [gen === 1 ? 'fixedBonus' : (gen === 2 ? 'gen2FixedBonus' : 'gen3FixedBonus')]: Number(e.target.value) }))} 
-                      className="w-full bg-slate-50 dark:bg-slate-900 border-none px-2 py-2.5 rounded-xl text-center text-sm font-black ring-1 ring-slate-100 dark:ring-slate-800" 
-                    />
-                  </div>
-                ))}
-              </div>
-              <div className="grid grid-cols-3 gap-2 mt-2">
-                {[1, 2, 3].map(gen => (
-                  <div key={gen} className="group">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Yield {gen} (%)</label>
-                    <input 
-                      type="number" 
-                      value={gen === 1 ? referralSettings.gen1Percent : (gen === 2 ? referralSettings.gen2Percent : referralSettings.gen3Percent)} 
-                      onChange={(e) => setReferralSettings(prev => ({ ...prev, [gen === 1 ? 'gen1Percent' : (gen === 2 ? 'gen2Percent' : 'gen3Percent')]: Number(e.target.value) }))} 
-                      className="w-full bg-slate-100 dark:bg-slate-700/50 border-none px-2 py-2.5 rounded-xl text-center text-sm font-black text-orange-500" 
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-            
             <button onClick={handleSaveReferralSettings} disabled={isSavingSettings} className="mt-6 w-full bg-orange-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-orange-600/20 active:scale-95 transition-all text-xs">Reload Engine</button>
           </motion.div>
 
@@ -3014,34 +2574,13 @@ export function AdminPanel() {
                   <input type="number" value={partnerSettings.requiredReferrals} onChange={(e) => setPartnerSettings(prev => ({ ...prev, requiredReferrals: Number(e.target.value) }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-black ring-1 ring-slate-100 dark:ring-slate-800" />
                 </div>
                 <div className="group">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Daily Bonus ()</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Daily Bonus (৳)</label>
                   <input type="number" value={partnerSettings.dailyBonus} onChange={(e) => setPartnerSettings(prev => ({ ...prev, dailyBonus: Number(e.target.value) }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-black text-indigo-500 ring-1 ring-slate-100 dark:ring-slate-800" />
                 </div>
               </div>
             </div>
             
             <button onClick={handleSavePartnerSettings} disabled={isSavingSettings} className="mt-6 w-full bg-indigo-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-indigo-600/20 active:scale-95 transition-all text-xs">Save Partner Rules</button>
-          </motion.div>
-          </>)}
-
-          {/* Announcement Scroller */}
-          {settingsSubTab === 'identity' && (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-2xl bg-purple-50 dark:bg-purple-900/30 flex items-center justify-center text-purple-500">
-                <Megaphone className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Global Banner</h3>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Ticker Configuration</p>
-              </div>
-            </div>
-            
-            <div className="space-y-4">
-              <textarea value={bannerSettings.text} onChange={(e) => setBannerSettings(prev => ({ ...prev, text: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold h-24 ring-1 ring-slate-100 dark:ring-slate-800" placeholder="Marquee News Text..." />
-              <input type="text" value={bannerSettings.link} onChange={(e) => setBannerSettings(prev => ({ ...prev, link: e.target.value }))} className="w-full bg-slate-100 dark:bg-slate-900/50 border-none px-4 py-3 rounded-2xl text-xs font-bold text-purple-500 italic" placeholder="Promo Link URL" />
-            </div>
-            
             <button onClick={handleSaveBannerSettings} disabled={isSavingSettings} className="mt-6 w-full bg-purple-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-purple-600/20 active:scale-95 transition-all text-xs">Update Marquee</button>
           </motion.div>
           )}
@@ -3065,7 +2604,7 @@ export function AdminPanel() {
                 <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-3">Spin Requirements</p>
                 <div className="space-y-2">
                   <div className="flex justify-between items-center bg-white dark:bg-slate-800 px-3 py-2 rounded-xl shadow-sm">
-                    <span className="text-[9px] font-bold text-slate-400">Task Earnings</span>
+                    <span className="text-[9px] font-bold text-slate-400">Tasks</span>
                     <input type="number" value={gameSettings.spinTaskReq} onChange={(e) => setGameSettings(prev => ({ ...prev, spinTaskReq: Number(e.target.value) }))} className="w-10 bg-transparent border-none p-0 text-right text-xs font-black" />
                   </div>
                   <div className="flex justify-between items-center bg-white dark:bg-slate-800 px-3 py-2 rounded-xl shadow-sm">
@@ -3078,7 +2617,7 @@ export function AdminPanel() {
                 <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-3">Math Requirements</p>
                 <div className="space-y-2">
                   <div className="flex justify-between items-center bg-white dark:bg-slate-800 px-3 py-2 rounded-xl shadow-sm">
-                    <span className="text-[9px] font-bold text-slate-400">Task Earnings</span>
+                    <span className="text-[9px] font-bold text-slate-400">Tasks</span>
                     <input type="number" value={gameSettings.mathTaskReq} onChange={(e) => setGameSettings(prev => ({ ...prev, mathTaskReq: Number(e.target.value) }))} className="w-10 bg-transparent border-none p-0 text-right text-xs font-black" />
                   </div>
                   <div className="flex justify-between items-center bg-white dark:bg-slate-800 px-3 py-2 rounded-xl shadow-sm">
@@ -3090,39 +2629,6 @@ export function AdminPanel() {
             </div>
             
             <button onClick={handleSaveGameSettings} disabled={isSavingSettings} className="mt-6 w-full bg-blue-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-blue-600/20 active:scale-95 transition-all text-xs italic">Sync Logic</button>
-          </motion.div>
-
-          {/* Account Integrity */}
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-2xl bg-cyan-50 dark:bg-cyan-900/30 flex items-center justify-center text-cyan-500">
-                <Lock className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Account Integrity</h3>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Security Gates</p>
-              </div>
-            </div>
-            
-            <div className="bg-slate-50 dark:bg-slate-900/50 p-5 rounded-3xl border border-slate-100 dark:border-slate-800">
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-xs font-black uppercase tracking-wider dark:text-white">Activation Mode</span>
-                <select value={activationSettings.mode} onChange={(e) => setActivationSettings(prev => ({ ...prev, mode: e.target.value as 'free'|'paid' }))} className="bg-white dark:bg-slate-800 border-none rounded-xl text-[10px] font-black uppercase ring-1 ring-slate-100 dark:ring-slate-700 py-1.5 px-3">
-                  <option value="free">Permissive (Free)</option>
-                  <option value="paid">Restrictive (Paid)</option>
-                </select>
-              </div>
-              {activationSettings.mode === 'paid' && (
-                <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                  <span className="text-xs font-black uppercase text-slate-400">Mandatory Fee</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-black text-cyan-500"></span>
-                    <input type="number" value={activationSettings.fee} onChange={(e) => setActivationSettings(prev => ({ ...prev, fee: Number(e.target.value) }))} className="w-16 bg-white dark:bg-slate-800 border-none rounded-xl text-center text-sm font-black p-2 ring-1 ring-slate-100 dark:ring-slate-700" />
-                  </div>
-                </div>
-              )}
-            </div>
-            
             <button onClick={handleSaveActivationSettings} disabled={isSavingSettings} className="mt-6 w-full bg-cyan-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-cyan-600/20 active:scale-95 transition-all text-xs">Lock Configuration</button>
           </motion.div>
           </>)}
@@ -3152,7 +2658,7 @@ export function AdminPanel() {
                   <span className={`text-[10px] font-black uppercase tracking-widest ${wallet.color} w-16`}>{wallet.key}</span>
                   <div className="flex-1 flex gap-2 justify-end">
                     <div className="flex flex-col items-end">
-                      <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Min </span>
+                      <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Min ৳</span>
                       <input type="number" value={wallet.min} onChange={(e) => setWithdrawSettings(prev => ({ ...prev, [wallet.minSetter]: Number(e.target.value) }))} className="w-14 bg-white dark:bg-slate-800 text-[11px] font-black p-1.5 rounded-lg text-center" />
                     </div>
                     <div className="flex flex-col items-end">
@@ -3165,7 +2671,7 @@ export function AdminPanel() {
             </div>
 
             <div className="mt-4 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-3xl space-y-2 ring-1 ring-slate-100 dark:ring-slate-800">
-              <span className="text-[10px] font-black uppercase tracking-widest text-indigo-500 block">Withdraw Option Amounts ()</span>
+              <span className="text-[10px] font-black uppercase tracking-widest text-indigo-500 block">Withdraw Option Amounts (৳)</span>
               <p className="text-[9px] text-slate-400 font-bold uppercase leading-tight">Comma-separated withdraw options for each wallet</p>
               
               <div className="space-y-3 mt-3">
@@ -3197,60 +2703,6 @@ export function AdminPanel() {
             </div>
             
             <button onClick={handleSaveWithdrawSettings} disabled={isSavingSettings} className="mt-6 w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-xl active:scale-95 transition-all text-xs">Execute Protocol</button>
-          </motion.div>
-
-          {/* Deposit Gateways */}
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8 }} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-500">
-                <Wallet className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Funding Gateways</h3>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Inbound Channels</p>
-              </div>
-            </div>
-            
-            <div className="space-y-4">
-              <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-3xl space-y-4">
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-2xl bg-[#e2136e] flex items-center justify-center text-white text-[10px] font-black">BKASH</div>
-                      <input type="text" value={depositSettings.bkashNumber} onChange={(e) => setDepositSettings(prev => ({ ...prev, bkashNumber: e.target.value }))} className="flex-1 bg-white dark:bg-slate-800 border-none rounded-xl px-3 py-2.5 text-sm font-black tracking-widest text-[#e2136e] ring-1 ring-slate-100 dark:ring-slate-700" placeholder="01XXX-XXXXXX" />
-                    </div>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" checked={!!depositSettings.bkashEnabled} onChange={(e) => setDepositSettings(prev => ({ ...prev, bkashEnabled: e.target.checked }))} className="w-4 h-4 text-emerald-500 rounded focus:ring-emerald-500" />
-                      <span className="text-xs font-bold text-slate-500">Enabled</span>
-                    </label>
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-2 border-t border-slate-200 dark:border-slate-800 pt-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-2xl bg-[#ea232a] flex items-center justify-center text-white text-[10px] font-black">NAGAD</div>
-                      <input type="text" value={depositSettings.nagadNumber} onChange={(e) => setDepositSettings(prev => ({ ...prev, nagadNumber: e.target.value }))} className="flex-1 bg-white dark:bg-slate-800 border-none rounded-xl px-3 py-2.5 text-sm font-black tracking-widest text-[#ea232a] ring-1 ring-slate-100 dark:ring-slate-700" placeholder="01XXX-XXXXXX" />
-                    </div>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" checked={!!depositSettings.nagadEnabled} onChange={(e) => setDepositSettings(prev => ({ ...prev, nagadEnabled: e.target.checked }))} className="w-4 h-4 text-emerald-500 rounded focus:ring-emerald-500" />
-                      <span className="text-xs font-bold text-slate-500">Enabled</span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="group">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Min ()</label>
-                  <input type="number" value={depositSettings.minDeposit} onChange={(e) => setDepositSettings(prev => ({ ...prev, minDeposit: Number(e.target.value) }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-black" />
-                </div>
-                <div className="group">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Max ()</label>
-                  <input type="number" value={depositSettings.maxDeposit} onChange={(e) => setDepositSettings(prev => ({ ...prev, maxDeposit: Number(e.target.value) }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-black opacity-50" />
-                </div>
-              </div>
-            </div>
-            
             <button onClick={handleSaveDepositSettings} disabled={isSavingSettings} className="mt-6 w-full bg-emerald-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-emerald-600/20 active:scale-95 transition-all text-xs">Update Gateways</button>
           </motion.div>
           </>)}
@@ -3271,11 +2723,6 @@ export function AdminPanel() {
                 This action will completely wipe all user accounts (except admins), tasks, courses, requests, and transactions from Firestore. This cannot be undone. Ensure you have backed up the data if needed.
               </p>
               <button 
-                onClick={handleWipeData} 
-                disabled={isSavingSettings} 
-                className="w-full bg-rose-600 hover:bg-rose-700 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-rose-600/20 active:scale-95 transition-all text-xs"
-              >
-                Understand & Wipe Everything
               </button>
             </motion.div>
           )}
@@ -3305,10 +2752,6 @@ export function AdminPanel() {
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800/80 mb-3">
                 <span className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Proof Screenshot</span>
                 <button
-                  onClick={() => setViewingScreenshot(null)}
-                  className="px-3 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/30 hover:text-rose-600 dark:hover:text-rose-400 text-slate-500 dark:text-slate-400 font-extrabold text-[10px] transition-all cursor-pointer"
-                >
-                  Close
                 </button>
               </div>
               <div className="flex-1 overflow-y-auto rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800/50 flex items-center justify-center p-2.5">
@@ -3358,25 +2801,8 @@ export function AdminPanel() {
             
             <div className="flex gap-3">
               <button 
-                onClick={() => { setConfirmDialog(null); setPromptInput(''); }}
-                className="flex-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 py-3.5 rounded-2xl font-black uppercase text-xs tracking-widest active:scale-95 transition-all"
-              >
-                Cancel
               </button>
               <button 
-                disabled={confirmDialog.isPrompt && promptInput !== confirmDialog.promptExpected}
-                onClick={() => {
-                  confirmDialog.onConfirm();
-                  setConfirmDialog(null);
-                  setPromptInput('');
-                }}
-                className={`flex-1 py-3.5 rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg active:scale-95 transition-all ${
-                  (confirmDialog.isPrompt && promptInput !== confirmDialog.promptExpected)
-                    ? 'bg-rose-300 text-white/50 cursor-not-allowed shadow-none'
-                    : 'bg-rose-600 hover:bg-rose-700 text-white shadow-rose-600/20'
-                }`}
-              >
-                Confirm
               </button>
             </div>
           </motion.div>
@@ -3414,16 +2840,8 @@ export function AdminPanel() {
 
             <div className="space-y-3">
               <button 
-                onClick={handleSaveEmployeeConfig}
-                className="w-full bg-purple-600 hover:bg-purple-700 text-white font-black uppercase tracking-[0.15em] py-3.5 rounded-2xl shadow-lg shadow-purple-600/20 active:scale-95 transition-all text-[11px]"
-              >
-                Save Roles & Permissions
               </button>
               <button 
-                onClick={() => setEmployeeConfigUser(null)}
-                className="w-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-700 dark:text-slate-200 font-black uppercase tracking-[0.15em] py-3.5 rounded-2xl active:scale-95 transition-all text-[11px]"
-              >
-                Close
               </button>
             </div>
             {employeePermissions.length === 0 && (
@@ -3433,56 +2851,6 @@ export function AdminPanel() {
         </div>
       )}
 
-
-      {/* Edit User Balance Modal */}
-      {editingUserBalance && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white dark:bg-slate-800 rounded-3xl p-6 w-full max-w-md shadow-2xl">
-            <h3 className="font-black text-slate-900 dark:text-white uppercase tracking-tight mb-4">Edit Balances: {editingUserBalance.fullName}</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Main Balance</label>
-                <input type="number" step="0.01" value={editingUserBalance.main} onChange={e => setEditingUserBalance({...editingUserBalance, main: parseFloat(e.target.value) || 0})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" />
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Bonus Balance</label>
-                <input type="number" step="0.01" value={editingUserBalance.bonus} onChange={e => setEditingUserBalance({...editingUserBalance, bonus: parseFloat(e.target.value) || 0})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" />
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Referral Balance</label>
-                <input type="number" step="0.01" value={editingUserBalance.referral} onChange={e => setEditingUserBalance({...editingUserBalance, referral: parseFloat(e.target.value) || 0})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" />
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Partner Balance</label>
-                <input type="number" step="0.01" value={editingUserBalance.partner} onChange={e => setEditingUserBalance({...editingUserBalance, partner: parseFloat(e.target.value) || 0})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" />
-              </div>
-            </div>
-            <div className="flex gap-3 mt-6">
-              <button onClick={() => setEditingUserBalance(null)} className="flex-1 py-3 text-slate-600 dark:text-slate-300 font-bold bg-slate-100 dark:bg-slate-700 rounded-2xl text-xs uppercase tracking-wider">Cancel</button>
-              <button onClick={async () => {
-                try {
-                  const { updateDoc, doc, setDoc } = await import('firebase/firestore');
-                  const { db } = await import('../lib/firebase');
-                  await updateDoc(doc(db, "users", editingUserBalance.id), {
-                    "balances.main": editingUserBalance.main,
-                    "balances.bonus": editingUserBalance.bonus,
-                    "balances.referral": editingUserBalance.referral,
-                    "balances.partner": editingUserBalance.partner,
-                  });
-                  await setDoc(doc(db, "leaderboard", editingUserBalance.id), {
-                    totalIncome: editingUserBalance.main + editingUserBalance.bonus + editingUserBalance.referral + editingUserBalance.partner + editingUserBalance.tasks
-                  }, { merge: true });
-                  toast.success("Balances updated!");
-                  setEditingUserBalance(null);
-                  loadData(true);
-                } catch(err: any) {
-                  toast.error(err.message);
-                }
-              }} className="flex-1 py-3 text-white font-bold bg-indigo-500 rounded-2xl text-xs uppercase tracking-wider">Save</button>
-            </div>
-          </motion.div>
-        </div>
-      )}
       {showNotifyModal && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4">
           <motion.div
@@ -3496,7 +2864,6 @@ export function AdminPanel() {
                 {notifyTarget === 'all' ? 'Notify All Users' : 'Send Notification'}
               </h3>
               <button onClick={() => setShowNotifyModal(false)} className="text-slate-400 hover:text-slate-600">
-                <XCircle className="w-5 h-5" />
               </button>
             </div>
             
@@ -3522,56 +2889,6 @@ export function AdminPanel() {
               </div>
               
               <button
-                onClick={async () => {
-                  if (!notifyTitle.trim() || !notifyMessage.trim()) {
-                    toast.error("Please enter a title and message.");
-                    return;
-                  }
-                  setIsSendingNotification(true);
-                  try {
-                    if (notifyTarget === 'all') {
-                      let chunk = [];
-                      for (let i = 0; i < userList.length; i++) {
-                        chunk.push(userList[i]);
-                        if (chunk.length === 450 || i === userList.length - 1) {
-                          const batch = writeBatch(db);
-                          chunk.forEach(u => {
-                            const notifRef = doc(collection(db, "users", u.id, "notifications"));
-                            batch.set(notifRef, {
-                              title: notifyTitle,
-                              message: notifyMessage,
-                              read: false,
-                              type: 'admin_broadcast',
-                              createdAt: serverTimestamp()
-                            });
-                          });
-                          await batch.commit();
-                          chunk = [];
-                        }
-                      }
-                      toast.success(`Sent to ${userList.length} users!`);
-                    } else {
-                      const notifRef = doc(collection(db, "users", notifyTarget, "notifications"));
-                      await setDoc(notifRef, {
-                        title: notifyTitle,
-                        message: notifyMessage,
-                        read: false,
-                        type: 'admin_direct',
-                        createdAt: serverTimestamp()
-                      });
-                      toast.success("Notification sent!");
-                    }
-                    setShowNotifyModal(false);
-                  } catch (e: any) {
-                    toast.error(e.message || "Failed to send notification.");
-                  } finally {
-                    setIsSendingNotification(false);
-                  }
-                }}
-                disabled={isSendingNotification}
-                className="w-full bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white py-3 rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-sky-500/20 active:scale-95 transition-all"
-              >
-                {isSendingNotification ? 'Sending...' : 'Send Now'}
               </button>
             </div>
           </motion.div>
@@ -3580,3 +2897,4 @@ export function AdminPanel() {
     </div>
   );
 }
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
