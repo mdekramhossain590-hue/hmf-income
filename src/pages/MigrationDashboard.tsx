@@ -4,7 +4,7 @@ import { auth as currentAuth } from '../lib/firebase';
 import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore, collection, getDocs, doc, query, limit, initializeFirestore } from 'firebase/firestore';
 import { collection as newCollection, doc as newDoc, writeBatch, getDocs as newGetDocs } from 'firebase/firestore';
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail } from 'firebase/auth';
 import { ShieldAlert, Play, CheckCircle, Database, AlertCircle, RefreshCw, ArrowLeft, X, Settings2, Sliders, AlertTriangle, Lock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
@@ -395,7 +395,7 @@ export function MigrationDashboard() {
       return;
     }
     try {
-      const { sendPasswordResetEmail } = await import('firebase/auth');
+      
       await sendPasswordResetEmail(oldAuth, email);
       toast.success(`সোর্স অ্যাপের পাসওয়ার্ড রিসেট লিংক ${email} এ পাঠানো হয়েছে। ইমেইল চেক করে নতুন পাসওয়ার্ড সেট করুন।`);
     } catch (err: any) {
@@ -410,7 +410,7 @@ export function MigrationDashboard() {
       return;
     }
     try {
-      const { sendPasswordResetEmail } = await import('firebase/auth');
+      
       // No reset password needed for target SQL DB
       toast.success(`টার্গেট অ্যাপের পাসওয়ার্ড রিসেট লিংক ${email} এ পাঠানো হয়েছে। ইমেইল চেক করে টার্গেট পাসওয়ার্ড সেট করুন।`);
     } catch (err: any) {

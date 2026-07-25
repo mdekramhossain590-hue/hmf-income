@@ -1,5 +1,5 @@
 const { initializeApp } = require('firebase/app');
-const { getFirestore, getDoc, doc } = require('firebase/firestore');
+const { getFirestore, collection, getDocs, query, limit, orderBy } = require('firebase/firestore');
 
 const firebaseConfig = {
   projectId: "hmf-income-app",
@@ -12,8 +12,9 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 async function run() {
-  const s = await getDoc(doc(db, 'settings', 'activation'));
-  console.log(s.exists(), s.data());
+  const q = query(collection(db, "payment_requests"), orderBy('createdAt', 'desc'), limit(10));
+  const snap = await getDocs(q);
+  snap.forEach(d => console.log(d.id, d.data().type, d.data().status, d.data().amount, d.data().userId));
   process.exit(0);
 }
 run();

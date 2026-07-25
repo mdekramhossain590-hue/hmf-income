@@ -216,10 +216,7 @@ export function TaskDetail() {
     e.preventDefault();
     if (!auth.currentUser) return;
 
-    if (previousSubmission && previousSubmission.status === 'pending') {
-      toast.error("You already have a pending submission for this task.");
-      return;
-    }
+
 
     // Check per-job user limit
     if (job.userLimit && job.userLimit > 0) {
@@ -352,6 +349,7 @@ export function TaskDetail() {
       await setDoc(subRef, subData);
 
       setPreviousSubmission(subData);
+      setSubmissionCount(prev => prev + 1);
       setShowSubmitForm(false);
       setShowConfirmModal(false);
       setShowCelebration(true);
@@ -526,7 +524,7 @@ export function TaskDetail() {
                 Limit
               </p>
               <p className="text-base font-bold text-slate-800 dark:text-white tracking-tight">
-                {job.allowedCompletions || "Unl."}
+                {!job.userLimit ? "Unl." : job.userLimit}
               </p>
             </div>
             <div>
@@ -566,10 +564,7 @@ export function TaskDetail() {
         )}
 
         {/* Submission Form */}
-        {(!job.allowedCompletions ||
-            submissionCount < job.allowedCompletions) &&
-          (!job.userLimit || submissionCount < job.userLimit) &&
-          previousSubmission?.status !== "pending" ? (
+        {(!job.allowedCompletions || (job.completedCount || 0) < job.allowedCompletions) && (!job.userLimit || submissionCount < job.userLimit) ? (
           <form
             onSubmit={handleSubmit}
             className="bg-white dark:bg-slate-800 rounded-[24px] shadow-sm border border-slate-100 dark:border-slate-700/50 p-6 space-y-5"
@@ -1077,10 +1072,7 @@ export function TaskDetail() {
       )}
 
       {/* Submission Form Area */}
-      {(!job.allowedCompletions ||
-        submissionCount < job.allowedCompletions) &&
-        (!job.userLimit || submissionCount < job.userLimit) &&
-        previousSubmission?.status !== "pending" ? (
+      {(!job.allowedCompletions || (job.completedCount || 0) < job.allowedCompletions) && (!job.userLimit || submissionCount < job.userLimit) ? (
         <div className="mt-8">
           <h3 className="font-bold text-gray-800 dark:text-white mb-4">
             {previousSubmission ? "Submit Another Proof" : "Submit Proof"}
@@ -1343,15 +1335,7 @@ export function TaskDetail() {
               </span>
             </button>
 
-            {previousSubmission && (
-              <button
-                type="button"
-                onClick={() => setShowSubmitForm(false)}
-                className="w-full mt-3 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold py-3.5 rounded-2xl shadow-sm hover:bg-slate-200 dark:hover:bg-slate-600 transition-all active:scale-[0.98]"
-              >
-                Cancel
-              </button>
-            )}
+
           </form>
         </div>
       ) : (

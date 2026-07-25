@@ -282,7 +282,7 @@ export function Profile() {
           <div className="w-10 h-10 rounded-full bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center text-indigo-500 mb-2">
             <LineChart className="w-5 h-5" />
           </div>
-          <span className="text-[20px] font-black text-slate-800 dark:text-white leading-none mb-1">Active</span>
+          <span className="text-[20px] font-black text-slate-800 dark:text-white leading-none mb-1">{profile?.isActive ? "Active" : "Inactive"}</span>
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Account Status</span>
         </div>
       </motion.div>

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Copy, Link as LinkIcon, MessageCircle, Send, Users, History, BarChart3, TrendingUp, Coins, Calendar, DollarSign, Layers, Shield } from 'lucide-react';
 import { useAuth } from '../components/AuthProvider';
 import { useLanguage } from '../components/LanguageProvider';
-import { collection, where, getCountFromServer, query, orderBy, getDoc, doc, getDocs, limit } from 'firebase/firestore';
+import { collection, where, getCountFromServer, query, orderBy, getDoc, doc, getDocs, limit, updateDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { getCachedQuery, getCachedDoc } from '../lib/cache';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -23,13 +23,13 @@ export function Refer() {
     if (!uid) return;
     const fetchCount = async () => {
       try {
-        const { getCountFromServer, query, collection } = await import('firebase/firestore');
+        
         const snap = await getCountFromServer(query(collection(db, "users", uid, "referrals")));
         const realCount = snap.data().count;
         setActualReferralsCount(Math.max(realCount, profile?.totalReferrals || 0));
         
         if (realCount > (profile?.totalReferrals || 0)) {
-           const { doc, updateDoc } = await import('firebase/firestore');
+           
            await updateDoc(doc(db, "users", uid), { totalReferrals: realCount });
         }
       } catch (error) {
@@ -55,7 +55,7 @@ export function Refer() {
         const q = query(
           collection(db, "users", auth.currentUser!.uid, "referrals")
         );
-        const { getDocs } = await import('firebase/firestore');
+        
         const snapshot = await getDocs(q);
         const refs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         refs.sort((a: any, b: any) => {

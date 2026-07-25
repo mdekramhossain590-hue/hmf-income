@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthProvider';
 import { useLanguage } from '../components/LanguageProvider';
 import { useNavigate } from 'react-router-dom';
-import { doc, getDoc, collection, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, collection, writeBatch, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { processRegistrationReferral } from '../lib/referral';
 import { getCachedDoc } from '../lib/cache';
@@ -89,7 +89,7 @@ export function Payment() {
 
     setSubmitting(true);
     try {
-      const { query, collection, where, getDocs } = await import('firebase/firestore');
+      
       const q = query(
         collection(db, "users", auth.currentUser.uid, "transactions"),
         where("type", "==", "activation"),

@@ -8,19 +8,7 @@ import React, { useState, useEffect } from "react";
 import { triggerRealisticConfetti } from "../lib/confetti";
 import { useLanguage } from "../components/LanguageProvider";
 import { auth, db } from "../lib/firebase";
-import {
-  doc,
-  getDoc,
-  updateDoc,
-  collection,
-  query,
-  orderBy,
-  limit,
-  writeBatch,
-  deleteDoc,
-  getDocs,
-  getCountFromServer, where,
-} from 'firebase/firestore';
+import { doc, getDoc, updateDoc, collection, query, orderBy, limit, writeBatch, deleteDoc, getDocs, getCountFromServer, where, serverTimestamp, increment } from 'firebase/firestore';
 import { ActivationPopup } from "../components/ActivationPopup";
 import { Celebration } from "../components/Celebration";
 import { motion, AnimatePresence } from "motion/react";
@@ -113,13 +101,13 @@ export function Dashboard() {
     if (!uid) return;
     const fetchCount = async () => {
       try {
-        const { getCountFromServer, query, collection } = await import('firebase/firestore');
+        
         const snap = await getCountFromServer(query(collection(db, "users", uid, "referrals")));
         const realCount = snap.data().count;
         setActualReferralsCount(Math.max(realCount, profile?.totalReferrals || 0));
         
         if (realCount > (profile?.totalReferrals || 0)) {
-           const { doc, updateDoc } = await import('firebase/firestore');
+           
            await updateDoc(doc(db, "users", uid), { totalReferrals: realCount });
         }
       } catch (error) {
@@ -1192,7 +1180,7 @@ export function Dashboard() {
                 setClaimingPartner(true);
                 const batch = writeBatch(db);
                 // import serverTimestamp from firestore:
-                const { serverTimestamp, increment } = await import('firebase/firestore');
+                
                 
                 batch.update(doc(db, "users", auth.currentUser.uid), {
                   "balances.partner": increment(partnerSettings.dailyBonus),

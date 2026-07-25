@@ -1,4 +1,4 @@
-import { doc, getDoc, updateDoc, increment, collection, addDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, increment, collection, addDoc, serverTimestamp, setDoc, query, where, getDocs } from 'firebase/firestore';
 import { db } from './firebase';
 import { getCachedDoc } from './cache';
 
@@ -31,7 +31,7 @@ export async function processReferralCommission(userId: string, amountEarned: nu
     
     if (percents.every(p => p <= 0)) return;
     
-    const { query, where, getDocs } = await import('firebase/firestore');
+    
     
     const sourceUserEmail = userDoc.data().email;
 
@@ -122,7 +122,7 @@ export async function processRegistrationReferral(userId: string) {
     }
     
     const bonuses = [gen1, gen2, gen3];
-    const { query, where, getDocs } = await import('firebase/firestore');
+    
     
     for (let level = 0; level < 3; level++) {
       if (!currentReferCode || currentReferCode === 'none') break;

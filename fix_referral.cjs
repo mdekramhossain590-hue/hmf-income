@@ -1,19 +1,13 @@
 const fs = require('fs');
+let code = fs.readFileSync('src/lib/referral.ts', 'utf8');
 
-// Fix Auth.tsx
-let authCode = fs.readFileSync('src/pages/Auth.tsx', 'utf8');
-authCode = authCode.replace(
-  /usedReferCode: referCode \? referCode\.replace\(\/\[\\u200B-\\u200D\\uFEFF\\s\]\/g, ''\)\.trim\(\) : "none"/g,
-  "usedReferCode: referCode ? referCode.replace(/[\\u200B-\\u200D\\uFEFF\\s]/g, '').trim().toUpperCase() : \"none\""
+// Replace the imports at the top
+code = code.replace(
+  "import { doc, getDoc, updateDoc, increment, collection, addDoc, serverTimestamp, setDoc } from 'firebase/firestore';",
+  "import { doc, getDoc, updateDoc, increment, collection, addDoc, serverTimestamp, setDoc, query, where, getDocs } from 'firebase/firestore';"
 );
-fs.writeFileSync('src/pages/Auth.tsx', authCode);
 
-// Fix referral.ts
-let refCode = fs.readFileSync('src/lib/referral.ts', 'utf8');
-refCode = refCode.replace(
-  /currentReferCode = currentReferCode\.replace\(\/\[\\u200B-\\u200D\\uFEFF\\s\]\/g, ''\)\.trim\(\);/g,
-  "currentReferCode = currentReferCode.replace(/[\\u200B-\\u200D\\uFEFF\\s]/g, '').trim().toUpperCase();"
-);
-fs.writeFileSync('src/lib/referral.ts', refCode);
+// Remove the dynamic imports
+code = code.replace(/const { query, where, getDocs } = await import\('firebase\/firestore'\);/g, '');
 
-console.log("Patched Auth and referral");
+fs.writeFileSync('src/lib/referral.ts', code);

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../components/AuthProvider';
 import { File as FileIcon } from 'lucide-react';
-import { collection, query, onSnapshot, doc, writeBatch, serverTimestamp, setDoc, orderBy, deleteDoc, increment, updateDoc, getDocs, deleteField, getDoc, limit, FieldPath } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, writeBatch, serverTimestamp, setDoc, orderBy, deleteDoc, increment, updateDoc, getDocs, deleteField, getDoc, limit, FieldPath, where } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { getCachedDoc, getCachedQuery, clearCache } from '../lib/cache';
 import { uploadImageOrFallback } from '../lib/imageUpload';
@@ -238,11 +238,17 @@ export function AdminPanel() {
     } catch(e) { console.warn("Error loading data:", e); }
   }, [isAdmin, activeTab]);
 
+  useEffect(() => {
+    loadSettings();
+    loadData();
+  }, [loadSettings, loadData]);
+
+
     const handleDeleteDuplicateAdmins = async () => {
     try {
       toast.success("Delete admins started...");
       toast.loading("Finding and deleting accounts...");
-      const { query, collection, where, getDocs, deleteDoc, doc } = await import('firebase/firestore');
+      
       
       let deleted = 0;
       let kept = 0;
@@ -262,7 +268,8 @@ export function AdminPanel() {
       
       toast.dismiss();
       toast.success(`Deleted ${deleted} duplicates, kept ${kept} original.`);
-      loadData(true);
+          clearCache();
+          loadData(true);
     } catch (e: any) {
       toast.error(e.message);
     }
@@ -369,6 +376,7 @@ export function AdminPanel() {
             updatedAt: serverTimestamp()
           });
           toast.success('User job approved and is now live!');
+          clearCache();
           await loadData(true);
         } catch (err) {
           handleFirestoreError(err, OperationType.UPDATE, `jobs/${jobId}`);
@@ -413,6 +421,7 @@ export function AdminPanel() {
 
           await batch.commit();
           toast.success('Job rejected and user has been fully refunded.');
+          clearCache();
           await loadData(true);
         } catch (err) {
           handleFirestoreError(err, OperationType.WRITE, `jobs/${job.id}`);
@@ -520,6 +529,7 @@ export function AdminPanel() {
           }
 
           toast.success(`Submission ${status}`);
+          clearCache();
           await loadData(true);
         } catch (err: any) {
           console.error("Failed to approve/reject task:", err);
@@ -604,6 +614,21 @@ export function AdminPanel() {
       toast.success('Game unlock settings saved!');
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, 'settings/games');
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
+  const handleSaveActivationSettings = async () => {
+    setIsSavingSettings(true);
+    try {
+      await setDoc(doc(db, "settings", "activation"), {
+        ...activationSettings,
+        updatedAt: serverTimestamp()
+      });
+      toast.success('Activation settings saved!');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, 'settings/activation');
     } finally {
       setIsSavingSettings(false);
     }
@@ -725,6 +750,7 @@ export function AdminPanel() {
           }
 
           toast.success(`${reqType} request ${status}`);
+          clearCache();
           await loadData(true);
         } catch (err) {
           handleFirestoreError(err, OperationType.UPDATE, `payment_requests/${reqId}`);
@@ -747,6 +773,7 @@ export function AdminPanel() {
             updatedAt: serverTimestamp()
           });
           toast.success(currentStatus ? 'User Unblocked' : 'User Blocked');
+          clearCache();
           await loadData(true);
         } catch (err) {
           handleFirestoreError(err, OperationType.UPDATE, `users/${userId}`);
@@ -773,6 +800,7 @@ export function AdminPanel() {
           }
           
           toast.success(currentStatus ? 'User Deactivated' : 'User Activated');
+          clearCache();
           await loadData(true);
         } catch (err) {
           handleFirestoreError(err, OperationType.UPDATE, `users/${userId}`);
@@ -791,6 +819,7 @@ export function AdminPanel() {
           await deleteDoc(doc(db, "users", userId));
           await deleteDoc(doc(db, "leaderboard", userId)).catch(() => {});
           toast.success('User deleted successfully');
+          clearCache();
           await loadData(true);
         } catch (err) {
           handleFirestoreError(err, OperationType.DELETE, `users/${userId}`);
@@ -1929,7 +1958,8 @@ export function AdminPanel() {
                     status: 'active'
                   });
                   toast.success("Drive pack created successfully!");
-                  await loadData(true);
+          clearCache();
+          await loadData(true);
                   setNewDriveTitle('');
                   setNewDriveOriginalPrice('');
                   setNewDriveSalePrice('');
@@ -2018,7 +2048,8 @@ export function AdminPanel() {
                             const newStatus = of.status === 'active' ? 'inactive' : 'active';
                             await updateDoc(doc(db, "drive_offers", of.id), { status: newStatus });
                             toast.success(`Package set ${newStatus}`);
-                            await loadData(true);
+          clearCache();
+          await loadData(true);
                           } catch (e) {
                             toast.error("Failed to alter status");
                           }
@@ -2033,7 +2064,8 @@ export function AdminPanel() {
                             try {
                               await deleteDoc(doc(db, "drive_offers", of.id));
                               toast.success("Pack deleted");
-                              await loadData(true);
+          clearCache();
+          await loadData(true);
                             } catch (e) {
                               toast.error("Failed to delete pack");
                             }
@@ -2082,7 +2114,8 @@ export function AdminPanel() {
                   }, { merge: true });
                   
                   toast.success(editingCourseId ? "     !" : "    !");
-                  await loadData(true);
+          clearCache();
+          await loadData(true);
                   
                   // Clear form
                   setNewCourseTitle('');
@@ -2410,7 +2443,8 @@ export function AdminPanel() {
                           const toggledStatus = course.status === 'active' ? 'inactive' : 'active';
                           await updateDoc(doc(db, "courses", course.id), { status: toggledStatus });
                           toast.success(`  ${toggledStatus}  `);
-                          await loadData(true);
+          clearCache();
+          await loadData(true);
                         } catch (err) {
                           toast.error("  ");
                         }
@@ -2426,7 +2460,8 @@ export function AdminPanel() {
                           try {
                             await deleteDoc(doc(db, "courses", course.id));
                             toast.success("  !");
-                            await loadData(true);
+          clearCache();
+          await loadData(true);
                           } catch (err) {
                             toast.error("!");
                           }
@@ -3476,7 +3511,7 @@ export function AdminPanel() {
               <button onClick={() => setEditingUserBalance(null)} className="flex-1 py-3 text-slate-600 dark:text-slate-300 font-bold bg-slate-100 dark:bg-slate-700 rounded-2xl text-xs uppercase tracking-wider">Cancel</button>
               <button onClick={async () => {
                 try {
-                  const { updateDoc, doc, setDoc } = await import('firebase/firestore');
+                  
                   const { db } = await import('../lib/firebase');
                   await updateDoc(doc(db, "users", editingUserBalance.id), {
                     "balances.main": editingUserBalance.main,
