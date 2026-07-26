@@ -137,7 +137,7 @@ export function Auth() {
         email: userEmail,
         myReferCode: myReferCode,
         usedReferCode: referCode ? referCode.replace(/[\u200B-\u200D\uFEFF\s]/g, '').trim().toUpperCase() : "none",
-        balances: { main: 0, bonus: 10, referral: 0, partner: 0 },
+        balances: { main: 0, bonus: 0, referral: 0, partner: 0 },
         role: userRole,
         isActive: initialIsActive,
         referralBonusPaid: false,
@@ -148,9 +148,9 @@ export function Auth() {
 
       await setDoc(doc(db, "leaderboard", user.uid), {
         fullName: displayName || 'User',
-        bonus: 10,
+        bonus: 0,
         referrals: 0,
-        totalIncome: 10,
+        totalIncome: 0,
         updatedAt: serverTimestamp()
       }, { merge: true });
 

@@ -18,32 +18,14 @@ export function Refer() {
   }, [profile?.totalReferrals]);
 
 
-  useEffect(() => {
-    const uid = user?.uid;
-    if (!uid) return;
-    const fetchCount = async () => {
-      try {
-        
-        const snap = await getCountFromServer(query(collection(db, "users", uid, "referrals")));
-        const realCount = snap.data().count;
-        setActualReferralsCount(Math.max(realCount, profile?.totalReferrals || 0));
-        
-        if (realCount > (profile?.totalReferrals || 0)) {
-           
-           await updateDoc(doc(db, "users", uid), { totalReferrals: realCount });
-        }
-      } catch (error) {
-        console.error("Failed to fetch referral count:", error);
-      }
-    };
-    fetchCount();
-  }, [user?.uid, profile?.totalReferrals]);
+
 
 
 
 
 
   const [referrals, setReferrals] = useState<any[]>([]);
+  const [historyTab, setHistoryTab] = useState<number>(1);
     const [referralBonus, setReferralBonus] = useState(10);
   const [partnerSettings, setPartnerSettings] = useState({ requiredReferrals: 10, dailyBonus: 100, enabled: true });
 
@@ -64,6 +46,11 @@ export function Refer() {
           return timeB - timeA;
         });
         setReferrals(refs);
+        const gen1Count = refs.filter(r => !r.level || r.level === 1).length;
+        if (gen1Count > (profile?.totalReferrals || 0)) {
+          updateDoc(doc(db, "users", auth.currentUser!.uid), { totalReferrals: gen1Count }).catch(console.error);
+        }
+        setActualReferralsCount(Math.max(gen1Count, profile?.totalReferrals || 0));
         
         const [refDoc, pDoc] = await Promise.all([
           getCachedDoc(doc(db, "settings", "referral")),
@@ -503,17 +490,34 @@ export function Refer() {
 
       {/* Referral History */}
       <div className="text-left">
-        <h4 className="font-bold text-slate-800 dark:text-white mb-3 flex items-center gap-2 tracking-tight">
-          <div className="p-1.5 bg-slate-100 dark:bg-slate-700 rounded-lg text-indigo-500"><History className="w-4 h-4" /></div> {t('referral_history')}
-        </h4>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-3">
+          <h4 className="font-bold text-slate-800 dark:text-white flex items-center gap-2 tracking-tight">
+            <div className="p-1.5 bg-slate-100 dark:bg-slate-700 rounded-lg text-indigo-500"><History className="w-4 h-4" /></div> {t('referral_history')}
+          </h4>
+          <div className="flex bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-1 rounded-xl w-fit">
+            {[1, 2, 3].map((gen) => (
+              <button
+                key={gen}
+                onClick={() => setHistoryTab(gen)}
+                className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all ${
+                  historyTab === gen
+                    ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                Gen {gen}
+              </button>
+            ))}
+          </div>
+        </div>
         
         <div className="space-y-3">
-          {referrals.length === 0 ? (
+          {referrals.filter(r => (historyTab === 1 ? (!r.level || r.level === 1) : r.level === historyTab)).length === 0 ? (
             <div className="text-center py-6 text-slate-400 bg-white dark:bg-slate-800 rounded-2xl ring-1 ring-slate-100 dark:ring-slate-700/50 font-medium text-sm">
               <p className="text-sm">{t('no_referrals_yet')}</p>
             </div>
           ) : (
-            referrals.map((ref) => (
+            referrals.filter(r => (historyTab === 1 ? (!r.level || r.level === 1) : r.level === historyTab)).map((ref) => (
               <div key={ref.id} className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 flex justify-between items-center group hover:border-indigo-200 dark:hover:border-indigo-900/50 transition-colors">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 font-bold text-xs ring-1 ring-slate-200 dark:ring-slate-600">

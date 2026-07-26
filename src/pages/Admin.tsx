@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../components/AuthProvider';
 import { File as FileIcon } from 'lucide-react';
+import QRCode from 'react-qr-code';
 import { collection, query, onSnapshot, doc, writeBatch, serverTimestamp, setDoc, orderBy, deleteDoc, increment, updateDoc, getDocs, deleteField, getDoc, limit, FieldPath, where } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { getCachedDoc, getCachedQuery, clearCache } from '../lib/cache';
@@ -728,7 +729,9 @@ export function AdminPanel() {
               
               batch.set(userRef, updateData, { merge: true });
             } else if (reqType === 'activation' && status === 'approved') {
-              batch.set(userRef, { isActive: true }, { merge: true });
+              batch.set(userRef, { isActive: true, 'balances.bonus': increment(10) }, { merge: true });
+              const leaderboardRef = doc(db, "leaderboard", reqUserId);
+              batch.set(leaderboardRef, { bonus: increment(10), totalIncome: increment(10) }, { merge: true });
             }
             
             const notifRef = doc(collection(db, "users", reqUserId, "notifications"));
@@ -1651,6 +1654,9 @@ export function AdminPanel() {
                           <Copy className="w-3 h-3" />
                         </button>
                       </div>
+                    </div>
+                    <div className="flex justify-center mt-3 p-2 bg-white rounded-lg w-fit mx-auto">
+                      <QRCode value={req.account} size={90} />
                     </div>
                   </div>
                 )}
@@ -3580,10 +3586,12 @@ export function AdminPanel() {
                   setIsSendingNotification(true);
                   try {
                     if (notifyTarget === 'all') {
+                      const allUsersSnap = await getDocs(collection(db, "users"));
+                      const allUsers = allUsersSnap.docs;
                       let chunk = [];
-                      for (let i = 0; i < userList.length; i++) {
-                        chunk.push(userList[i]);
-                        if (chunk.length === 450 || i === userList.length - 1) {
+                      for (let i = 0; i < allUsers.length; i++) {
+                        chunk.push(allUsers[i]);
+                        if (chunk.length === 450 || i === allUsers.length - 1) {
                           const batch = writeBatch(db);
                           chunk.forEach(u => {
                             const notifRef = doc(collection(db, "users", u.id, "notifications"));
@@ -3599,7 +3607,7 @@ export function AdminPanel() {
                           chunk = [];
                         }
                       }
-                      toast.success(`Sent to ${userList.length} users!`);
+                      toast.success(`Sent to ${allUsers.length} users!`);
                     } else {
                       const notifRef = doc(collection(db, "users", notifyTarget, "notifications"));
                       await setDoc(notifRef, {

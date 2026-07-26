@@ -7,6 +7,7 @@ import { BarChart, Bar, ReferenceLine, XAxis, YAxis, Tooltip, ResponsiveContaine
 import { useLanguage } from '../components/LanguageProvider';
 import { useSearchParams } from 'react-router-dom';
 import { History, ArrowUpRight, ArrowDownLeft, Copy, Wallet as WalletIcon, TrendingUp, ArrowRightLeft, Zap, Shield } from 'lucide-react';
+import QRCode from 'react-qr-code';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -456,20 +457,50 @@ export function Wallet() {
               )}
             </div>
             
+            
+            {depositMethod === 'bKash' && depositSettings.bkashNumber && (
+              <div className="mt-4 z-10 bg-white dark:bg-slate-800 p-3 rounded-xl shadow-sm border border-blue-100 dark:border-slate-700 flex flex-col items-center">
+                <div className="bg-white p-2 rounded-lg">
+                  <QRCode value={depositSettings.bkashNumber} size={120} />
+                </div>
+                <p className="text-[10px] text-slate-500 font-bold mt-2 uppercase">Scan to Pay</p>
+              </div>
+            )}
+            {depositMethod === 'Nagad' && depositSettings.nagadNumber && (
+              <div className="mt-4 z-10 bg-white dark:bg-slate-800 p-3 rounded-xl shadow-sm border border-blue-100 dark:border-slate-700 flex flex-col items-center">
+                <div className="bg-white p-2 rounded-lg">
+                  <QRCode value={depositSettings.nagadNumber} size={120} />
+                </div>
+                <p className="text-[10px] text-slate-500 font-bold mt-2 uppercase">Scan to Pay</p>
+              </div>
+            )}
             <p className="text-[10px] text-red-500 dark:text-red-400 font-bold mt-3 z-10 bg-red-50 dark:bg-red-900/30 px-3 py-1 rounded-full">{t('send_money_only')}</p>
           </div>
           <form onSubmit={handleDeposit} className="space-y-4">
-            <div>
+                        <div>
               <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest pl-1 mb-1.5">{t('select_method') || 'Select Method'}</label>
-              <select 
-                value={depositMethod}
-                onChange={(e) => setDepositMethod(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 dark:bg-slate-900/50 dark:border-slate-700 dark:text-white rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium transition-all"
-              >
-                <option value="">Choose Method</option>
-                {depositSettings.bkashEnabled && <option value="bKash">bKash</option>}
-                {depositSettings.nagadEnabled && <option value="Nagad">Nagad</option>}
-              </select>
+              <div className="flex gap-4">
+                {depositSettings.bkashEnabled !== false && (
+                  <button
+                    type="button"
+                    onClick={() => setDepositMethod('bKash')}
+                    className={`flex-1 py-3 px-2 rounded-xl flex flex-col items-center justify-center gap-2 border-2 transition-all ${depositMethod === 'bKash' ? 'border-[#E2136E] bg-[#E2136E]/10 scale-105' : 'border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                  >
+                    <img src="https://freelogopng.com/images/all_img/1656234745bkash-app-logo-png.png" alt="bKash" className="h-8 object-contain" />
+                    <span className="text-xs font-bold dark:text-white">bKash</span>
+                  </button>
+                )}
+                {depositSettings.nagadEnabled !== false && (
+                  <button
+                    type="button"
+                    onClick={() => setDepositMethod('Nagad')}
+                    className={`flex-1 py-3 px-2 rounded-xl flex flex-col items-center justify-center gap-2 border-2 transition-all ${depositMethod === 'Nagad' ? 'border-[#F7931E] bg-[#F7931E]/10 scale-105' : 'border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                  >
+                    <img src="https://freelogopng.com/images/all_img/1679248787Nagad-Logo.png" alt="Nagad" className="h-8 object-contain" />
+                    <span className="text-xs font-bold dark:text-white">Nagad</span>
+                  </button>
+                )}
+              </div>
             </div>
             <div>
               <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest pl-1 mb-1.5">{t('amount')} (৳{depositSettings.minDeposit} - ৳{depositSettings.maxDeposit})</label>
@@ -548,17 +579,30 @@ export function Wallet() {
                 })}
               </select>
             </div>
-            <div>
+                                    <div>
               <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest pl-1 mb-1.5">{t('select_method') || 'Method'}</label>
-              <select 
-                value={withdrawMethod}
-                onChange={(e) => setWithdrawMethod(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 dark:bg-slate-900/50 dark:border-slate-700 dark:text-white rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium transition-all"
-              >
-                <option value="">Choose Method</option>
-                <option value="bKash">bKash</option>
-                <option value="Nagad">Nagad</option>
-              </select>
+              <div className="flex gap-4">
+                {depositSettings.bkashEnabled !== false && (
+                  <button
+                    type="button"
+                    onClick={() => setWithdrawMethod('bKash')}
+                    className={`flex-1 py-3 px-2 rounded-xl flex flex-col items-center justify-center gap-2 border-2 transition-all ${withdrawMethod === 'bKash' ? 'border-[#E2136E] bg-[#E2136E]/10 scale-105' : 'border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                  >
+                    <img src="https://freelogopng.com/images/all_img/1656234745bkash-app-logo-png.png" alt="bKash" className="h-8 object-contain" />
+                    <span className="text-xs font-bold dark:text-white">bKash</span>
+                  </button>
+                )}
+                {depositSettings.nagadEnabled !== false && (
+                  <button
+                    type="button"
+                    onClick={() => setWithdrawMethod('Nagad')}
+                    className={`flex-1 py-3 px-2 rounded-xl flex flex-col items-center justify-center gap-2 border-2 transition-all ${withdrawMethod === 'Nagad' ? 'border-[#F7931E] bg-[#F7931E]/10 scale-105' : 'border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                  >
+                    <img src="https://freelogopng.com/images/all_img/1679248787Nagad-Logo.png" alt="Nagad" className="h-8 object-contain" />
+                    <span className="text-xs font-bold dark:text-white">Nagad</span>
+                  </button>
+                )}
+              </div>
             </div>
             <div>
               <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest pl-1 mb-1.5">{t('account_number') || 'Account details'}</label>

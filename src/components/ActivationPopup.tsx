@@ -48,8 +48,11 @@ export function ActivationPopup({ onClose }: { onClose: () => void }) {
         const currentRef = doc(db, 'users', auth.currentUser.uid);
         await updateDoc(currentRef, {
           'balances.main': increment(-settings.fee),
+          'balances.bonus': increment(10),
           isActive: true
         });
+        const leaderboardRef = doc(db, 'leaderboard', auth.currentUser.uid);
+        await updateDoc(leaderboardRef, { bonus: increment(10), totalIncome: increment(10) });
         await processRegistrationReferral(auth.currentUser.uid);
         await refreshProfile();
         toast.success("Account activated successfully!");
@@ -60,8 +63,11 @@ export function ActivationPopup({ onClose }: { onClose: () => void }) {
       // Free activation
       try {
         await updateDoc(doc(db, 'users', auth.currentUser.uid), {
-          isActive: true
+          isActive: true,
+          'balances.bonus': increment(10)
         });
+        const leaderboardRef = doc(db, 'leaderboard', auth.currentUser.uid);
+        await updateDoc(leaderboardRef, { bonus: increment(10), totalIncome: increment(10) });
         await processRegistrationReferral(auth.currentUser.uid);
         await refreshProfile();
         toast.success("Account activated successfully!");

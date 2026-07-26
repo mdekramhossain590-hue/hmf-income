@@ -6,7 +6,8 @@ import { doc, getDoc, collection, writeBatch, serverTimestamp, query, where, get
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { processRegistrationReferral } from '../lib/referral';
 import { getCachedDoc } from '../lib/cache';
-import { ShieldCheck, ArrowRight, CreditCard } from 'lucide-react';
+import { ShieldCheck, ArrowRight, CreditCard, Copy } from 'lucide-react';
+import QRCode from 'react-qr-code';
 import toast from 'react-hot-toast';
 
 export function Payment() {
@@ -175,28 +176,72 @@ export function Payment() {
               </div>
             </div>
 
-            <div className="bg-blue-50 border border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 p-4 rounded-xl mb-6 text-center">
+                        <div className="bg-blue-50 border border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 p-4 rounded-xl mb-6 flex flex-col items-center">
               <p className="text-xs text-gray-600 dark:text-gray-300">Send money directly to this number via {paymentMethod || 'bKash/Nagad'}:</p>
-              <h3 className="text-xl font-bold text-[#0D47A1] dark:text-blue-400 tracking-wider my-2">
-                 {paymentMethod === 'bKash' ? depositSettings.bkashNumber : paymentMethod === 'Nagad' ? depositSettings.nagadNumber : 'Select a method below'}
-              </h3>
+              <div className="flex items-center gap-3 my-2 z-10 bg-white dark:bg-slate-800 py-2 px-4 rounded-xl shadow-sm border border-blue-100 dark:border-slate-700">
+                <h3 className="text-xl font-bold text-[#0D47A1] dark:text-blue-400 tracking-wider">
+                  {paymentMethod === 'bKash' ? depositSettings.bkashNumber : paymentMethod === 'Nagad' ? depositSettings.nagadNumber : 'Select a method below'}
+                </h3>
+                {(paymentMethod === 'bKash' || paymentMethod === 'Nagad') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const num = paymentMethod === 'bKash' ? depositSettings.bkashNumber : depositSettings.nagadNumber;
+                      navigator.clipboard.writeText(num);
+                      toast.success('Number copied!');
+                    }}
+                    className="p-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors dark:bg-blue-800/40 dark:text-blue-300 dark:hover:bg-blue-800/60 active:scale-95"
+                    title="Copy Number"
+                  >
+                    <Copy className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
               
-              <p className="text-[10px] text-red-500 font-medium">Use SEND MONEY option only</p>
+            {paymentMethod === 'bKash' && depositSettings.bkashNumber && (
+              <div className="my-3 z-10 bg-white dark:bg-slate-800 p-3 rounded-xl shadow-sm border border-blue-100 dark:border-slate-700 flex flex-col items-center">
+                <div className="bg-white p-2 rounded-lg">
+                  <QRCode value={depositSettings.bkashNumber} size={120} />
+                </div>
+                <p className="text-[10px] text-slate-500 font-bold mt-2 uppercase">Scan to Pay</p>
+              </div>
+            )}
+            {paymentMethod === 'Nagad' && depositSettings.nagadNumber && (
+              <div className="my-3 z-10 bg-white dark:bg-slate-800 p-3 rounded-xl shadow-sm border border-blue-100 dark:border-slate-700 flex flex-col items-center">
+                <div className="bg-white p-2 rounded-lg">
+                  <QRCode value={depositSettings.nagadNumber} size={120} />
+                </div>
+                <p className="text-[10px] text-slate-500 font-bold mt-2 uppercase">Scan to Pay</p>
+              </div>
+            )}
+              <p className="text-[10px] text-red-500 font-medium bg-red-50 dark:bg-red-900/30 px-3 py-1 rounded-full">Use SEND MONEY option only</p>
             </div>
 
             <form onSubmit={handlePayment} className="space-y-4">
-              <div>
-                <label className="text-xs font-bold text-gray-500 block mb-1">Payment Method</label>
-                <select 
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
-                  className="w-full bg-gray-50 border border-gray-200 dark:bg-slate-700 dark:border-slate-600 dark:text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500"
-                  required
-                >
-                  <option value="">Select Method</option>
-                  {depositSettings.bkashEnabled !== false && <option value="bKash">bKash</option>}
-                  {depositSettings.nagadEnabled !== false && <option value="Nagad">Nagad</option>}
-                </select>
+                            <div>
+                <label className="text-xs font-bold text-gray-500 block mb-2">Payment Method</label>
+                <div className="flex gap-4">
+                  {depositSettings.bkashEnabled !== false && (
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('bKash')}
+                      className={`flex-1 py-3 px-2 rounded-xl flex flex-col items-center justify-center gap-2 border-2 transition-all ${paymentMethod === 'bKash' ? 'border-[#E2136E] bg-[#E2136E]/10 scale-105' : 'border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700'}`}
+                    >
+                      <img src="https://freelogopng.com/images/all_img/1656234745bkash-app-logo-png.png" alt="bKash" className="h-8 object-contain" />
+                      <span className="text-xs font-bold dark:text-white">bKash</span>
+                    </button>
+                  )}
+                  {depositSettings.nagadEnabled !== false && (
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('Nagad')}
+                      className={`flex-1 py-3 px-2 rounded-xl flex flex-col items-center justify-center gap-2 border-2 transition-all ${paymentMethod === 'Nagad' ? 'border-[#F7931E] bg-[#F7931E]/10 scale-105' : 'border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700'}`}
+                    >
+                      <img src="https://freelogopng.com/images/all_img/1679248787Nagad-Logo.png" alt="Nagad" className="h-8 object-contain" />
+                      <span className="text-xs font-bold dark:text-white">Nagad</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div>
