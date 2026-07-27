@@ -54,7 +54,7 @@ export function Tasks() {
         const q = query(
           collection(db, "submissions"),
           where("userId", "==", auth.currentUser!.uid),
-          limit(100)
+          limit(500)
         );
         const taskSnap = forceRefresh ? await getDocs(q) : await getCachedQuery(q, `tasks_history_${auth.currentUser!.uid}`);
         const historyData = taskSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
@@ -65,7 +65,7 @@ export function Tasks() {
         });
         setTaskHistory(historyData.slice(0, 50));
         
-        const jobsQuery = query(collection(db, "jobs"), orderBy("createdAt", "desc"), limit(100));
+        const jobsQuery = query(collection(db, "jobs"), orderBy("createdAt", "desc"), limit(500));
         const jobSnap = forceRefresh ? await getDocs(jobsQuery) : await getCachedQuery(jobsQuery, "jobs_active_list");
         setJobs(jobSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter((j: any) => j.status === 'active'));
       } catch (error) {

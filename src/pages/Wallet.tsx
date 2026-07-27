@@ -248,9 +248,28 @@ export function Wallet() {
     const amount = parseFloat(withdrawAmount);
     
     try {
-      const batch = writeBatch(db);
       const userRef = doc(db, "users", auth.currentUser.uid);
       
+      // DOUBLE CHECK BALANCE TO PREVENT NEGATIVE BALANCE
+      const userSnap = await getDoc(userRef);
+      if (userSnap.exists()) {
+        const userData = userSnap.data();
+        let actualCurrentBal = 0;
+        if (selectedWallet === 'main') actualCurrentBal = userData.balances?.main || 0;
+        else if (selectedWallet === 'bonus') actualCurrentBal = userData.balances?.bonus || 0;
+        else if (selectedWallet === 'referral') actualCurrentBal = userData.balances?.referral || 0;
+        else if (selectedWallet === 'partner') actualCurrentBal = userData.balances?.partner || 0;
+        else if (selectedWallet === 'gift') actualCurrentBal = userData.balances?.gift || 0;
+        else actualCurrentBal = userData.balances?.tasks?.[selectedWallet] || 0;
+
+        if (amount > actualCurrentBal) {
+          toast.error("Insufficient balance.");
+          setShowConfirmWithdraw(false);
+          return;
+        }
+      }
+
+      const batch = writeBatch(db);
       const updateData: any = {};
       if (selectedWallet === 'main') updateData["balances.main"] = increment(-amount);
       else if (selectedWallet === 'bonus') updateData["balances.bonus"] = increment(-amount);

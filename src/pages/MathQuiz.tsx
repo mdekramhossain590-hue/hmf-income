@@ -77,18 +77,34 @@ export function MathQuiz() {
   }, []);
 
   
+    const getUnlocks = () => {
+    if (!profile) return 0;
+    const taskCount = profile.totalTasksCompleted || 0;
+    const referCount = profile.totalReferrals || 0;
+    
+    if (mathReq.taskReq === 0 && mathReq.referReq === 0) return Infinity;
+    
+    let unlocks = Infinity;
+    if (mathReq.taskReq > 0) {
+      unlocks = Math.min(unlocks, Math.floor(taskCount / mathReq.taskReq));
+    }
+    if (mathReq.referReq > 0) {
+      unlocks = Math.min(unlocks, Math.floor(referCount / mathReq.referReq));
+    }
+    return unlocks;
+  };
+
   useEffect(() => {
     if (profile) {
-      const today = new Date().toISOString().split('T')[0];
-      const userLimit = profile.totalReferrals || 0;
-      
-      
-      const lastMathDate = profile.lastMathDate;
-      const playedMathToday = lastMathDate === today ? (profile.dailyMaths || 0) : 0;
-      setMathLeft(Math.max(0, userLimit - playedMathToday));
-      
+      if (mathReq.taskReq === 0 && mathReq.referReq === 0) {
+        setMathLeft(999999);
+      } else {
+        const totalAllowed = getUnlocks() * 5;
+        const totalPlayed = profile.totalMathsPlayed || 0;
+        setMathLeft(Math.max(0, totalAllowed - totalPlayed));
+      }
     }
-  }, [profile]);
+  }, [profile, mathReq]);
 
   const hasMetRequirements = () => {
     if (!profile) return false;
@@ -125,10 +141,26 @@ export function MathQuiz() {
     const userAnswer = parseInt(answer);
 
     if (userAnswer !== correctAnswer) {
-      toast.error("Wrong answer! Try again.");
+      toast.error("Wrong answer!");
       
-      // Optionally save wrong answer to history too? Let's just create history for correct, or both?
-      // For now, let's just reject.
+      // Still deduct one attempt for wrong answer
+      const todayStr = new Date().toISOString().split('T')[0];
+      const userRef = doc(db, "users", auth.currentUser.uid);
+      await updateDoc(userRef, {
+        totalMathsPlayed: increment(1)
+      });
+      setMathLeft(prev => prev - 1);
+      
+      const mathHistoryRef = collection(db, `users/${auth.currentUser.uid}/mathHistory`);
+      await addDoc(mathHistoryRef, {
+        question: `${num1} ${operator} ${num2} = ?`,
+        userAnswer: answer,
+        correctAnswer: correctAnswer.toString(),
+        reward: 0,
+        completedAt: serverTimestamp()
+      });
+      
+      generateMath();
       return;
     }
 
@@ -146,8 +178,7 @@ export function MathQuiz() {
       const todayStr = new Date().toISOString().split('T')[0];
           await updateDoc(userRef, {
             "balances.bonus": increment(reward),
-            dailyMaths: profile?.lastMathDate === todayStr ? increment(1) : 1,
-            lastMathDate: todayStr
+            totalMathsPlayed: increment(1)
           });
           setMathLeft(prev => prev - 1);
       
@@ -271,7 +302,7 @@ export function MathQuiz() {
           </div>
           
           <p className="mt-6 text-sm font-semibold text-slate-600 dark:text-slate-300">
-            Available Math Quizzes: <span className="text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-2 py-0.5 rounded ml-1">{mathLeft}</span> <span className="opacity-50">/ {profile?.totalReferrals || 0}</span>
+            Available Math Quizzes: <span className="text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-2 py-0.5 rounded ml-1">{mathLeft}</span> 
           </p>
         </>
       )}

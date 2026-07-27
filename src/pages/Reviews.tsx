@@ -32,7 +32,7 @@ export function Reviews() {
         const history = taskSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any)).filter((item: any) => item.type === 'Review');
         setTaskHistory(history);
         
-        const jobsQuery = query(collection(db, "jobs"), orderBy("createdAt", "desc"), limit(50));
+        const jobsQuery = query(collection(db, "jobs"), orderBy("createdAt", "desc"), limit(500));
         const jobsSnap = await getCachedQuery(jobsQuery, "jobs_review_list");
         const fetchedJobs = jobsSnap.docs
           .map(doc => ({ id: doc.id, ...doc.data() }))

@@ -94,7 +94,22 @@ export function Dashboard() {
     linkText?: string;
   } | null>(null);
   const { t, language } = useLanguage();
-  const actualReferralsCount = profile?.totalReferrals || 0;
+    const [actualReferralsCount, setActualReferralsCount] = useState(profile?.totalReferrals || 0);
+
+  useEffect(() => {
+    if (!auth.currentUser) return;
+    const fixReferrals = async () => {
+      try {
+        const snap = await getDocs(collection(db, "users", auth.currentUser.uid, "referrals"));
+        const gen1 = snap.docs.filter(d => !d.data().level || d.data().level === 1).length;
+        setActualReferralsCount(gen1);
+        if (profile && gen1 !== profile.totalReferrals) {
+           updateDoc(doc(db, "users", auth.currentUser.uid), { totalReferrals: gen1 }).catch(e => {});
+        }
+      } catch (e) {}
+    };
+    fixReferrals();
+  }, [profile?.totalReferrals]);
 
 
 

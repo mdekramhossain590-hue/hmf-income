@@ -138,18 +138,34 @@ export function Spin() {
   }, []);
 
   
+    const getUnlocks = () => {
+    if (!profile) return 0;
+    const taskCount = profile.totalTasksCompleted || 0;
+    const referCount = profile.totalReferrals || 0;
+    
+    if (spinReq.taskReq === 0 && spinReq.referReq === 0) return Infinity;
+    
+    let unlocks = Infinity;
+    if (spinReq.taskReq > 0) {
+      unlocks = Math.min(unlocks, Math.floor(taskCount / spinReq.taskReq));
+    }
+    if (spinReq.referReq > 0) {
+      unlocks = Math.min(unlocks, Math.floor(referCount / spinReq.referReq));
+    }
+    return unlocks;
+  };
+
   useEffect(() => {
     if (profile) {
-      const today = new Date().toISOString().split('T')[0];
-      const userLimit = profile.totalReferrals || 0;
-      
-      
-      const lastSpinDate = profile.lastSpinDate;
-      const playedSpinToday = lastSpinDate === today ? (profile.dailySpins || 0) : 0;
-      setSpinsLeft(Math.max(0, userLimit - playedSpinToday));
-      
+      if (spinReq.taskReq === 0 && spinReq.referReq === 0) {
+        setSpinsLeft(999999);
+      } else {
+        const totalAllowed = getUnlocks() * 5;
+        const totalPlayed = profile.totalSpinsPlayed || 0;
+        setSpinsLeft(Math.max(0, totalAllowed - totalPlayed));
+      }
     }
-  }, [profile]);
+  }, [profile, spinReq]);
 
   const hasMetRequirements = () => {
     if (!profile) return false;
@@ -202,9 +218,16 @@ export function Spin() {
       setWinningIndex(targetIndex);
       
       try {
+        const userRef = doc(db, "users", auth.currentUser!.uid);
+        const todayStr = new Date().toISOString().split('T')[0];
+        
+        await updateDoc(userRef, {
+           totalSpinsPlayed: increment(1)
+        });
+        setSpinsLeft(prev => prev - 1);
+
         if (reward > 0) {
           winSound();
-          const userRef = doc(db, "users", auth.currentUser!.uid);
           const transactionRef = collection(db, `users/${auth.currentUser!.uid}/transactions`);
           const notificationRef = collection(db, `users/${auth.currentUser!.uid}/notifications`);
 
@@ -212,11 +235,8 @@ export function Spin() {
 
           const todayStr = new Date().toISOString().split('T')[0];
           await updateDoc(userRef, {
-            "balances.bonus": increment(reward),
-            dailySpins: profile?.lastSpinDate === todayStr ? increment(1) : 1,
-            lastSpinDate: todayStr
+            "balances.bonus": increment(reward)
           });
-          setSpinsLeft(prev => prev - 1);
           
           await setDoc(leaderboardRef, {
             fullName: profile?.fullName || auth.currentUser?.email?.split('@')[0] || 'User',
@@ -346,7 +366,7 @@ export function Spin() {
         <div className="absolute inset-0 bg-white/20 transform -skew-x-12 -translate-x-full group-hover:animate-shimmer z-0" />
       </button>
       <p className="mt-6 text-sm font-semibold text-slate-600 dark:text-slate-300">
-        Available Spins: <span className="text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-2 py-0.5 rounded ml-1">{spinsLeft}</span> <span className="opacity-50">/ {profile?.totalReferrals || 0}</span>
+        Available Spins: <span className="text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-2 py-0.5 rounded ml-1">{spinsLeft}</span> 
       </p>
     </div>
   );

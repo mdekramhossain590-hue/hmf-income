@@ -47,10 +47,10 @@ export function Refer() {
         });
         setReferrals(refs);
         const gen1Count = refs.filter(r => !r.level || r.level === 1).length;
-        if (gen1Count > (profile?.totalReferrals || 0)) {
+        if (gen1Count !== (profile?.totalReferrals || 0)) {
           updateDoc(doc(db, "users", auth.currentUser!.uid), { totalReferrals: gen1Count }).catch(console.error);
         }
-        setActualReferralsCount(Math.max(gen1Count, profile?.totalReferrals || 0));
+        setActualReferralsCount(gen1Count);
         
         const [refDoc, pDoc] = await Promise.all([
           getCachedDoc(doc(db, "settings", "referral")),

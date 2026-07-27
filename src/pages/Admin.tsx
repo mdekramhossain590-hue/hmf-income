@@ -213,9 +213,9 @@ export function AdminPanel() {
     if (!isAdmin) return;
     try {
       if (['jobs', 'submissions'].includes(activeTab)) {
-        const jS = await getCachedQuery(query(collection(db, "jobs"), orderBy("createdAt", "desc"), limit(50)), "admin_jobs", forceRef);
+        const jS = await getCachedQuery(query(collection(db, "jobs"), orderBy("createdAt", "desc"), limit(500)), "admin_jobs", forceRef);
         setJobs(jS.docs.map(d => ({id: d.id, ...d.data()} as any)));
-        const sS = await getCachedQuery(query(collection(db, "submissions"), orderBy("submittedAt", "desc"), limit(50)), "admin_submissions", forceRef);
+        const sS = await getCachedQuery(query(collection(db, "submissions"), orderBy("submittedAt", "desc"), limit(500)), "admin_submissions", forceRef);
         setSubmissions(sS.docs.map(d => ({id: d.id, ...d.data()} as any)));
       }
       if (['requests', 'dashboard'].includes(activeTab)) {
@@ -1345,7 +1345,7 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
           <div className="pt-6">
             <h3 className="font-black dark:text-white uppercase tracking-tight text-xs mb-4 opacity-50 px-1">Recently Reviewed</h3>
             <div className="grid gap-2">
-              {submissions.filter(s => s.status !== 'pending').slice(0, 5).map(sub => (
+              {submissions.filter(s => s.status !== 'pending').slice(0, 100).map(sub => (
                 <div key={sub.id} className="bg-white dark:bg-slate-800 p-3 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex justify-between items-center transition-all hover:bg-slate-50 dark:hover:bg-slate-800/60">
                   <div className="flex-1 overflow-hidden pr-4">
                     <p className="font-bold text-xs text-slate-800 dark:text-slate-200 truncate uppercase tracking-tight italic">{sub.title}</p>
@@ -1812,7 +1812,7 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
           <div className="pt-6">
             <h3 className="font-black dark:text-white uppercase tracking-tight text-xs mb-4 opacity-50 px-1">Payment History</h3>
             <div className="grid gap-2">
-              {paymentRequests.filter(req => req.status !== 'pending').slice(0, 5).map(req => (
+              {paymentRequests.filter(req => req.status !== 'pending').slice(0, 100).map(req => (
                 <div key={req.id} className="bg-white dark:bg-slate-800 p-3 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex justify-between items-center opacity-70">
                   <div className="flex-1 overflow-hidden pr-4">
                     <p className="font-black text-[13px] text-slate-800 dark:text-slate-200 italic uppercase flex items-center gap-1.5">
@@ -2665,22 +2665,7 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                     <BellRing className="w-4 h-4" /> Notify
                   </button>
 
-                  <button
-                    onClick={() => {
-                      setEditingUserBalance({
-                        id: user.id,
-                        fullName: user.fullName || 'Anonymous',
-                        main: Number(user.balances?.main || 0),
-                        bonus: Number(user.balances?.bonus || 0),
-                        referral: Number(user.balances?.referral || 0),
-                        partner: Number(user.balances?.partner || 0),
-                        tasks: Number(Object.values(user.balances?.tasks || {}).reduce((a: any, b: any) => Number(a || 0) + Number(b || 0), 0))
-                      });
-                    }}
-                    className="flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-[0.1em] text-[10px] transition-all active:scale-95 bg-emerald-100 text-emerald-600 shadow-lg shadow-emerald-500/10 hover:bg-emerald-200"
-                  >
-                    <Settings className="w-4 h-4" /> Edit Balance
-                  </button>
+
                   {isFullAdmin && user.role !== 'admin' && (
                     <button 
                       onClick={() => {
