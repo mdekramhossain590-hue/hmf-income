@@ -94,28 +94,7 @@ export function Dashboard() {
     linkText?: string;
   } | null>(null);
   const { t, language } = useLanguage();
-    const [actualReferralsCount, setActualReferralsCount] = useState<number>(profile?.totalReferrals || 0);
-
-  useEffect(() => {
-    const uid = user?.uid;
-    if (!uid) return;
-    const fetchCount = async () => {
-      try {
-        
-        const snap = await getCountFromServer(query(collection(db, "users", uid, "referrals")));
-        const realCount = snap.data().count;
-        setActualReferralsCount(Math.max(realCount, profile?.totalReferrals || 0));
-        
-        if (realCount > (profile?.totalReferrals || 0)) {
-           
-           await updateDoc(doc(db, "users", uid), { totalReferrals: realCount });
-        }
-      } catch (error) {
-        console.error("Failed to fetch referral count:", error);
-      }
-    };
-    fetchCount();
-  }, [user?.uid, profile?.totalReferrals]);
+  const actualReferralsCount = profile?.totalReferrals || 0;
 
 
 

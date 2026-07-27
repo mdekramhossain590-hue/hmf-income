@@ -12,7 +12,7 @@ export function MathQuiz() {
   const { refreshProfile, profile } = useAuth();
   const [activeTab, setActiveTab] = useState<'quiz' | 'history'>('quiz');
   const [mathHistory, setMathHistory] = useState<any[]>([]);
-  const [mathLeft, setMathLeft] = useState(5);
+  const [mathLeft, setMathLeft] = useState(0);
   const [num1, setNum1] = useState(0);
   const [num2, setNum2] = useState(0);
   const [operator, setOperator] = useState('+');
@@ -68,14 +68,27 @@ export function MathQuiz() {
             taskReq: data.mathTaskReq || 0,
             referReq: data.mathReferReq || 0
           });
-        }
-      } catch (error) {
+        } } catch (error) {
         handleFirestoreError(error, OperationType.GET, `MathQuiz`);
       }
     };
     
     loadData();
   }, []);
+
+  
+  useEffect(() => {
+    if (profile) {
+      const today = new Date().toISOString().split('T')[0];
+      const userLimit = profile.totalReferrals || 0;
+      
+      
+      const lastMathDate = profile.lastMathDate;
+      const playedMathToday = lastMathDate === today ? (profile.dailyMaths || 0) : 0;
+      setMathLeft(Math.max(0, userLimit - playedMathToday));
+      
+    }
+  }, [profile]);
 
   const hasMetRequirements = () => {
     if (!profile) return false;
@@ -130,9 +143,13 @@ export function MathQuiz() {
       const leaderboardRef = doc(db, 'leaderboard', auth.currentUser.uid);
 
       // 1. Update balance
-      await updateDoc(userRef, {
-        "balances.bonus": increment(reward)
-      });
+      const todayStr = new Date().toISOString().split('T')[0];
+          await updateDoc(userRef, {
+            "balances.bonus": increment(reward),
+            dailyMaths: profile?.lastMathDate === todayStr ? increment(1) : 1,
+            lastMathDate: todayStr
+          });
+          setMathLeft(prev => prev - 1);
       
       await setDoc(leaderboardRef, {
         fullName: auth.currentUser.email?.split('@')[0] || 'User',
@@ -254,7 +271,7 @@ export function MathQuiz() {
           </div>
           
           <p className="mt-6 text-sm font-semibold text-slate-600 dark:text-slate-300">
-            Available Math Quizzes: <span className="text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-2 py-0.5 rounded ml-1">{mathLeft}</span> <span className="opacity-50">/ 5</span>
+            Available Math Quizzes: <span className="text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-2 py-0.5 rounded ml-1">{mathLeft}</span> <span className="opacity-50">/ {profile?.totalReferrals || 0}</span>
           </p>
         </>
       )}
