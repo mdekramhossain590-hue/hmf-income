@@ -9,7 +9,7 @@ import { useAuth } from '../components/AuthProvider';
 import { useLanguage } from '../components/LanguageProvider';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { 
-  collection, query, where, getDocs, doc, setDoc, writeBatch, increment, serverTimestamp 
+  collection, query, where, getDocs, getDoc, doc, setDoc, writeBatch, increment, serverTimestamp 
 } from 'firebase/firestore';
 import { Celebration } from '../components/Celebration';
 import toast from 'react-hot-toast';
@@ -120,6 +120,16 @@ export function PostJob() {
 
       // 2. Deduct cost from user's main balance
       const userRef = doc(db, 'users', auth.currentUser.uid);
+      const userSnap = await getDoc(userRef);
+      if (userSnap.exists()) {
+         const actualBal = userSnap.data().balances?.main || 0;
+         if (actualBal < totalCost) {
+            toast.error('Insufficient balance!');
+            setIsSubmitting(false);
+            return;
+         }
+      }
+      
       batch.update(userRef, {
         'balances.main': increment(-totalCost)
       });

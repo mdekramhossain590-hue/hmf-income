@@ -1,3 +1,4 @@
+import { sendPushNotification } from '../lib/push';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../components/AuthProvider';
 import { File as FileIcon } from 'lucide-react';
@@ -223,7 +224,7 @@ export function AdminPanel() {
         setPaymentRequests(pS.docs.map(d => ({id: d.id, ...d.data()} as any)));
       }
       if (activeTab === 'users') {
-        const uS = await getCachedQuery(query(collection(db, "users"), orderBy("createdAt", "desc"), limit(200)), "admin_users", forceRef);
+        const uS = await getCachedQuery(query(collection(db, "users"), orderBy("createdAt", "desc"), ), "admin_users", forceRef);
         setUserList(uS.docs.map(d => ({id: d.id, ...d.data()} as any)));
       }
       if (['drives', 'courses'].includes(activeTab)) {
@@ -3638,6 +3639,7 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                           chunk = [];
                         }
                       }
+                      sendPushNotification('all', notifyTitle, notifyMessage);
                       toast.success(`Sent to ${allUsers.length} users!`);
                     } else {
                       const notifRef = doc(collection(db, "users", notifyTarget, "notifications"));
@@ -3648,6 +3650,7 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                         type: 'admin_direct',
                         createdAt: serverTimestamp()
                       });
+                      sendPushNotification(notifyTarget, notifyTitle, notifyMessage);
                       toast.success("Notification sent!");
                     }
                     setShowNotifyModal(false);

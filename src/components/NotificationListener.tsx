@@ -1,10 +1,34 @@
 import { useEffect } from 'react';
 import { collection, query, where, getDocs, orderBy, doc, updateDoc, limit } from 'firebase/firestore';
-import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
+import { db, auth, handleFirestoreError, OperationType, messaging } from '../lib/firebase';
+import { getToken } from 'firebase/messaging';
 import { Bell } from 'lucide-react';
 import { createRoot } from 'react-dom/client';
 
 export function NotificationListener() {
+  useEffect(() => {
+    if (!auth.currentUser || !messaging) return;
+    const requestFCM = async () => {
+      try {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+           const currentToken = await getToken(messaging, { vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY });
+           if (currentToken) {
+             await updateDoc(doc(db, 'users', auth.currentUser!.uid), {
+               fcmToken: currentToken
+             });
+           }
+        }
+      } catch (err) {
+        console.warn('Failed to get FCM token', err);
+      }
+    };
+    
+    // Only ask if they explicitly enabled notifications in settings, or if permission is already granted.
+    if (Notification.permission === 'granted' || localStorage.getItem('app_notifications_enabled') !== 'false') {
+       requestFCM();
+    }
+  }, []);
   useEffect(() => {
     if (!auth.currentUser) return;
     

@@ -46,6 +46,15 @@ export function ActivationPopup({ onClose }: { onClose: () => void }) {
       
       try {
         const currentRef = doc(db, 'users', auth.currentUser.uid);
+        const userSnap = await getDoc(currentRef);
+        if (userSnap.exists()) {
+           const actualBal = userSnap.data().balances?.main || 0;
+           if (actualBal < settings.fee) {
+              toast.error('Insufficient balance to activate.');
+              setActivating(false);
+              return;
+           }
+        }
         await updateDoc(currentRef, {
           'balances.main': increment(-settings.fee),
           'balances.bonus': increment(10),

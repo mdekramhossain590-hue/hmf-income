@@ -18,7 +18,7 @@ export function Leaderboard() {
 
     const fetchLeaders = async () => {
       try {
-        const snapshot = await getDocs(query(collection(db, "users"), limit(100)));
+        const snapshot = await getDocs(query(collection(db, "users")));
         const fetchedLeaders = snapshot.docs.map((doc) => {
           try {
             const data = doc.data();

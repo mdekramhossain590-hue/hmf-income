@@ -78,6 +78,23 @@ export function Recharge() {
       const batch = writeBatch(db);
       const userRef = doc(db, "users", auth.currentUser.uid);
       
+            // DOUBLE CHECK BALANCE
+      const userSnap = await getDoc(userRef);
+      if (userSnap.exists()) {
+        const userData = userSnap.data();
+        let actualCurrentBal = 0;
+        if (selectedWallet === 'main') actualCurrentBal = userData.balances?.main || 0;
+        else if (selectedWallet === 'bonus') actualCurrentBal = userData.balances?.bonus || 0;
+        else if (selectedWallet === 'referral') actualCurrentBal = userData.balances?.referral || 0;
+        else actualCurrentBal = userData.balances?.tasks?.[selectedWallet] || 0;
+
+        if (rechargeAmount > actualCurrentBal) {
+          toast.error('Insufficient balance');
+          setLoading(false);
+          return;
+        }
+      }
+
       const updateData: any = {};
       if (selectedWallet === 'main') updateData["balances.main"] = increment(-rechargeAmount);
       else if (selectedWallet === 'bonus') updateData["balances.bonus"] = increment(-rechargeAmount);

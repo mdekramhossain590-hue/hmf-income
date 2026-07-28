@@ -202,6 +202,16 @@ export function Drive() {
     try {
       const batch = writeBatch(db);
       const userRef = doc(db, 'users', auth.currentUser.uid);
+      
+      const userSnap = await getDoc(userRef);
+      if (userSnap.exists()) {
+         const actualBal = userSnap.data().balances?.main || 0;
+         if (actualBal < selectedOffer.salePrice) {
+            toast.error('Insufficient balance!');
+            setPurchasing(false);
+            return;
+         }
+      }
 
       // 1. Deduct balance from main wallet only
       const balanceField = 'balances.main';
