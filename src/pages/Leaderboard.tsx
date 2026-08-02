@@ -18,8 +18,34 @@ export function Leaderboard() {
 
     const fetchLeaders = async () => {
       try {
-        const snapshot = await getDocs(query(collection(db, "users")));
-        const fetchedLeaders = snapshot.docs.map((doc) => {
+        
+        const q1 = query(collection(db, "users"), orderBy("referralCount", "desc"), limit(100));
+        const q2 = query(collection(db, "users"), orderBy("balances.main", "desc"), limit(100));
+        const q3 = query(collection(db, "users"), orderBy("balances.bonus", "desc"), limit(100));
+        
+        let uniqueDocs = new Map();
+        try {
+          const snap1 = await getCachedQuery(q1, "lb_refs");
+          snap1.docs.forEach(d => uniqueDocs.set(d.id, d));
+        } catch(e) {}
+        try {
+          const snap2 = await getCachedQuery(q2, "lb_main");
+          snap2.docs.forEach(d => uniqueDocs.set(d.id, d));
+        } catch(e) {}
+        try {
+          const snap3 = await getCachedQuery(q3, "lb_bonus");
+          snap3.docs.forEach(d => uniqueDocs.set(d.id, d));
+        } catch(e) {}
+        
+        // Fallback if no docs found (maybe indexes missing)
+        if (uniqueDocs.size === 0) {
+           const fallbackQ = query(collection(db, "users"), limit(200));
+           const snap4 = await getCachedQuery(fallbackQ, "lb_fallback");
+           snap4.docs.forEach(d => uniqueDocs.set(d.id, d));
+        }
+
+        const fetchedLeaders = Array.from(uniqueDocs.values()).map((doc) => {
+
           try {
             const data = doc.data();
             const main = Number(data.balances?.main || 0);
@@ -46,7 +72,7 @@ export function Leaderboard() {
         }).filter(Boolean);
         
         fetchedLeaders.sort((a: any, b: any) => b[sortBy] - a[sortBy]);
-        setLeaders(fetchedLeaders.slice(0, 50));
+        setLeaders(fetchedLeaders.slice(0, 100));
         
       } catch (error) {
         console.error("Error fetching leaders:", error);

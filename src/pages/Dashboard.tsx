@@ -185,7 +185,7 @@ export function Dashboard() {
 
       // 1. Fetch Top Leaders
       try {
-        const snapshot = await getDocs(query(collection(db, "users"), limit(100)));
+        const snapshot = await getDocs(query(collection(db, "users"), limit(1000)));
         const fetchedLeaders = snapshot.docs.map((doc) => {
           try {
             const data = doc.data();

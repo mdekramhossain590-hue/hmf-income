@@ -7,12 +7,17 @@ import { createRoot } from 'react-dom/client';
 
 export function NotificationListener() {
   useEffect(() => {
-    if (!auth.currentUser || !messaging) return;
+    if (!auth.currentUser) return;
     const requestFCM = async () => {
       try {
+        const { isSupported, getMessaging } = await import('firebase/messaging');
+        const supported = await isSupported();
+        if (!supported) return;
+        const msg = getMessaging();
+        
         const permission = await Notification.requestPermission();
         if (permission === 'granted') {
-           const currentToken = await getToken(messaging, { vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY });
+           const currentToken = await getToken(msg, { vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY });
            if (currentToken) {
              await updateDoc(doc(db, 'users', auth.currentUser!.uid), {
                fcmToken: currentToken
@@ -24,7 +29,6 @@ export function NotificationListener() {
       }
     };
     
-    // Only ask if they explicitly enabled notifications in settings, or if permission is already granted.
     if (Notification.permission === 'granted' || localStorage.getItem('app_notifications_enabled') !== 'false') {
        requestFCM();
     }

@@ -51,6 +51,7 @@ export function AdminPanel() {
   const [notifyMessage, setNotifyMessage] = useState('');
   const [isSendingNotification, setIsSendingNotification] = useState(false);
   const [submissions, setSubmissions] = useState<any[]>([]);
+  const [submissionCategory, setSubmissionCategory] = useState<string>('All');
   const [paymentRequests, setPaymentRequests] = useState<any[]>([]);
   const [spinRewards, setSpinRewards] = useState<number[]>([1, 2, 5, 10, 0, 50, 100, 0]);
   const [referralSettings, setReferralSettings] = useState({ fixedBonus: 5, gen2FixedBonus: 3, gen3FixedBonus: 1, gen1Percent: 0, gen2Percent: 0, gen3Percent: 0 });
@@ -224,7 +225,7 @@ export function AdminPanel() {
         setPaymentRequests(pS.docs.map(d => ({id: d.id, ...d.data()} as any)));
       }
       if (activeTab === 'users') {
-        const uS = await getCachedQuery(query(collection(db, "users"), orderBy("createdAt", "desc"), ), "admin_users", forceRef);
+        const uS = await getCachedQuery(query(collection(db, "users"), orderBy("createdAt", "desc")), "admin_users", forceRef);
         setUserList(uS.docs.map(d => ({id: d.id, ...d.data()} as any)));
       }
       if (['drives', 'courses'].includes(activeTab)) {
@@ -765,6 +766,18 @@ export function AdminPanel() {
   };
 
   
+  const handleDeleteGiftCode = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this gift code?")) return;
+    try {
+      await deleteDoc(doc(db, "giftCodes", id));
+      toast.success("Gift code deleted successfully");
+      loadData(true);
+    } catch (err) {
+      toast.error("Failed to delete gift code");
+      console.error(err);
+    }
+  };
+
   const handleCreateGiftCode = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newGiftCode || newGiftCode.length < 5) {
@@ -1169,8 +1182,15 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
           <div className="flex items-center justify-between mb-2 px-1">
             <h3 className="font-black dark:text-white uppercase tracking-tight text-sm">Pending Reviews ({submissions.filter(s => s.status === 'pending').length})</h3>
           </div>
+          
+          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+             <button onClick={() => setSubmissionCategory('All')} className={`shrink-0 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-colors ${submissionCategory === 'All' ? 'bg-indigo-500 text-white shadow-md' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'}`}>All</button>
+             {Array.from(new Set(submissions.filter(s => s.status === 'pending').map(s => s.jobType || 'Other'))).map(cat => (
+                <button key={cat} onClick={() => setSubmissionCategory(cat)} className={`shrink-0 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-colors ${submissionCategory === cat ? 'bg-indigo-500 text-white shadow-md' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'}`}>{cat}</button>
+             ))}
+          </div>
 
-          {submissions.filter(s => s.status === 'pending').length === 0 && (
+          {submissions.filter(s => s.status === 'pending' && (submissionCategory === 'All' || (s.jobType || 'Other') === submissionCategory)).length === 0 && (
             <div className="text-center py-16 bg-white dark:bg-slate-800/40 rounded-3xl border-2 border-dashed border-slate-100 dark:border-slate-800">
               <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300 dark:text-slate-600">
                 <CheckCircle className="w-8 h-8" />
@@ -1179,7 +1199,7 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
             </div>
           )}
           
-          {submissions.filter(s => s.status === 'pending').map(sub => (
+          {submissions.filter(s => s.status === 'pending' && (submissionCategory === 'All' || (s.jobType || 'Other') === submissionCategory)).map(sub => (
             <motion.div 
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}

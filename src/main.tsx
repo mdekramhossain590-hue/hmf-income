@@ -4,7 +4,6 @@ import App from './App';
 import './index.css';
 import { ThemeProvider } from './components/ThemeProvider';
 import { LanguageProvider } from './components/LanguageProvider';
-
 import './pwa';
 
 // Ignore benign HMR websocket connection failures in experimental preview environments

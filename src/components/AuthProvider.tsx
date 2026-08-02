@@ -6,6 +6,36 @@ import { getCachedDoc } from '../lib/cache';
 import { useLanguage } from './LanguageProvider';
 import { ShieldAlert, LogOut } from 'lucide-react';
 
+
+
+const safeStringify = (obj: any) => {
+  try {
+    const cache = new Set();
+    const str = JSON.stringify(obj, (key, value) => {
+      if (typeof value === 'object' && value !== null) {
+        if (cache.has(value)) return undefined;
+        cache.add(value);
+      }
+      return value;
+    });
+    return str;
+  } catch (e) {
+    console.warn("safeStringify failed:", e);
+    // Fallback: strip all complex objects and try again
+    try {
+      return JSON.stringify(obj, (key, value) => {
+        if (typeof value === 'object' && value !== null) {
+          if (value.constructor && value.constructor.name !== 'Object' && value.constructor.name !== 'Array') {
+            return undefined; // Strip class instances (like Firestore Timestamp, References, React fibers)
+          }
+        }
+        return value;
+      });
+    } catch (e2) {
+      return '{}';
+    }
+  }
+};
 export interface UserProfile {
   uid?: string;
   fullName: string;
@@ -144,7 +174,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
          
          setProfile(data);
          try {
-           localStorage.setItem(`profile_${targetUid}`, JSON.stringify(data));
+           localStorage.setItem(`profile_${targetUid}`, safeStringify(data));
          } catch (e) {}
        } else if (docSnap && docSnap.exists && !docSnap.exists() && auth.currentUser) {
          // Profile is completely missing for logged in user! Recover by recreating basic profile.
@@ -215,7 +245,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               });
               
               try {
-                localStorage.setItem(`profile_${user.uid}`, JSON.stringify(data));
+                localStorage.setItem(`profile_${user.uid}`, safeStringify(data));
               } catch(e) {}
             }
           }, (err: any) => {
@@ -251,7 +281,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
           setSiteSettings(data);
           try {
-            localStorage.setItem('siteSettings', JSON.stringify(data));
+            localStorage.setItem('siteSettings', safeStringify(data));
           } catch(e) {}
           if (data.logoUrl) {
             let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;

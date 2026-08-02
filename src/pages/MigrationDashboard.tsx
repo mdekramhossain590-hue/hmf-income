@@ -109,7 +109,7 @@ export function MigrationDashboard() {
   };
 
   const addErrorLog = (msg: string, err?: any) => {
-    const errMessage = err instanceof Error ? err.message : typeof err === 'object' ? JSON.stringify(err) : String(err);
+    const errMessage = err instanceof Error ? err.message : err?.message || String(err);
     const formatted = `[${new Date().toLocaleTimeString()}] ❌ ERROR: ${msg} -> ${errMessage}`;
     console.error(`[Migration Error] ${msg}`, err);
     setLogs(prev => [...prev, formatted]);
