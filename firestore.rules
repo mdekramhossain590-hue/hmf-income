@@ -113,7 +113,7 @@ service cloud.firestore {
     }
     match /payment_requests/{id} {
       allow read: if isAdmin() || isDataOwner(resource.data);
-      allow create: if isAdmin() || isDataOwner(request.resource.data);
+      allow create: if isAdmin() || (isDataOwner(request.resource.data) && (request.resource.data.wallet != 'partner' || get(/databases/$(database)/documents/settings/partner).data.withdrawEnabled == true));
       allow update, delete: if isAdmin();
     }
     match /support/{id} {

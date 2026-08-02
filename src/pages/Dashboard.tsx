@@ -2,7 +2,7 @@ import { processRegistrationReferral } from "../lib/referral";
 import { useNavigate } from "react-router-dom";
 import {
   Clock, XCircle, User, Bell, Wallet, ListChecks, Target, Users, Send, MoreVertical, Settings, HelpCircle, LogOut, Award, Shield, FileText, Calculator, Megaphone, Trophy, Copy, Check, Link, Eye, EyeOff, Smartphone, BookOpen, Banknote, MonitorPlay, Wifi, Sun, Moon, X, Trash2, Activity, ArrowDownLeft, ArrowUpRight, CheckCircle, MessageCircle, Star, Gift, Download, Coins, Briefcase,
-} from "lucide-react";
+  BadgeCheck} from "lucide-react";
 import { useAuth } from "../components/AuthProvider";
 import React, { useState, useEffect } from "react";
 import { triggerRealisticConfetti } from "../lib/confetti";
@@ -95,6 +95,7 @@ export function Dashboard() {
   } | null>(null);
   const { t, language } = useLanguage();
     const [actualReferralsCount, setActualReferralsCount] = useState(profile?.totalReferrals || 0);
+  const partnerReferralsCount = profile?.partnerReferrals || 0;
 
   useEffect(() => {
     if (!auth.currentUser) return;
@@ -858,8 +859,11 @@ export function Dashboard() {
             {loading ? (
               <div className="h-7 w-32 bg-gray-200 dark:bg-slate-700 rounded animate-pulse mt-1"></div>
             ) : (
-              <h3 className="font-display font-medium text-xl leading-none text-gray-800 dark:text-white mt-1 tracking-tight">
+              <h3 className="font-display font-medium text-xl leading-none text-gray-800 dark:text-white mt-1 tracking-tight flex items-center gap-1.5">
                 {profile?.fullName || user?.displayName || "User"}
+                {partnerSettings?.enabled && partnerReferralsCount >= (partnerSettings?.requiredReferrals || 10) && (
+                  <BadgeCheck className="w-5 h-5 text-blue-500 fill-blue-500/20" />
+                )}
               </h3>
             )}
           </div>
@@ -1136,12 +1140,12 @@ export function Dashboard() {
           <div className="mb-4">
             <div className="flex justify-between items-center mb-1.5 px-1">
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Progress</span>
-              <span className="text-xs font-black text-indigo-600 dark:text-indigo-400">{actualReferralsCount} / {partnerSettings.requiredReferrals}</span>
+              <span className="text-xs font-black text-indigo-600 dark:text-indigo-400">{partnerReferralsCount} / {partnerSettings.requiredReferrals}</span>
             </div>
             <div className="h-2.5 w-full bg-slate-200 dark:bg-slate-700/50 rounded-full overflow-hidden">
               <div 
                 className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-1000 ease-out"
-                style={{ width: `${Math.min(100, ((actualReferralsCount) / partnerSettings.requiredReferrals) * 100)}%` }}
+                style={{ width: `${Math.min(100, (partnerReferralsCount / partnerSettings.requiredReferrals) * 100)}%` }}
               ></div>
             </div>
           </div>
@@ -1156,7 +1160,7 @@ export function Dashboard() {
               }
               if (!auth.currentUser) return;
               if (claimingPartner) return;
-              if ((actualReferralsCount) < partnerSettings.requiredReferrals) {
+              if (partnerReferralsCount < partnerSettings.requiredReferrals) {
                 toast.error(`You need at least ${partnerSettings.requiredReferrals} referrals to claim.`);
                 return;
               }

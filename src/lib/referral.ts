@@ -147,7 +147,8 @@ export async function processRegistrationReferral(userId: string) {
       });
 
       const userUpdates: any = {
-        totalReferrals: increment(level === 0 ? 1 : 0)
+        totalReferrals: increment(level === 0 ? 1 : 0),
+        partnerReferrals: increment(level === 0 ? 1 : 0)
       };
 
       if (fixedBonus > 0) {

@@ -196,9 +196,22 @@ export function Wallet() {
     if (!auth.currentUser || isSubmitting) return;
     setIsSubmitting(true);
     
-    if (selectedWallet === 'partner' && !partnerSettings.withdrawEnabled) {
-      toast.error('Partner withdrawals are currently disabled.');
-      return;
+    if (selectedWallet === 'partner') {
+      try {
+        const liveSnap = await getDoc(doc(db, "settings", "partner"));
+        if (liveSnap.exists() && liveSnap.data().withdrawEnabled === false) {
+          toast.error('Partner withdrawals are currently disabled.');
+          setIsSubmitting(false);
+          return;
+        }
+      } catch (err) {
+        console.warn("Could not fetch live partner settings, falling back to local state");
+        if (!partnerSettings.withdrawEnabled) {
+           toast.error('Partner withdrawals are currently disabled.');
+           setIsSubmitting(false);
+           return;
+        }
+      }
     }
 
     let currentBal = 0;
@@ -248,6 +261,15 @@ export function Wallet() {
     const amount = parseFloat(withdrawAmount);
     
     try {
+      if (selectedWallet === 'partner') {
+        const liveSnap = await getDoc(doc(db, "settings", "partner"));
+        if (liveSnap.exists() && liveSnap.data().withdrawEnabled === false) {
+          toast.error('Partner withdrawals are currently disabled.');
+          setShowConfirmWithdraw(false);
+          return;
+        }
+      }
+
       const userRef = doc(db, "users", auth.currentUser.uid);
       
       // DOUBLE CHECK BALANCE TO PREVENT NEGATIVE BALANCE

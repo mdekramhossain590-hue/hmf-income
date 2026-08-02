@@ -66,6 +66,15 @@ export function Profile() {
     }
   }, [profile?.myReferCode]);
 
+    const [requiredReferrals, setRequiredReferrals] = useState(10);
+  useEffect(() => {
+    getCachedDoc(doc(db, "settings", "dashboard")).then(snap => {
+      if (snap.exists() && snap.data().partnerSettings) {
+        setRequiredReferrals(snap.data().partnerSettings.requiredReferrals || 10);
+      }
+    });
+  }, []);
+
   const handleEditName = () => {
     setNewName(profile?.fullName || '');
     setIsEditingName(true);
@@ -251,9 +260,11 @@ export function Profile() {
               <div className="flex items-center gap-2">
                 <h2 className="text-2xl font-display font-medium tracking-tight text-slate-800 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors drop-shadow-sm flex items-center gap-2">
                   {profile?.fullName || user?.displayName || 'User'}
-                  <div className="bg-blue-500 rounded-full p-0.5 text-white" title="Verified Account">
+                  {((profile?.partnerReferrals || 0) >= requiredReferrals) && (
+                  <div className="bg-blue-500 rounded-full p-0.5 text-white shadow-sm" title="Verified Partner">
                     <Check className="w-3.5 h-3.5" />
                   </div>
+                  )}
                 </h2>
                 <div className="w-6 h-6 rounded-full bg-slate-100/50 dark:bg-slate-800/50 flex items-center justify-center text-slate-400 opacity-0 group-hover:opacity-100 transition-all backdrop-blur-sm">
                   <Edit2 className="w-3 h-3" />

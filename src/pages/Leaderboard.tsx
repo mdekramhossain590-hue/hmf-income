@@ -18,39 +18,15 @@ export function Leaderboard() {
 
     const fetchLeaders = async () => {
       try {
+        const snap = await getDocs(collection(db, "users"));
         
-        const q1 = query(collection(db, "users"), orderBy("referralCount", "desc"), limit(100));
-        const q2 = query(collection(db, "users"), orderBy("balances.main", "desc"), limit(100));
-        const q3 = query(collection(db, "users"), orderBy("balances.bonus", "desc"), limit(100));
-        
-        let uniqueDocs = new Map();
-        try {
-          const snap1 = await getCachedQuery(q1, "lb_refs");
-          snap1.docs.forEach(d => uniqueDocs.set(d.id, d));
-        } catch(e) {}
-        try {
-          const snap2 = await getCachedQuery(q2, "lb_main");
-          snap2.docs.forEach(d => uniqueDocs.set(d.id, d));
-        } catch(e) {}
-        try {
-          const snap3 = await getCachedQuery(q3, "lb_bonus");
-          snap3.docs.forEach(d => uniqueDocs.set(d.id, d));
-        } catch(e) {}
-        
-        // Fallback if no docs found (maybe indexes missing)
-        if (uniqueDocs.size === 0) {
-           const fallbackQ = query(collection(db, "users"), limit(200));
-           const snap4 = await getCachedQuery(fallbackQ, "lb_fallback");
-           snap4.docs.forEach(d => uniqueDocs.set(d.id, d));
-        }
-
-        const fetchedLeaders = Array.from(uniqueDocs.values()).map((doc) => {
-
+        const fetchedLeaders = snap.docs.map((doc) => {
           try {
             const data = doc.data();
             const main = Number(data.balances?.main || 0);
             const bonus = Number(data.balances?.bonus || 0);
             const ref = Number(data.balances?.referral || 0);
+            
             let taskSum = 0;
             if (data.balances?.tasks && typeof data.balances.tasks === 'object') {
               taskSum = Object.values(data.balances.tasks).reduce((a: any, b: any) => Number(a || 0) + Number(b || 0), 0) as number;
@@ -72,8 +48,7 @@ export function Leaderboard() {
         }).filter(Boolean);
         
         fetchedLeaders.sort((a: any, b: any) => b[sortBy] - a[sortBy]);
-        setLeaders(fetchedLeaders.slice(0, 100));
-        
+        setLeaders(fetchedLeaders.slice(0, 100)); // top 100
       } catch (error) {
         console.error("Error fetching leaders:", error);
         setLeaders([]);
@@ -81,7 +56,7 @@ export function Leaderboard() {
         setLoading(false);
       }
     };
-    
+
     fetchLeaders();
   }, [sortBy]);
 
