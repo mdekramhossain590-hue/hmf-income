@@ -52,6 +52,7 @@ export function TaskDetail() {
   const [proofText, setProofText] = useState("");
   const [genericFile, setGenericFile] = useState<File | null>(null);
   const [genericFileUrl, setGenericFileUrl] = useState("");
+  const [genericFileBase64, setGenericFileBase64] = useState<string | null>(null);
   const [proofImage, setProofImage] = useState(""); // Stores URL if pasted
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -106,9 +107,15 @@ export function TaskDetail() {
       setProofFile(file);
       setProofImage(""); // Clear URL if file is selected
       const reader = new FileReader();
-      reader.onerror = () => { console.error("FileReader error", reader.error); };
+      reader.onerror = () => { 
+        console.error("FileReader error", reader.error); 
+        setErrorMsg("Failed to read image file. Please try again or use a different file.");
+        setProofFile(null);
+      };
       reader.onloadend = () => {
-        setImagePreview(reader.result as string);
+        if (reader.result) {
+           setImagePreview(reader.result as string);
+        }
       };
       reader.readAsDataURL(file);
     }
@@ -125,6 +132,18 @@ export function TaskDetail() {
       setErrorMsg(null);
       setGenericFile(file);
       setGenericFileUrl("");
+      const reader = new FileReader();
+      reader.onerror = () => {
+        console.error("FileReader error", reader.error);
+        setErrorMsg("Failed to read file. Please try again or use a different file.");
+        setGenericFile(null);
+      };
+      reader.onloadend = () => {
+        if (reader.result) {
+          setGenericFileBase64(reader.result as string);
+        }
+      };
+      reader.readAsDataURL(file);
     }
   };
   
@@ -311,9 +330,16 @@ export function TaskDetail() {
 
       // Handle Image Upload if file is selected
       if (job.requiredProofs?.includes("screenshot") && proofFile) {
-        finalImageUrl = await uploadImageOrFallback(proofFile, 600, (p) =>
+        const fileOrBase64 = imagePreview || proofFile;
+        finalImageUrl = await uploadImageOrFallback(fileOrBase64, 600, (p) =>
           setUploadProgress(p),
         );
+      }
+      
+      let finalFileUrl = genericFileUrl;
+      if (job.requiredProofs?.includes("file") && genericFile) {
+         const fileToUpload = genericFileBase64 || genericFile;
+         finalFileUrl = await uploadFileGeneric(fileToUpload, (p) => setUploadProgress(p));
       }
 
       const proofs: any = {};
@@ -331,6 +357,7 @@ export function TaskDetail() {
       )
         proofs.twoFactorCode = twoFactorCode;
       if (job.requiredProofs?.includes("videoUrl")) proofs.videoUrl = videoUrl;
+      if (job.requiredProofs?.includes("file")) proofs.fileUrl = finalFileUrl;
 
       const subRef = doc(collection(db, "submissions"));
 

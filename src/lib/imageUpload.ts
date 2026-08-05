@@ -86,7 +86,7 @@ export async function fileToBase64AndCompress(file: File, maxDim: number = 600):
 }
 
 export async function uploadImageOrFallback(
-  file: File,
+  file: File | string,
   fallbackMaxDim: number = 600,
   onProgress?: (progress: number) => void
 ): Promise<string> {
@@ -101,7 +101,7 @@ export async function uploadImageOrFallback(
 
   if (!isConfigured) {
     if (onProgress) onProgress(30);
-    const base64Url = await fileToBase64AndCompress(file, fallbackMaxDim);
+    const base64Url = typeof file === 'string' ? file : await fileToBase64AndCompress(file, fallbackMaxDim);
     if (onProgress) onProgress(100);
     return base64Url;
   }
@@ -130,14 +130,14 @@ export async function uploadImageOrFallback(
   } catch (error) {
     console.warn("Cloudinary upload failed, falling back to base64:", error);
     if (onProgress) onProgress(30);
-    const base64Url = await fileToBase64AndCompress(file, fallbackMaxDim);
+    const base64Url = typeof file === 'string' ? file : await fileToBase64AndCompress(file, fallbackMaxDim);
     if (onProgress) onProgress(100);
     return base64Url;
   }
 }
 
 export async function uploadFileGeneric(
-  file: File,
+  file: File | string,
   onProgress?: (progress: number) => void
 ): Promise<string> {
   const cloudName = (import.meta as any).env.VITE_CLOUDINARY_CLOUD_NAME;
@@ -152,7 +152,15 @@ export async function uploadFileGeneric(
 
   if (!isConfigured) {
     if (onProgress) onProgress(30);
+    if (typeof file === 'string') {
+      if (onProgress) onProgress(100);
+      return file;
+    }
     // Base64 fallback for generic files (limited size)
+    if (typeof file === 'string') {
+      if (onProgress) onProgress(100);
+      return file;
+    }
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
@@ -191,6 +199,10 @@ export async function uploadFileGeneric(
   } catch (error) {
     console.warn("Cloudinary file upload failed, falling back to base64:", error);
     if (onProgress) onProgress(30);
+    if (typeof file === 'string') {
+      if (onProgress) onProgress(100);
+      return file;
+    }
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);

@@ -3,6 +3,7 @@ import { Check, ChevronRight, HeadphonesIcon, LineChart, ShieldHalf, LogOut, Moo
 import { signOut } from 'firebase/auth';
 import { doc, updateDoc } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { getCachedDoc } from '../lib/cache';
 import { uploadImageOrFallback } from '../lib/imageUpload';
 import { useAuth } from '../components/AuthProvider';
 import { useLanguage } from '../components/LanguageProvider';
