@@ -25,6 +25,11 @@ export function Auth() {
   const [referCode, setReferCode] = useState(initialRef);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  const [resetStep, setResetStep] = useState<0 | 1 | 2>(0); // 0 = none, 1 = enter email, 2 = enter OTP and new password
+  const [resetOtp, setResetOtp] = useState('');
+  const [resetNewPassword, setResetNewPassword] = useState('');
+
   
   const navigate = useNavigate();
   const { refreshProfile, siteSettings } = useAuth();
@@ -97,8 +102,44 @@ export function Auth() {
     }
     setLoading(true);
     try {
-      await sendPasswordResetEmail(auth, email);
-      toast.success("Password reset email sent! Check your inbox.");
+      const res = await fetch('/api/auth/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to send OTP");
+      
+      toast.success("OTP sent to your email!");
+      setResetStep(2);
+    } catch (error: any) {
+      toast.error("Error: " + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOtpAndReset = async () => {
+    if (!email || !resetOtp || !resetNewPassword) {
+      toast.error("Please fill all fields.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp: resetOtp, newPassword: resetNewPassword })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to reset password");
+      
+      toast.success("Password changed successfully! You can now login.");
+      setResetStep(0);
+      setIsLogin(true);
+      setPassword('');
+      setResetOtp('');
+      setResetNewPassword('');
     } catch (error: any) {
       toast.error("Error: " + error.message);
     } finally {
@@ -178,91 +219,133 @@ export function Auth() {
       </div>
 
       <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white dark:border-slate-800 p-6 rounded-3xl shadow-xl dark:shadow-2xl relative z-10">
-        <h2 className="text-2xl font-bold mb-6 text-slate-800 dark:text-white tracking-tight">{isLogin ? 'Welcome Back' : 'Create Account'}</h2>
+        <h2 className="text-2xl font-bold mb-6 text-slate-800 dark:text-white tracking-tight">
+          {resetStep === 1 ? 'Reset Password' : resetStep === 2 ? 'Enter OTP' : isLogin ? 'Welcome Back' : 'Create Account'}
+        </h2>
         
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {!isLogin && (
+        <form onSubmit={e => { e.preventDefault(); if (resetStep === 2) handleVerifyOtpAndReset(); else if (resetStep === 1) handleForgotPassword(); else handleSubmit(e); }} className="space-y-4">
+          {resetStep === 1 ? (
             <input
-              type="text"
-              placeholder="Full Name"
+              type="email"
+              placeholder="Enter your Email Address"
               required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 text-base text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
             />
-          )}
-          <input
-            type="email"
-            placeholder="Email Address"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 text-base text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-          />
-          <div className="relative">
-            <input
-              type={showPassword ? "text" : "password"}
-              placeholder="Password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 pr-12 text-base text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 focus:outline-none"
-            >
-              {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-            </button>
-          </div>
-          {isLogin && (
-            <div className="flex justify-end mt-1">
-              <button
-                type="button"
-                onClick={handleForgotPassword}
-                disabled={loading}
-                className="text-xs text-indigo-600 dark:text-indigo-400 font-medium hover:underline focus:outline-none disabled:opacity-50"
-              >
-                Forgot Password?
-              </button>
-            </div>
-          )}
-          {!isLogin && (
-            <div className="relative mt-3">
+          ) : resetStep === 2 ? (
+            <>
               <input
-                type={showPassword ? "text" : "password"}
-                placeholder="Confirm Password"
+                type="text"
+                placeholder="Enter 6-digit OTP"
                 required
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 pr-12 text-base text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                value={resetOtp}
+                onChange={(e) => setResetOtp(e.target.value)}
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 text-base text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
               />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 focus:outline-none"
-              >
-                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-              </button>
-            </div>
+              <div className="relative mt-3">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="New Password"
+                  required
+                  value={resetNewPassword}
+                  onChange={(e) => setResetNewPassword(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 pr-12 text-base text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 focus:outline-none"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              {!isLogin && (
+                <input
+                  type="text"
+                  placeholder="Full Name"
+                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 text-base text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                />
+              )}
+              <input
+                type="email"
+                placeholder="Email Address"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 text-base text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+              />
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 pr-12 text-base text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 focus:outline-none"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+              {isLogin && (
+                <div className="flex justify-end mt-1">
+                  <button
+                    type="button"
+                    onClick={() => setResetStep(1)}
+                    disabled={loading}
+                    className="text-xs text-indigo-600 dark:text-indigo-400 font-medium hover:underline focus:outline-none disabled:opacity-50"
+                  >
+                    Forgot Password?
+                  </button>
+                </div>
+              )}
+              {!isLogin && (
+                <div className="relative mt-3">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Confirm Password"
+                    required
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 pr-12 text-base text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 focus:outline-none"
+                  >
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+              )}
+              {!isLogin && (
+                <input
+                  type="text"
+                  placeholder="Referral Code (Optional)"
+                  value={referCode}
+                  onChange={(e) => setReferCode(e.target.value.replace(/[​-‍﻿\s]/g, '').trim())}
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 text-base text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                />
+              )}
+            </>
           )}
-          {!isLogin && (
-            <input
-              type="text"
-              placeholder="Referral Code (Optional)"
-              value={referCode}
-              onChange={(e) => setReferCode(e.target.value.replace(/[\u200B-\u200D\uFEFF\s]/g, '').trim())}
-              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 text-base text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-            />
-          )}
-          
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             disabled={loading}
-            className="w-full bg-indigo-600 text-white font-bold rounded-xl px-4 py-3.5 shadow-[0_4px_14px_0_rgba(79,70,229,0.39)] hover:bg-indigo-700 hover:shadow-[0_6px_20px_rgba(79,70,229,0.23)] transition-all disabled:opacity-50 active:scale-[0.98]"
+            className="w-full bg-indigo-600 text-white font-bold py-3.5 rounded-xl shadow-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-2"
           >
-            {loading ? 'Processing...' : (isLogin ? 'Log In' : 'Sign Up')}
+            {loading ? 'Processing...' : (resetStep === 1 ? 'Send OTP' : resetStep === 2 ? 'Reset Password' : isLogin ? 'Sign In' : 'Create Account')}
           </button>
         </form>
 

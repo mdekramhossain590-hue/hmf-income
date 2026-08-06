@@ -140,56 +140,29 @@ export function Wallet() {
     
     if (isNaN(amount) || amount < depositSettings.minDeposit || amount > depositSettings.maxDeposit) {
       toast.error(`Deposit must be between ${depositSettings.minDeposit} and ${depositSettings.maxDeposit}`);
-      return;
-    }
-    
-    if (!depositMethod || !depositTrx || !depositAccount) {
-      toast.error('Please fill all fields, including sender number');
+      setIsSubmitting(false);
       return;
     }
 
     try {
-      const batch = writeBatch(db);
-      
-      const newTransactionRef = doc(collection(db, "users", auth.currentUser.uid, "transactions"));
-      batch.set(newTransactionRef, {
-        amount: amount,
-        type: 'deposit',
-        status: 'pending',
-        method: depositMethod,
-        trxId: depositTrx,
-        account: depositAccount,
-        createdAt: serverTimestamp()
+      const res = await fetch('/api/uddoktapay/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: Number(amount), uid: auth.currentUser?.uid, name: profile?.fullName || "User", email: profile?.email || "user@example.com" })
       });
-
-      const paymentRequestRef = doc(collection(db, "payment_requests"));
-      batch.set(paymentRequestRef, {
-        userId: auth.currentUser.uid,
-        userEmail: auth.currentUser.email,
-        transactionId: newTransactionRef.id,
-        amount: amount,
-        type: 'deposit',
-        status: 'pending',
-        method: depositMethod,
-        trxId: depositTrx,
-        account: depositAccount,
-        createdAt: serverTimestamp()
-      });
-      
-      await batch.commit();
-      toast.success(t('deposit_submitted') || 'Deposit submitted');
-      (e.target as HTMLFormElement).reset();
-      setDepositAmount('');
-      setDepositMethod('');
-      setDepositTrx('');
-      setDepositAccount('');
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, `payment_requests`);
-      toast.error("Error processing deposit.");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Payment gateway error');
+      if (data.url) {
+        window.open(data.url, "_blank") || (window.location.href = data.url);
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to initialize payment');
     } finally {
       setIsSubmitting(false);
     }
   };
+
+
 
   const handleWithdraw = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -402,7 +375,10 @@ export function Wallet() {
         <div className="bg-gradient-to-br from-indigo-600 via-blue-600 to-indigo-800 rounded-[1.5rem] p-6 text-white shadow-xl shadow-indigo-500/20 mb-4 relative overflow-hidden border border-indigo-400/30">
            <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 blur-2xl rounded-full pointer-events-none"></div>
            <div className="absolute bottom-0 left-0 w-24 h-24 bg-indigo-400 opacity-20 blur-2xl rounded-full pointer-events-none"></div>
-           <p className="text-xs font-semibold opacity-90 mb-1 uppercase tracking-widest text-indigo-100 flex items-center gap-1.5"><WalletIcon className="w-4 h-4" /> Add Money Balance</p>
+           <div className="flex justify-between items-center mb-1">
+             <p className="text-xs font-semibold opacity-90 uppercase tracking-widest text-indigo-100 flex items-center gap-1.5"><WalletIcon className="w-4 h-4" /> Add Money Balance</p>
+             <button onClick={() => navigate('/deposit')} className="bg-white/20 hover:bg-white/30 text-white text-[10px] font-bold px-3 py-1.5 rounded-full uppercase tracking-wider transition-all">Add Funds</button>
+           </div>
            <h3 className="text-4xl font-display font-black tracking-tight mt-1">৳ {profile?.balances?.main?.toFixed(2) || '0.00'}</h3>
         </div>
 
@@ -475,74 +451,7 @@ export function Wallet() {
           exit={{ opacity: 0, y: -10 }}
           className="bg-white/70 backdrop-blur-md p-5 rounded-3xl shadow-sm border border-slate-100 dark:bg-slate-800/80 dark:border-slate-700"
         >
-          <div className="bg-blue-50 border border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 p-5 rounded-2xl mb-6 flex flex-col items-center relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-400/10 rounded-full blur-2xl transform translate-x-1/2 -translate-y-1/2"></div>
-            <p className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-2 z-10">{t('our_number')}</p>
-            <div className="flex items-center gap-3 z-10 bg-white dark:bg-slate-800 py-2 px-4 rounded-xl shadow-sm border border-blue-100 dark:border-slate-700">
-              <h3 className="text-xl font-display font-black text-[#0D47A1] dark:text-blue-400 tracking-wider">
-                {depositMethod === 'bKash' ? depositSettings.bkashNumber : depositMethod === 'Nagad' ? depositSettings.nagadNumber : 'Select a method first'}
-              </h3>
-              {(depositMethod === 'bKash' || depositMethod === 'Nagad') && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const num = depositMethod === 'bKash' ? depositSettings.bkashNumber : depositSettings.nagadNumber;
-                    navigator.clipboard.writeText(num);
-                    toast.success('Number copied!');
-                  }}
-                  className="p-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors dark:bg-blue-800/40 dark:text-blue-300 dark:hover:bg-blue-800/60 active:scale-95"
-                  title="Copy Number"
-                >
-                  <Copy className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-            
-            
-            {depositMethod === 'bKash' && depositSettings.bkashNumber && (
-              <div className="mt-4 z-10 bg-white dark:bg-slate-800 p-3 rounded-xl shadow-sm border border-blue-100 dark:border-slate-700 flex flex-col items-center">
-                <div className="bg-white p-2 rounded-lg">
-                  <QRCode value={depositSettings.bkashNumber} size={120} />
-                </div>
-                <p className="text-[10px] text-slate-500 font-bold mt-2 uppercase">Scan to Pay</p>
-              </div>
-            )}
-            {depositMethod === 'Nagad' && depositSettings.nagadNumber && (
-              <div className="mt-4 z-10 bg-white dark:bg-slate-800 p-3 rounded-xl shadow-sm border border-blue-100 dark:border-slate-700 flex flex-col items-center">
-                <div className="bg-white p-2 rounded-lg">
-                  <QRCode value={depositSettings.nagadNumber} size={120} />
-                </div>
-                <p className="text-[10px] text-slate-500 font-bold mt-2 uppercase">Scan to Pay</p>
-              </div>
-            )}
-            <p className="text-[10px] text-red-500 dark:text-red-400 font-bold mt-3 z-10 bg-red-50 dark:bg-red-900/30 px-3 py-1 rounded-full">{t('send_money_only')}</p>
-          </div>
           <form onSubmit={handleDeposit} className="space-y-4">
-                        <div>
-              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest pl-1 mb-1.5">{t('select_method') || 'Select Method'}</label>
-              <div className="flex gap-4">
-                {depositSettings.bkashEnabled !== false && (
-                  <button
-                    type="button"
-                    onClick={() => setDepositMethod('bKash')}
-                    className={`flex-1 py-3 px-2 rounded-xl flex flex-col items-center justify-center gap-2 border-2 transition-all ${depositMethod === 'bKash' ? 'border-[#E2136E] bg-[#E2136E]/10 scale-105' : 'border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
-                  >
-                    <img src="https://freelogopng.com/images/all_img/1656234745bkash-app-logo-png.png" alt="bKash" className="h-8 object-contain" />
-                    <span className="text-xs font-bold dark:text-white">bKash</span>
-                  </button>
-                )}
-                {depositSettings.nagadEnabled !== false && (
-                  <button
-                    type="button"
-                    onClick={() => setDepositMethod('Nagad')}
-                    className={`flex-1 py-3 px-2 rounded-xl flex flex-col items-center justify-center gap-2 border-2 transition-all ${depositMethod === 'Nagad' ? 'border-[#F7931E] bg-[#F7931E]/10 scale-105' : 'border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
-                  >
-                    <img src="https://freelogopng.com/images/all_img/1679248787Nagad-Logo.png" alt="Nagad" className="h-8 object-contain" />
-                    <span className="text-xs font-bold dark:text-white">Nagad</span>
-                  </button>
-                )}
-              </div>
-            </div>
             <div>
               <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest pl-1 mb-1.5">{t('amount')} (৳{depositSettings.minDeposit} - ৳{depositSettings.maxDeposit})</label>
               <input 
@@ -556,35 +465,14 @@ export function Wallet() {
                 className="w-full bg-slate-50 border border-slate-200 dark:bg-slate-900/50 dark:border-slate-700 dark:text-white rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-display font-medium text-lg transition-all"
               />
             </div>
-            <div>
-              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest pl-1 mb-1.5">{t('trx_id') || 'TrxID'}</label>
-              <input 
-                type="text" 
-                placeholder="Enter Transaction ID" 
-                required 
-                value={depositTrx}
-                onChange={(e) => setDepositTrx(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 dark:bg-slate-900/50 dark:border-slate-700 dark:text-white rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono transition-all"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest pl-1 mb-1.5">{t('sender_number') || 'Sender Number'}</label>
-              <input 
-                type="text" 
-                placeholder="Number you sent from (e.g. 017...)" 
-                required 
-                value={depositAccount}
-                onChange={(e) => setDepositAccount(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 dark:bg-slate-900/50 dark:border-slate-700 dark:text-white rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono transition-all"
-              />
-            </div>
-            <button type="submit" className="w-full bg-indigo-600 dark:bg-indigo-500 text-white font-bold py-4 rounded-xl shadow-lg mt-4 hover:bg-indigo-700 dark:hover:bg-indigo-600 transition active:scale-[0.98] text-base">
-              {t('submit_deposit')}
+            
+            <button type="submit" disabled={isSubmitting} className="w-full bg-indigo-600 dark:bg-indigo-500 text-white font-bold py-4 rounded-xl shadow-lg mt-4 hover:bg-indigo-700 dark:hover:bg-indigo-600 transition active:scale-[0.98] text-base flex items-center justify-center gap-2 disabled:opacity-50">
+              <Shield className="w-5 h-5" />
+              {isSubmitting ? 'Processing...' : 'Pay with UddoktaPay'}
             </button>
           </form>
         </motion.div>
       )}
-
       {/* Withdraw Form */}
       {activeTab === 'withdraw' && (
         <motion.div 

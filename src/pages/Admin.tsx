@@ -222,23 +222,25 @@ export function AdminPanel() {
     const logErr = (err: any) => { toast.error("Firebase Error: " + err?.message); console.error(err); };
     
     if (['jobs', 'submissions'].includes(activeTab)) {
-      unsubs.push(onSnapshot(query(collection(db, "jobs"), orderBy("createdAt", "desc"), limit(500)), (snap) => {
+      unsubs.push(onSnapshot(query(collection(db, "jobs"), orderBy("createdAt", "desc"), limit(100)), (snap) => {
         setJobs(snap.docs.map(d => ({id: d.id, ...d.data()} as any)));
       }, logErr));
-      unsubs.push(onSnapshot(query(collection(db, "submissions"), orderBy("submittedAt", "desc"), limit(500)), (snap) => {
+      unsubs.push(onSnapshot(query(collection(db, "submissions"), orderBy("submittedAt", "desc"), limit(100)), (snap) => {
         setSubmissions(snap.docs.map(d => ({id: d.id, ...d.data()} as any)));
       }, logErr));
     }
     
     if (['requests', 'dashboard'].includes(activeTab)) {
-      unsubs.push(onSnapshot(query(collection(db, "payment_requests"), orderBy("createdAt", "desc"), limit(2000)), (snap) => {
+      unsubs.push(onSnapshot(query(collection(db, "payment_requests"), orderBy("createdAt", "desc"), limit(100)), (snap) => {
         setPaymentRequests(snap.docs.map(d => ({id: d.id, ...d.data()} as any)));
       }, logErr));
     }
     
     if (activeTab === 'users') {
-      unsubs.push(onSnapshot(query(collection(db, "users"), orderBy("createdAt", "desc"), limit(2000)), (snap) => {
-        setUserList(snap.docs.map(d => ({id: d.id, ...d.data()} as any)));
+      unsubs.push(onSnapshot(query(collection(db, "users"), orderBy("createdAt", "desc"), limit(100)), (snap) => {
+        if (!userSearchTerm) {
+          setUserList(snap.docs.map(d => ({id: d.id, ...d.data()} as any)));
+        }
       }, logErr));
     }
     
@@ -2631,9 +2633,26 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
               </span>
               <input
                 type="text"
-                placeholder="Search by name, email or ID..."
+                placeholder="Search by email or exact ID (Press Enter)"
                 value={userSearchTerm}
                 onChange={e => setUserSearchTerm(e.target.value)}
+                onKeyDown={async (e) => {
+                  if (e.key === 'Enter' && userSearchTerm.trim().length > 0) {
+                     const qTerm = userSearchTerm.trim().toLowerCase();
+                     try {
+                        const byEmail = await getDocs(query(collection(db, "users"), where("email", "==", qTerm)));
+                        const byId = await getDoc(doc(db, "users", qTerm));
+                        let results: any[] = [];
+                        if (byId.exists()) results.push({id: byId.id, ...byId.data()});
+                        byEmail.forEach(d => { if(d.id !== qTerm) results.push({id: d.id, ...d.data()}) });
+                        setUserList(results);
+                        if (results.length === 0) toast.error("No users found");
+                     } catch(err) { console.error(err); }
+                  } else if (e.key === 'Enter' && userSearchTerm.trim().length === 0) {
+                     const snap = await getDocs(query(collection(db, "users"), orderBy("createdAt", "desc"), limit(100)));
+                     setUserList(snap.docs.map(d => ({id: d.id, ...d.data()} as any)));
+                  }
+                }}
                 className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-4 py-2 text-sm font-bold placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:text-white transition-all"
               />
             </div>

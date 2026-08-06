@@ -1,4 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import re
+
+with open('src/pages/Payment.tsx', 'r') as f:
+    code = f.read()
+
+new_content = """import React, { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthProvider';
 import { useLanguage } from '../components/LanguageProvider';
 import { useNavigate } from 'react-router-dom';
@@ -138,3 +143,9 @@ export function Payment() {
     </div>
   );
 }
+"""
+
+with open('src/pages/Payment.tsx', 'w') as f:
+    f.write(new_content)
+
+print("patched Payment.tsx")

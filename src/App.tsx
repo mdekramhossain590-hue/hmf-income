@@ -17,6 +17,8 @@ import { Profile } from './pages/Profile';
 import { Leaderboard } from './pages/Leaderboard';
 import { Rewards } from './pages/Rewards';
 import { Recharge } from './pages/Recharge';
+import { Deposit } from './pages/Deposit';
+import { PaymentStatus } from './pages/PaymentStatus';
 import { GiftCode } from './pages/GiftCode';
 import { AdsView } from './pages/AdsView';
 import { Drive } from './pages/Drive';
@@ -145,6 +147,9 @@ export default function App() {
             <Route path="/refer" element={<ActiveGuard><Refer /></ActiveGuard>} />
             <Route path="/wallet" element={<Wallet />} />
             <Route path="/recharge" element={<Recharge />} />
+                <Route path="/deposit" element={<Deposit />} />
+                <Route path="/payment/success" element={<PaymentStatus status="success" />} />
+                <Route path="/payment/cancel" element={<PaymentStatus status="cancel" />} />
             <Route path="/gift" element={<ActiveGuard><GiftCode /></ActiveGuard>} />
             <Route path="/drive" element={<ActiveGuard><Drive /></ActiveGuard>} />
             <Route path="/courses" element={<Courses />} />
