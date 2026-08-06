@@ -150,7 +150,15 @@ export function Wallet() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount: Number(amount), uid: auth.currentUser?.uid, name: profile?.fullName || "User", email: profile?.email || "user@example.com" })
       });
-      const data = await res.json();
+      
+      const text = await res.text();
+      let data;
+      try {
+         data = JSON.parse(text);
+      } catch (e) {
+         throw new Error("Server did not return a valid API response. Ensure you are running the Node.js backend server.");
+      }
+      
       if (!res.ok) throw new Error(data.error || 'Payment gateway error');
       if (data.url) {
         window.open(data.url, "_blank") || (window.location.href = data.url);
