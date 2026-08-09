@@ -7,7 +7,7 @@ export async function sendPushNotification(userId: string | 'all', title: string
     });
     return response.ok;
   } catch (error) {
-    console.error('Push notification failed:', error);
+    console.error('Push notification failed:', error?.message || error);
     return false;
   }
 }

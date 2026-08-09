@@ -68,7 +68,7 @@ export function Dashboard() {
           await processRegistrationReferral(auth.currentUser!.uid);
           await refreshProfile();
         } catch(e) {
-          console.error(e);
+          console.error(e?.message || e);
         }
       }
     };
@@ -145,7 +145,7 @@ export function Dashboard() {
         });
         setDbNotifications(items);
       }, (err) => {
-        console.warn("Error fetching db notifications:", err);
+        console.warn("Error fetching db notifications:", err?.message || err);
       });
     });
 
@@ -222,14 +222,14 @@ export function Dashboard() {
         fetchedLeaders.sort((a, b) => b.totalIncome - a.totalIncome);
         setTopLeaders(fetchedLeaders.slice(0, 3));
       } catch (err) {
-        console.warn("Failed fetching top leaders", err);
+        console.warn("Failed fetching top leaders", err?.message || err);
       }
 
       // 2. Fetch Stats
       try {
         const statsDoc = await getDoc(doc(db, "admin", "stats"));
       } catch (err) {
-        console.warn("Failed fetching platform stats", err);
+        console.warn("Failed fetching platform stats", err?.message || err);
       }
     };
     fetchGlobalData();
@@ -318,7 +318,7 @@ export function Dashboard() {
         setUserReferrals(refItems);
 
       } catch (e) {
-        console.warn("Error fetching activity:", e);
+        console.warn("Error fetching activity:", e?.message || e);
       }
     };
 
@@ -383,7 +383,7 @@ export function Dashboard() {
         { read: true },
       );
     } catch (e) {
-      console.error("Failed to mark notification as read:", e);
+      console.error("Failed to mark notification as read:", e?.message || e);
     }
   };
 
@@ -407,7 +407,7 @@ export function Dashboard() {
       await batch.commit();
       toast.success(t("mark_all_read") || "All marked as read");
     } catch (e) {
-      console.error("Failed to mark all as read:", e);
+      console.error("Failed to mark all as read:", e?.message || e);
     }
   };
 
@@ -424,7 +424,7 @@ export function Dashboard() {
           : "Notification deleted",
       );
     } catch (err) {
-      console.error("Failed to delete notification:", err);
+      console.error("Failed to delete notification:", err?.message || err);
       toast.error(
         language === "Bengali" ? "মুছে ফেলতে ব্যর্থ হয়েছে" : "Failed to delete",
       );
@@ -458,7 +458,7 @@ export function Dashboard() {
           : "All notifications cleared",
       );
     } catch (err) {
-      console.error("Failed to delete all notifications:", err);
+      console.error("Failed to delete all notifications:", err?.message || err);
       toast.error(
         language === "Bengali"
           ? "সব মুছতে ব্যর্থ হয়েছে"
@@ -1199,7 +1199,7 @@ export function Dashboard() {
                 setShowCelebration(true);
                 toast.success(`৳${partnerSettings.dailyBonus} daily partner bonus claimed!`);
               } catch (err) {
-                console.error(err);
+                console.error(err?.message || err);
                 toast.error("Failed to claim bonus.");
               } finally {
                 setClaimingPartner(false);

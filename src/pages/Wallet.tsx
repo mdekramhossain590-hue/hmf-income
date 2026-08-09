@@ -5,7 +5,7 @@ import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { getCachedDoc, getCachedQuery } from '../lib/cache';
 import { BarChart, Bar, ReferenceLine, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { useLanguage } from '../components/LanguageProvider';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { History, ArrowUpRight, ArrowDownLeft, Copy, Wallet as WalletIcon, TrendingUp, ArrowRightLeft, Zap, Shield } from 'lucide-react';
 import QRCode from 'react-qr-code';
 import toast from 'react-hot-toast';
@@ -38,6 +38,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 export function Wallet() {
+  const navigate = useNavigate();
   const { profile, refreshProfile } = useAuth();
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<'deposit' | 'withdraw' | 'history'>(
@@ -134,40 +135,7 @@ export function Wallet() {
 
   const handleDeposit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auth.currentUser || isSubmitting) return;
-    setIsSubmitting(true);
-    const amount = parseFloat(depositAmount);
-    
-    if (isNaN(amount) || amount < depositSettings.minDeposit || amount > depositSettings.maxDeposit) {
-      toast.error(`Deposit must be between ${depositSettings.minDeposit} and ${depositSettings.maxDeposit}`);
-      setIsSubmitting(false);
-      return;
-    }
-
-    try {
-      const res = await fetch('/api/uddoktapay/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: Number(amount), uid: auth.currentUser?.uid, name: profile?.fullName || "User", email: profile?.email || "user@example.com" })
-      });
-      
-      const text = await res.text();
-      let data;
-      try {
-         data = JSON.parse(text);
-      } catch (e) {
-         throw new Error("Server did not return a valid API response. Ensure you are running the Node.js backend server.");
-      }
-      
-      if (!res.ok) throw new Error(data.error || 'Payment gateway error');
-      if (data.url) {
-        window.open(data.url, "_blank") || (window.location.href = data.url);
-      }
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to initialize payment');
-    } finally {
-      setIsSubmitting(false);
-    }
+    navigate('/deposit');
   };
 
 
@@ -459,26 +427,18 @@ export function Wallet() {
           exit={{ opacity: 0, y: -10 }}
           className="bg-white/70 backdrop-blur-md p-5 rounded-3xl shadow-sm border border-slate-100 dark:bg-slate-800/80 dark:border-slate-700"
         >
-          <form onSubmit={handleDeposit} className="space-y-4">
-            <div>
-              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest pl-1 mb-1.5">{t('amount')} (৳{depositSettings.minDeposit} - ৳{depositSettings.maxDeposit})</label>
-              <input 
-                type="number" 
-                placeholder={`e.g. 500`} 
-                required 
-                min={depositSettings.minDeposit}
-                max={depositSettings.maxDeposit}
-                value={depositAmount}
-                onChange={(e) => setDepositAmount(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 dark:bg-slate-900/50 dark:border-slate-700 dark:text-white rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-display font-medium text-lg transition-all"
-              />
-            </div>
-            
-            <button type="submit" disabled={isSubmitting} className="w-full bg-indigo-600 dark:bg-indigo-500 text-white font-bold py-4 rounded-xl shadow-lg mt-4 hover:bg-indigo-700 dark:hover:bg-indigo-600 transition active:scale-[0.98] text-base flex items-center justify-center gap-2 disabled:opacity-50">
-              <Shield className="w-5 h-5" />
-              {isSubmitting ? 'Processing...' : 'Pay with UddoktaPay'}
-            </button>
-          </form>
+          <div className="space-y-4">
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Please use our dedicated deposit page to add funds manually via bKash or Nagad.
+          </p>
+          <button
+            onClick={() => navigate('/deposit')}
+            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-3.5 px-4 rounded-xl text-sm uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 mt-4"
+          >
+            <WalletIcon className="w-5 h-5" />
+            Go to Deposit Page
+          </button>
+        </div>
         </motion.div>
       )}
       {/* Withdraw Form */}

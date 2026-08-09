@@ -70,7 +70,7 @@ export function Settings() {
             paymentNotificationSubscribed: false
           });
         } catch (e) {
-          console.error("Failed to update profile subscription", e);
+          console.error("Failed to update profile subscription", e?.message || e);
         }
       }
       return;
@@ -89,7 +89,7 @@ export function Settings() {
             body: "You will now receive desktop popup alerts when admins approve or reject your payments."
           });
         } catch (err) {
-          console.warn("Attempt to trigger preview notification failed:", err);
+          console.warn("Attempt to trigger preview notification failed:", err?.message || err);
         }
 
         if (user) {
@@ -98,7 +98,7 @@ export function Settings() {
               paymentNotificationSubscribed: true
             });
           } catch (e) {
-            console.error("Failed to update profile subscription", e);
+            console.error("Failed to update profile subscription", e?.message || e);
           }
         }
       } else {
@@ -110,7 +110,7 @@ export function Settings() {
     } catch (e) {
       setNotificationSupportError("Push notifications are limited within the preview iframe. Try opening the app in a new tab!");
       toast.error("Failed to enable browser notifications.");
-      console.error(e);
+      console.error(e?.message || e);
     }
   };
 

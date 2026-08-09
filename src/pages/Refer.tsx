@@ -48,7 +48,7 @@ export function Refer() {
         setReferrals(refs);
         const gen1Count = refs.filter(r => !r.level || r.level === 1).length;
         if (gen1Count !== (profile?.totalReferrals || 0)) {
-          updateDoc(doc(db, "users", auth.currentUser!.uid), { totalReferrals: gen1Count }).catch(console.error);
+          updateDoc(doc(db, "users", auth.currentUser!.uid), { totalReferrals: gen1Count }).catch(e => console.error(e?.message || e));
         }
         setActualReferralsCount(gen1Count);
         

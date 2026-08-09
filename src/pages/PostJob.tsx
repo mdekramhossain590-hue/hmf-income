@@ -55,7 +55,7 @@ export function PostJob() {
       });
       setUserJobs(jobsList);
     } catch (err) {
-      console.error('Error fetching user jobs:', err);
+      console.error('Error fetching user jobs:', err?.message || err);
     } finally {
       setLoadingJobs(false);
     }

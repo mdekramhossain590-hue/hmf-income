@@ -130,7 +130,7 @@ export function Spin() {
             referReq: data.spinReferReq || 0
           });
         } } catch (e) {
-        console.error("Error fetching spin settings:", e);
+        console.error("Error fetching spin settings:", e?.message || e);
       }
     };
     

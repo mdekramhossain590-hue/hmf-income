@@ -36,7 +36,7 @@ export function WelcomePopup() {
           setIsOpen(true);
           sessionStorage.setItem('hasSeenWelcomePopup', 'true');
         } catch (error) {
-          console.warn("Error fetching popup settings", error);
+          console.warn("Error fetching popup settings", error?.message || error);
         }
       }
     };

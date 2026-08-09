@@ -1,32 +1,29 @@
+import re
+
 with open('server.ts', 'r') as f:
     code = f.read()
 
-target = """      const apiKey = process.env.UDDOKTAPAY_API_KEY;
-      const apiBaseUrl = process.env.UDDOKTAPAY_BASE_URL;
-      
-      if (!apiKey || !apiBaseUrl) {
-         return res.status(500).json({ error: "UddoktaPay API credentials not configured in .env" });
-      }
+new_endpoint = """
+  app.post("/api/admin/change-password", async (req, res) => {
+    if (!firebaseAdminApp) {
+       return res.status(500).json({ error: "Firebase Admin is not configured." });
+    }
+    const { uid, newPassword } = req.body;
+    if (!uid || !newPassword) return res.status(400).json({ error: "Missing fields" });
 
-      const baseUrl = req.protocol + '://' + req.get('host');
-      const response = await fetch(`${apiBaseUrl}/api/checkout-v2`, {"""
+    try {
+      await admin.auth().updateUser(uid, { password: newPassword });
+      return res.json({ success: true, message: "Password updated successfully" });
+    } catch (err: any) {
+      console.error("Change Password Error:", err);
+      return res.status(500).json({ error: "Failed to change password" });
+    }
+  });
+"""
 
-replacement = """      const apiKey = process.env.UDDOKTAPAY_API_KEY;
-      let apiBaseUrl = process.env.UDDOKTAPAY_BASE_URL;
-      
-      if (!apiKey || !apiBaseUrl) {
-         return res.status(500).json({ error: "UddoktaPay API credentials not configured in .env" });
-      }
+code = code.replace('app.post("/api/uddoktapay/create"', new_endpoint.strip() + '\n\n  app.post("/api/uddoktapay/create"')
 
-      apiBaseUrl = apiBaseUrl.replace(/\\/+$/, '').replace(/\\/api$/, '');
+with open('server.ts', 'w') as f:
+    f.write(code)
 
-      const baseUrl = req.protocol + '://' + req.get('host');
-      const response = await fetch(`${apiBaseUrl}/api/checkout-v2`, {"""
-
-if target in code:
-    code = code.replace(target, replacement)
-    with open('server.ts', 'w') as f:
-        f.write(code)
-    print("Fixed API URL in server.ts")
-else:
-    print("Target not found in server.ts")
+print("Server patched")

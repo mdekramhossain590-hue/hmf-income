@@ -158,7 +158,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             await updateDoc(docRef, { deviceId: newDeviceId });
             data.deviceId = newDeviceId;
           } catch (e) {
-             console.warn('Failed to link device ID:', e);
+             console.warn('Failed to link device ID:', e?.message || e);
            }
          }
          
@@ -191,7 +191,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
            await setDoc(docRef, defaultProfile);
            setProfile(defaultProfile);
          } catch (e) {
-           console.error("Failed to self-heal profile", e);
+           console.error("Failed to self-heal profile", e?.message || e);
          }
        }
      } catch (error: any) {
@@ -205,7 +205,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
            setProfile(JSON.parse(cached));
          }
        } catch (cacheErr) {
-         console.warn('Cache read error:', cacheErr);
+         console.warn('Cache read error:', cacheErr?.message || cacheErr);
        }
      }
   };
@@ -239,10 +239,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               } catch(e) {}
             }
           }, (err: any) => {
-             console.warn("Profile snapshot error", err);
+             console.warn("Profile snapshot error", err?.message || err);
           });
         } catch (e) {
-          console.warn("Could not set up onSnapshot", e);
+          console.warn("Could not set up onSnapshot", e?.message || e);
         }
 
       } else {

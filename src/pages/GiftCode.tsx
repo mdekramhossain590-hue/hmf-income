@@ -104,7 +104,7 @@ export function GiftCode() {
       await refreshProfile();
 
     } catch (error) {
-      console.error("Error claiming code:", error);
+      console.error("Error claiming code:", error?.message || error);
       toast.error('Failed to claim gift code. Please try again.');
     } finally {
       setLoading(false);

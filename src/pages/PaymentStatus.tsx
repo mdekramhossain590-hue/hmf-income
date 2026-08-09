@@ -40,7 +40,7 @@ useEffect(() => {
                       toast.success(`Account activated successfully!`);
                       if (data.userId) {
                          import('../lib/referral').then(module => {
-                            module.processRegistrationReferral(data.userId).catch(console.error);
+                            module.processRegistrationReferral(data.userId).catch(e => console.error(e?.message || e));
                          });
                       }
                    } else {
@@ -56,7 +56,7 @@ useEffect(() => {
         });
         
       } catch (err: any) {
-        console.error(err);
+        console.error(err?.message || err);
         setLoading(false);
       }
     };

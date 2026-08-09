@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthProvider';
 import { useLanguage } from '../components/LanguageProvider';
 import { useNavigate } from 'react-router-dom';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { getCachedDoc } from '../lib/cache';
-import { ShieldCheck, Shield } from 'lucide-react';
+import { ShieldCheck, Shield, Copy, CheckCircle2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export function Payment() {
@@ -15,6 +15,17 @@ export function Payment() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [settings, setSettings] = useState({ mode: 'free', fee: 50 });
+  const [method, setMethod] = useState('bKash');
+  const [senderNumber, setSenderNumber] = useState('');
+  const [trxId, setTrxId] = useState('');
+  const [copiedNumber, setCopiedNumber] = useState('');
+
+  const [depositSettings, setDepositSettings] = useState({ 
+    bkashNumber: '017XX-XXXXXX', 
+    nagadNumber: '017XX-XXXXXX', 
+    bkashEnabled: true, 
+    nagadEnabled: true
+  });
 
   useEffect(() => {
     if (profile?.isActive) {
@@ -28,13 +39,25 @@ export function Payment() {
         if (actSnap.exists()) {
           setSettings(actSnap.data() as any);
         }
+        
+        const depSnap = await getCachedDoc(doc(db, "settings", "deposit"));
+        if (depSnap.exists()) {
+          const data = depSnap.data();
+          setDepositSettings({
+            bkashNumber: data.bkashNumber || '017XX-XXXXXX',
+            nagadNumber: data.nagadNumber || '017XX-XXXXXX',
+            bkashEnabled: data.bkashEnabled !== false,
+            nagadEnabled: data.nagadEnabled !== false
+          });
+          if (data.bkashEnabled !== false) setMethod('bKash');
+          else if (data.nagadEnabled !== false) setMethod('Nagad');
+        }
       } catch (error) {
         console.error(error);
       } finally {
         setLoading(false);
       }
     };
-
     fetchConfig();
   }, [profile, navigate]);
 
@@ -54,39 +77,52 @@ export function Payment() {
     }
   };
 
+  const handleCopy = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedNumber(text);
+    toast.success('Number copied to clipboard!');
+    setTimeout(() => setCopiedNumber(''), 2000);
+  };
+
   const handlePayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!auth.currentUser) return;
+    
+    if (!senderNumber || senderNumber.length < 11) {
+      toast.error('Please enter a valid sender number');
+      return;
+    }
+    if (!trxId || trxId.length < 4) {
+      toast.error('Please enter a valid transaction ID');
+      return;
+    }
+
     setSubmitting(true);
     
     try {
-      const res = await fetch('/api/uddoktapay/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-           amount: settings.fee, 
-           uid: auth.currentUser?.uid, 
-           name: profile?.fullName || "User", 
-           email: profile?.email || "user@example.com",
-           type: 'activation'
-        })
+      await addDoc(collection(db, 'payment_requests'), {
+        userId: auth.currentUser.uid,
+        amount: settings.fee,
+        method,
+        type: 'activation',
+        status: 'pending',
+        trxId,
+        account: senderNumber,
+        createdAt: serverTimestamp()
       });
       
-      const text = await res.text();
-      let data;
-      try {
-         data = JSON.parse(text);
-      } catch (e) {
-         throw new Error("Server did not return a valid API response. Ensure you are running the Node.js backend server.");
-      }
-      if (!res.ok) throw new Error(data.error || 'Payment gateway error');
-      if (data.url) {
-        window.open(data.url, "_blank") || (window.location.href = data.url);
-      }
+      toast.success('Activation request submitted! Please wait for admin approval.');
+      navigate('/');
     } catch (err: any) {
-      toast.error(err.message || 'Failed to initialize payment');
+      toast.error(err?.message || 'Failed to submit activation request');
       setSubmitting(false);
     }
+  };
+
+  const getActiveNumber = () => {
+    if (method === 'bKash') return depositSettings.bkashNumber;
+    if (method === 'Nagad') return depositSettings.nagadNumber;
+    return '';
   };
 
   if (loading) {
@@ -129,14 +165,73 @@ export function Payment() {
               <div className="text-4xl font-black text-gray-900 dark:text-white">৳{settings.fee}</div>
             </div>
             
+            <div className="flex gap-4 mb-6">
+              {depositSettings.bkashEnabled && (
+                <button
+                  type="button"
+                  onClick={() => setMethod('bKash')}
+                  className={`flex-1 py-3 px-2 rounded-xl flex flex-col items-center justify-center gap-2 border-2 transition-all ${method === 'bKash' ? 'border-[#E2136E] bg-[#E2136E]/10 scale-105' : 'border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                >
+                  <img src="https://freelogopng.com/images/all_img/1656234745bkash-app-logo-png.png" alt="bKash" className="h-8 object-contain" />
+                  <span className="text-xs font-bold dark:text-white">bKash</span>
+                </button>
+              )}
+              {depositSettings.nagadEnabled && (
+                <button
+                  type="button"
+                  onClick={() => setMethod('Nagad')}
+                  className={`flex-1 py-3 px-2 rounded-xl flex flex-col items-center justify-center gap-2 border-2 transition-all ${method === 'Nagad' ? 'border-[#F7931E] bg-[#F7931E]/10 scale-105' : 'border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                >
+                  <img src="https://freelogopng.com/images/all_img/1679248787Nagad-Logo.png" alt="Nagad" className="h-8 object-contain" />
+                  <span className="text-xs font-bold dark:text-white">Nagad</span>
+                </button>
+              )}
+            </div>
+
+            <div className="bg-slate-50 dark:bg-slate-900 rounded-2xl p-4 mb-6 text-center border border-slate-100 dark:border-slate-700">
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mb-2">Send Money To ({method})</p>
+              <div className="flex items-center justify-center gap-3">
+                <span className="text-2xl font-black tracking-widest text-slate-800 dark:text-white">
+                  {getActiveNumber()}
+                </span>
+                <button 
+                  onClick={() => handleCopy(getActiveNumber())}
+                  className="p-2 bg-white dark:bg-slate-800 rounded-xl shadow-sm hover:scale-105 active:scale-95 transition-all"
+                >
+                  {copiedNumber === getActiveNumber() ? <CheckCircle2 className="w-5 h-5 text-emerald-500" /> : <Copy className="w-5 h-5 text-slate-400" />}
+                </button>
+              </div>
+            </div>
+
             <form onSubmit={handlePayment} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2 uppercase tracking-wider">Sender Number</label>
+                <input
+                  type="text"
+                  value={senderNumber}
+                  onChange={(e) => setSenderNumber(e.target.value)}
+                  placeholder="017XX-XXXXXX"
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 text-base text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2 uppercase tracking-wider">Transaction ID (TrxID)</label>
+                <input
+                  type="text"
+                  value={trxId}
+                  onChange={(e) => setTrxId(e.target.value)}
+                  placeholder="e.g. 8ABCDEFGH"
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 text-base text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all uppercase"
+                />
+              </div>
+
               <button 
                 type="submit" 
                 disabled={submitting}
                 className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl shadow-lg mt-2 transition flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 <Shield className="w-5 h-5" />
-                {submitting ? 'Processing...' : 'Pay with UddoktaPay'}
+                {submitting ? 'Processing...' : 'Submit Request'}
               </button>
             </form>
           </div>

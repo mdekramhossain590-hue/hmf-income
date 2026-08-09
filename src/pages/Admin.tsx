@@ -95,6 +95,35 @@ export function AdminPanel() {
   const [promptInput, setPromptInput] = useState('');
   
   const [editingUserBalance, setEditingUserBalance] = useState<{ id: string; fullName: string; main: number; bonus: number; referral: number; partner: number; tasks: number } | null>(null);
+  const [changingPasswordUser, setChangingPasswordUser] = useState<{ id: string; fullName: string; email: string } | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!changingPasswordUser || !newPassword) return;
+    if (newPassword.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+    setIsChangingPassword(true);
+    try {
+      const res = await fetch('/api/admin/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uid: changingPasswordUser.id, newPassword })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to change password');
+      toast.success(`Password for ${changingPasswordUser.fullName} updated successfully!`);
+      setChangingPasswordUser(null);
+      setNewPassword('');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to change password');
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
   const [editingJobId, setEditingJobId] = useState<string | null>(null);
 
   const [newJob, setNewJob] = useState({
@@ -208,7 +237,7 @@ export function AdminPanel() {
         })),
         fetchDoc("settings", "faqs", d => setFaqsList(d.faqs || []))
       ]);
-    } catch(err) { console.warn("Error loading settings:", err); }
+    } catch(err) { console.warn("Error loading settings:", err?.message || err); }
   }, []);
 
   const loadData = useCallback(async (forceRef = false) => {
@@ -219,7 +248,7 @@ export function AdminPanel() {
     if (!isAdmin) return;
     
     const unsubs: any[] = [];
-    const logErr = (err: any) => { toast.error("Firebase Error: " + err?.message); console.error(err); };
+    const logErr = (err: any) => { toast.error("Firebase Error: " + err?.message); console.error(err?.message || "Firebase Error"); };
     
     if (['jobs', 'submissions'].includes(activeTab)) {
       unsubs.push(onSnapshot(query(collection(db, "jobs"), orderBy("createdAt", "desc"), limit(100)), (snap) => {
@@ -237,7 +266,7 @@ export function AdminPanel() {
     }
     
     if (activeTab === 'users') {
-      unsubs.push(onSnapshot(query(collection(db, "users"), orderBy("createdAt", "desc"), limit(100)), (snap) => {
+      unsubs.push(onSnapshot(query(collection(db, "users"), orderBy("createdAt", "desc"), limit(500)), (snap) => {
         if (!userSearchTerm) {
           setUserList(snap.docs.map(d => ({id: d.id, ...d.data()} as any)));
         }
@@ -556,7 +585,7 @@ export function AdminPanel() {
           clearCache();
           await loadData(true);
         } catch (err: any) {
-          console.error("Failed to approve/reject task:", err);
+          console.error("Failed to approve/reject task:", err?.message || err);
           handleFirestoreError(err, OperationType.UPDATE, `submissions or batch`);
         }
       }
@@ -795,7 +824,7 @@ export function AdminPanel() {
       loadData(true);
     } catch (err) {
       toast.error("Failed to delete gift code");
-      console.error(err);
+      console.error(err?.message || err);
     }
   };
 
@@ -840,7 +869,7 @@ export function AdminPanel() {
       loadData(true);
     } catch (err) {
       toast.error('Failed to create gift code');
-      console.error(err);
+      console.error(err?.message || err);
     }
   };
 
@@ -930,7 +959,7 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
         const cleanCol = async (collPath: string) => {
           const qs = await getDocs(collection(db, collPath));
           for (const docSnap of qs.docs) {
-            await deleteDoc(doc(db, collPath, docSnap.id)).catch(e => console.warn(e));
+            await deleteDoc(doc(db, collPath, docSnap.id)).catch(e => console.warn(e?.message || e));
           }
         };
 
@@ -955,13 +984,13 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
               await deleteDoc(doc(db, `users/${uid}/${s}`, subDoc.id)).catch(() => {});
             }
           }
-          await deleteDoc(doc(db, "users", uid)).catch(e => console.warn(e));
+          await deleteDoc(doc(db, "users", uid)).catch(e => console.warn(e?.message || e));
           await deleteDoc(doc(db, "leaderboard", uid)).catch(() => {});
         }
 
         toast.success("Database successfully wiped!", { id: "wipe_db" });
       } catch (err: any) {
-        console.error(err);
+        console.error(err?.message || err);
         toast.error("Error wiping database: " + err.message, { id: "wipe_db" });
       } finally {
         setIsSavingSettings(false);
@@ -991,7 +1020,7 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
       }
       setEmployeeConfigUser(null);
     } catch (err: any) {
-      console.error("Employee Config Error:", err);
+      console.error("Employee Config Error:", err?.message || err);
       toast.error("Failed to update employee roles: " + (err.message || 'Unknown error'));
     }
   };
@@ -2084,7 +2113,7 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                   setNewDriveValidity('30 Days');
                 } catch (err) {
                   toast.error("Failed to create drive offer");
-                  console.error(err);
+                  console.error(err?.message || err);
                 }
               }}
               className="space-y-4"
@@ -2245,7 +2274,7 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                   setEditingCourseId(null);
                 } catch (err) {
                   toast.error("   ");
-                  console.error(err);
+                  console.error(err?.message || err);
                 }
               }}
               className="space-y-4"
@@ -2647,9 +2676,9 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                         byEmail.forEach(d => { if(d.id !== qTerm) results.push({id: d.id, ...d.data()}) });
                         setUserList(results);
                         if (results.length === 0) toast.error("No users found");
-                     } catch(err) { console.error(err); }
+                     } catch(err) { console.error(err?.message || err); }
                   } else if (e.key === 'Enter' && userSearchTerm.trim().length === 0) {
-                     const snap = await getDocs(query(collection(db, "users"), orderBy("createdAt", "desc"), limit(100)));
+                     const snap = await getDocs(query(collection(db, "users"), orderBy("createdAt", "desc"), limit(500)));
                      setUserList(snap.docs.map(d => ({id: d.id, ...d.data()} as any)));
                   }
                 }}
@@ -3626,51 +3655,60 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
 
       {/* Edit User Balance Modal */}
       {editingUserBalance && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white dark:bg-slate-800 rounded-3xl p-6 w-full max-w-md shadow-2xl">
-            <h3 className="font-black text-slate-900 dark:text-white uppercase tracking-tight mb-4">Edit Balances: {editingUserBalance.fullName}</h3>
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 w-full max-w-sm shadow-2xl relative animate-in zoom-in-95 duration-200">
+            <h3 className="text-xl font-bold mb-4 dark:text-white">Edit Balance: {editingUserBalance.fullName}</h3>
             <div className="space-y-4">
               <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Main Balance</label>
-                <input type="number" step="0.01" value={editingUserBalance.main} onChange={e => setEditingUserBalance({...editingUserBalance, main: parseFloat(e.target.value) || 0})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" />
+                <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Main Balance</label>
+                <input type="number" value={editingUserBalance.main} onChange={(e) => setEditingUserBalance({...editingUserBalance, main: Number(e.target.value)})} className="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-xl px-4 py-3 text-sm font-bold" />
               </div>
               <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Bonus Balance</label>
-                <input type="number" step="0.01" value={editingUserBalance.bonus} onChange={e => setEditingUserBalance({...editingUserBalance, bonus: parseFloat(e.target.value) || 0})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" />
+                <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Bonus Balance</label>
+                <input type="number" value={editingUserBalance.bonus} onChange={(e) => setEditingUserBalance({...editingUserBalance, bonus: Number(e.target.value)})} className="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-xl px-4 py-3 text-sm font-bold" />
               </div>
               <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Referral Balance</label>
-                <input type="number" step="0.01" value={editingUserBalance.referral} onChange={e => setEditingUserBalance({...editingUserBalance, referral: parseFloat(e.target.value) || 0})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" />
+                <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Referral Balance</label>
+                <input type="number" value={editingUserBalance.referral} onChange={(e) => setEditingUserBalance({...editingUserBalance, referral: Number(e.target.value)})} className="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-xl px-4 py-3 text-sm font-bold" />
               </div>
               <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Partner Balance</label>
-                <input type="number" step="0.01" value={editingUserBalance.partner} onChange={e => setEditingUserBalance({...editingUserBalance, partner: parseFloat(e.target.value) || 0})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" />
+                <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Tasks Balance</label>
+                <input type="number" value={editingUserBalance.tasks} onChange={(e) => setEditingUserBalance({...editingUserBalance, tasks: Number(e.target.value)})} className="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-xl px-4 py-3 text-sm font-bold" />
               </div>
             </div>
             <div className="flex gap-3 mt-6">
-              <button onClick={() => setEditingUserBalance(null)} className="flex-1 py-3 text-slate-600 dark:text-slate-300 font-bold bg-slate-100 dark:bg-slate-700 rounded-2xl text-xs uppercase tracking-wider">Cancel</button>
-              <button onClick={async () => {
-                try {
-                  
-                  const { db } = await import('../lib/firebase');
-                  await updateDoc(doc(db, "users", editingUserBalance.id), {
-                    "balances.main": editingUserBalance.main,
-                    "balances.bonus": editingUserBalance.bonus,
-                    "balances.referral": editingUserBalance.referral,
-                    "balances.partner": editingUserBalance.partner,
-                  });
-                  await setDoc(doc(db, "leaderboard", editingUserBalance.id), {
-                    totalIncome: editingUserBalance.main + editingUserBalance.bonus + editingUserBalance.referral + editingUserBalance.partner + editingUserBalance.tasks
-                  }, { merge: true });
-                  toast.success("Balances updated!");
-                  setEditingUserBalance(null);
-                  loadData(true);
-                } catch(err: any) {
-                  toast.error(err.message);
-                }
-              }} className="flex-1 py-3 text-white font-bold bg-indigo-500 rounded-2xl text-xs uppercase tracking-wider">Save</button>
+              <button onClick={() => setEditingUserBalance(null)} className="flex-1 py-3 rounded-xl bg-gray-100 dark:bg-slate-700 font-bold transition">Cancel</button>
+              <button onClick={saveUserBalance} className="flex-1 py-3 rounded-xl bg-indigo-600 text-white font-bold transition">Save</button>
             </div>
-          </motion.div>
+          </div>
+        </div>
+      )}
+
+      {changingPasswordUser && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 w-full max-w-sm shadow-2xl relative animate-in zoom-in-95 duration-200">
+            <h3 className="text-xl font-bold mb-4 dark:text-white">Change Password</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">Set a new password for <strong>{changingPasswordUser.fullName}</strong> ({changingPasswordUser.email}).</p>
+            <form onSubmit={handleChangePassword} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">New Password</label>
+                <input 
+                  type="text" 
+                  value={newPassword} 
+                  onChange={(e) => setNewPassword(e.target.value)} 
+                  placeholder="Enter new password"
+                  className="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-xl px-4 py-3 text-sm font-bold" 
+                  autoFocus
+                />
+              </div>
+              <div className="flex gap-3 mt-6">
+                <button type="button" onClick={() => { setChangingPasswordUser(null); setNewPassword(''); }} className="flex-1 py-3 rounded-xl bg-gray-100 dark:bg-slate-700 font-bold transition">Cancel</button>
+                <button type="submit" disabled={isChangingPassword} className="flex-1 py-3 rounded-xl bg-amber-500 text-white font-bold transition disabled:opacity-50">
+                  {isChangingPassword ? 'Saving...' : 'Update Password'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
       {showNotifyModal && (

@@ -65,7 +65,7 @@ export function Drive() {
         });
         setOffers(list);
       } catch (error) {
-        console.error("Failed to load drive offers:", error);
+        console.error("Failed to load drive offers:", error?.message || error);
       } finally {
         setLoading(false);
       }
@@ -88,7 +88,7 @@ export function Drive() {
       toast.success("Default Drive Offers loaded successfully!");
     } catch (err) {
       toast.error("Failed to load samples");
-      console.error(err);
+      console.error(err?.message || err);
     } finally {
       setLoading(false);
     }
