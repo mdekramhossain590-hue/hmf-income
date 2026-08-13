@@ -437,7 +437,7 @@ export function Dashboard() {
     const confirmMessage =
       t("delete_all_confirm") ||
       "Are you sure you want to delete all notifications?";
-    if (!window.confirm(confirmMessage)) return;
+    
 
     try {
       const batch = writeBatch(db);
@@ -2186,7 +2186,7 @@ export function Dashboard() {
                                 onClick={(e) =>
                                   handleDeleteNotification(notif.id, e)
                                 }
-                                className="opacity-0 group-hover:opacity-100 p-1 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-slate-400 hover:text-rose-500 rounded-lg transition-all"
+                                className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 p-1 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-slate-400 hover:text-rose-500 rounded-lg transition-all"
                                 title="Delete"
                                 id={`notification-delete-individual-btn-${notif.id}`}
                               >

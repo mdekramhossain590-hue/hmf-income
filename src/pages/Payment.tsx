@@ -102,11 +102,12 @@ export function Payment() {
     try {
       await addDoc(collection(db, 'payment_requests'), {
         userId: auth.currentUser.uid,
-        amount: settings.fee,
+        amount: Number(settings.fee),
         method,
         type: 'activation',
         status: 'pending',
         trxId,
+        wallet: 'main',
         account: senderNumber,
         createdAt: serverTimestamp()
       });

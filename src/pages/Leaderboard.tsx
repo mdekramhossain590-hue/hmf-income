@@ -18,27 +18,33 @@ export function Leaderboard() {
 
     const fetchLeaders = async () => {
       try {
-        const snap = await getDocs(collection(db, "users"));
+        const [usersSnap, lbSnap] = await Promise.all([
+          getDocs(collection(db, "users")),
+          getDocs(collection(db, "leaderboard"))
+        ]);
         
-        const fetchedLeaders = snap.docs.map((doc) => {
+        const lbData = new Map();
+        lbSnap.forEach(doc => {
+          lbData.set(doc.id, doc.data());
+        });
+
+        const fetchedLeaders = usersSnap.docs.map((doc) => {
           try {
             const data = doc.data();
-            const main = Number(data.balances?.main || 0);
-            const bonus = Number(data.balances?.bonus || 0);
-            const ref = Number(data.balances?.referral || 0);
+            const lb = lbData.get(doc.id) || {};
             
-            let taskSum = 0;
-            if (data.balances?.tasks && typeof data.balances.tasks === 'object') {
-              taskSum = Object.values(data.balances.tasks).reduce((a: any, b: any) => Number(a || 0) + Number(b || 0), 0) as number;
-            }
-            const totalIncome = main + bonus + ref + taskSum;
+            // Use leaderboard collection for all-time stats
+            // Fallback to 0 if no leaderboard document exists yet
+            const totalIncome = Number(lb.totalIncome || 0);
+            const bonus = Number(lb.bonus || 0);
+            const referrals = Number(lb.referrals || data.referralCount || data.totalReferrals || 0);
             
             return {
               id: doc.id,
-              fullName: data.fullName || "User",
+              fullName: data.fullName || lb.fullName || "User",
               photoURL: data.photoURL || null,
               totalIncome,
-              referrals: Number(data.referralCount || data.totalReferrals || 0),
+              referrals,
               bonus
             };
           } catch (err) {
