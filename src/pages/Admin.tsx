@@ -260,7 +260,7 @@ export function AdminPanel() {
         })),
         fetchDoc("settings", "faqs", d => setFaqsList(d.faqs || []))
       ]);
-    } catch(err) { console.warn("Error loading settings:", err?.message || err); }
+    } catch(err) { console.warn("Error loading settings:", err?.message || "Unknown Error"); }
   }, []);
 
   const loadData = useCallback(async (forceRef = false) => {
@@ -608,7 +608,7 @@ export function AdminPanel() {
           clearCache();
           await loadData(true);
         } catch (err: any) {
-          console.error("Failed to approve/reject task:", err?.message || err);
+          console.error("Failed to approve/reject task:", err?.message || "Unknown Error");
           handleFirestoreError(err, OperationType.UPDATE, `submissions or batch`);
         }
       }
@@ -847,7 +847,7 @@ export function AdminPanel() {
       loadData(true);
     } catch (err) {
       toast.error("Failed to delete gift code");
-      console.error(err?.message || err);
+      console.error(err?.message || "Unknown Error");
     }
   };
 
@@ -892,7 +892,7 @@ export function AdminPanel() {
       loadData(true);
     } catch (err) {
       toast.error('Failed to create gift code');
-      console.error(err?.message || err);
+      console.error(err?.message || "Unknown Error");
     }
   };
 
@@ -1071,7 +1071,7 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
         const cleanCol = async (collPath: string) => {
           const qs = await getDocs(collection(db, collPath));
           for (const docSnap of qs.docs) {
-            await deleteDoc(doc(db, collPath, docSnap.id)).catch(e => console.warn(e?.message || e));
+            await deleteDoc(doc(db, collPath, docSnap.id)).catch(e => console.warn(e?.message || "Unknown Error"));
           }
         };
 
@@ -1096,13 +1096,13 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
               await deleteDoc(doc(db, `users/${uid}/${s}`, subDoc.id)).catch(() => {});
             }
           }
-          await deleteDoc(doc(db, "users", uid)).catch(e => console.warn(e?.message || e));
+          await deleteDoc(doc(db, "users", uid)).catch(e => console.warn(e?.message || "Unknown Error"));
           await deleteDoc(doc(db, "leaderboard", uid)).catch(() => {});
         }
 
         toast.success("Database successfully wiped!", { id: "wipe_db" });
       } catch (err: any) {
-        console.error(err?.message || err);
+        console.error(err?.message || "Unknown Error");
         toast.error("Error wiping database: " + err.message, { id: "wipe_db" });
       } finally {
         setIsSavingSettings(false);
@@ -1132,7 +1132,7 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
       }
       setEmployeeConfigUser(null);
     } catch (err: any) {
-      console.error("Employee Config Error:", err?.message || err);
+      console.error("Employee Config Error:", err?.message || "Unknown Error");
       toast.error("Failed to update employee roles: " + (err.message || 'Unknown error'));
     }
   };
@@ -2277,7 +2277,7 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                   setNewDriveValidity('30 Days');
                 } catch (err) {
                   toast.error("Failed to create drive offer");
-                  console.error(err?.message || err);
+                  console.error(err?.message || "Unknown Error");
                 }
               }}
               className="space-y-4"
@@ -2438,7 +2438,7 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                   setEditingCourseId(null);
                 } catch (err) {
                   toast.error("   ");
-                  console.error(err?.message || err);
+                  console.error(err?.message || "Unknown Error");
                 }
               }}
               className="space-y-4"
@@ -2847,7 +2847,7 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                         byEmail.forEach(d => { if(d.id !== qTerm) results.push({id: d.id, ...d.data()}) });
                         setUserList(results);
                         if (results.length === 0) toast.error("No users found");
-                     } catch(err) { console.error(err?.message || err); }
+                     } catch(err) { console.error(err?.message || "Unknown Error"); }
                   } else if (e.key === 'Enter' && userSearchTerm.trim().length === 0) {
                      const snap = await getDocs(query(collection(db, "users"), orderBy("createdAt", "desc"), limit(500)));
                      setUserList(snap.docs.map(d => ({id: d.id, ...d.data()} as any)));

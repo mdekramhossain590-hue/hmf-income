@@ -111,7 +111,7 @@ export function MigrationDashboard() {
   const addErrorLog = (msg: string, err?: any) => {
     const errMessage = err instanceof Error ? err.message : err?.message || String(err);
     const formatted = `[${new Date().toLocaleTimeString()}] ❌ ERROR: ${msg} -> ${errMessage}`;
-    console.error(`[Migration Error] ${msg}`, err?.message || err);
+    console.error(`[Migration Error] ${msg}`, err?.message || "Unknown Error");
     setLogs(prev => [...prev, formatted]);
   };
 
@@ -200,7 +200,7 @@ export function MigrationDashboard() {
         await batch.commit();
       }
     } catch (e: any) {
-      console.warn(`User ${userId} subcollection transfer failed for '${subcollName}':`, e?.message || e);
+      console.warn(`User ${userId} subcollection transfer failed for '${subcollName}':`, e?.message || "Unknown Error");
     }
   };
 

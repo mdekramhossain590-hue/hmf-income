@@ -96,7 +96,7 @@ export function Courses() {
         });
         setCourses(list);
       } catch (error) {
-        console.error("Failed to load courses:", error?.message || error);
+        console.error("Failed to load courses:", error?.message || "Unknown Error");
       } finally {
         if (isMounted) setLoading(false);
       }

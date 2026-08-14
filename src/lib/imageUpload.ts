@@ -28,7 +28,7 @@ export async function fileToBase64AndCompress(file: File, maxDim: number = 600):
       }
     }
   } catch (e) {
-    console.warn("createImageBitmap fallback:", e?.message || e);
+    console.warn("createImageBitmap fallback:", e?.message || "Unknown Error");
   }
 
   return new Promise((resolve, reject) => {
@@ -70,12 +70,12 @@ export async function fileToBase64AndCompress(file: File, maxDim: number = 600):
           const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
           resolve(dataUrl);
         } catch (e) {
-          console.error("Canvas compression failed", e?.message || e);
+          console.error("Canvas compression failed", e?.message || "Unknown Error");
           resolve(result);
         }
       };
       img.onerror = (err) => {
-        console.error("Image loading failed", err?.message || err);
+        console.error("Image loading failed");
         resolve(result);
       };
     };

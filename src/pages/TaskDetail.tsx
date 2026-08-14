@@ -269,7 +269,7 @@ export function TaskDetail() {
           return;
         }
       } catch (err) {
-        console.error("Error checking daily limit:", err?.message || err);
+        console.error("Error checking daily limit:", err?.message || "Unknown Error");
       }
     }
 
@@ -395,7 +395,7 @@ export function TaskDetail() {
       toast.success("Task submitted successfully!");
       // Wait for celebration to end before we navigate away or reload
     } catch (e: any) {
-      console.error(e?.message || e);
+      console.error(e?.message || "Unknown Error");
       let errorText =
         "An unexpected error occurred while submitting. Please try again.";
 

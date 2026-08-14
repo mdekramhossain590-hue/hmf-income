@@ -35,7 +35,7 @@ export function FAQ() {
             if (docSnap.exists()) {
               setDynamicFaqs(docSnap.data().faqs || []);
             }
-          }).catch(e => console.warn(e?.message || e));
+          }).catch(e => console.warn(e?.message || "Unknown Error"));
         });
       });
     });

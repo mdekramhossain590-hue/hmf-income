@@ -56,7 +56,7 @@ export function Leaderboard() {
         fetchedLeaders.sort((a: any, b: any) => b[sortBy] - a[sortBy]);
         setLeaders(fetchedLeaders.slice(0, 100)); // top 100
       } catch (error) {
-        console.error("Error fetching leaders:", error?.message || error);
+        console.error("Error fetching leaders:", error?.message || "Unknown Error");
         setLeaders([]);
       } finally {
         setLoading(false);

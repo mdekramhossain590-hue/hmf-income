@@ -48,7 +48,7 @@ export function Profile() {
       await refreshProfile();
       toast.success("Your referral code is now updated to the 8-character (2 letters, 6 numbers) format!", { id: idToast });
     } catch (e: any) {
-      console.error("Upgrade code error:", e?.message || e);
+      console.error("Upgrade code error:", e?.message || "Unknown Error");
       toast.error("Failed to update referral code.", { id: idToast });
       try {
         handleFirestoreError(e, OperationType.UPDATE, "users");
@@ -92,7 +92,7 @@ export function Profile() {
       setIsEditingName(false);
       toast.success("Name updated successfully!");
     } catch (e: any) {
-      console.error("Update name error:", e?.message || e);
+      console.error("Update name error:", e?.message || "Unknown Error");
       toast.error("Failed to update name.");
       try {
         handleFirestoreError(e, OperationType.UPDATE, "users");
@@ -118,7 +118,7 @@ export function Profile() {
       await logOut();
       navigate('/login');
     } catch (error) {
-      console.error('Logout failed', error?.message || error);
+      console.error('Logout failed', error?.message || "Unknown Error");
     }
   };
 
@@ -141,7 +141,7 @@ export function Profile() {
       await refreshProfile();
       toast.success("Profile picture updated!");
     } catch (e: any) {
-      console.error("Upload error:", e?.message || e);
+      console.error("Upload error:", e?.message || "Unknown Error");
       toast.error(e.message || "Failed to upload profile picture.");
       if (e.message && !e.message.includes("Cloudinary") && !e.message.includes("upload image")) {
         try {

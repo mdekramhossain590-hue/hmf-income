@@ -90,7 +90,7 @@ export async function processReferralCommission(userId: string, amountEarned: nu
       currentReferCode = referrerData.usedReferCode ? referrerData.usedReferCode.replace(/[\u200B-\u200D\uFEFF\s]/g, '').trim() : '';
     }
   } catch (error) {
-    console.error("Error processing referral commission:", error?.message || error);
+    console.error("Error processing referral commission:", error?.message || "Unknown Error");
   }
 }
 
@@ -185,6 +185,6 @@ export async function processRegistrationReferral(userId: string) {
     });
     
   } catch (error) {
-    console.error("Error processing registration referral:", error?.message || error);
+    console.error("Error processing registration referral:", error?.message || "Unknown Error");
   }
 }

@@ -25,7 +25,7 @@ export function NotificationListener() {
            }
         }
       } catch (err) {
-        console.warn('Failed to get FCM token', err?.message || err);
+        console.warn('Failed to get FCM token', err?.message || "Unknown Error");
       }
     };
     
@@ -73,7 +73,7 @@ export function NotificationListener() {
                   silent: false
                 });
               } catch (pushErr) {
-                console.warn("Native browser push notification silenced inside frame:", pushErr?.message || pushErr);
+                console.warn("Native browser push notification silenced inside frame:", pushErr?.message || "Unknown Error");
               }
             }
           }
@@ -101,7 +101,7 @@ export function NotificationListener() {
                   silent: false
                 });
               } catch (pushErr) {
-                console.warn("Native browser push notification silenced inside frame:", pushErr?.message || pushErr);
+                console.warn("Native browser push notification silenced inside frame:", pushErr?.message || "Unknown Error");
               }
             }
           }
@@ -150,11 +150,11 @@ export function NotificationListener() {
             digestTimeout = setTimeout(processQueue, 400);
           }
         }, (error) => {
-          console.warn("Notification listener error:", error?.message || error);
+          console.warn("Notification listener error:", error?.message || "Unknown Error");
         });
       });
     } catch(err) {
-      console.warn("Failed to set up notification listener", err?.message || err);
+      console.warn("Failed to set up notification listener", err?.message || "Unknown Error");
     }
 
     return () => {

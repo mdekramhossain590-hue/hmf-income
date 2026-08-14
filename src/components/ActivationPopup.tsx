@@ -24,7 +24,7 @@ export function ActivationPopup({ onClose }: { onClose: () => void }) {
           setSettings(docSnap.data() as any);
         }
       } catch (error) {
-        console.error(error?.message || error);
+        console.error(error?.message || "Unknown Error");
       } finally {
         setLoading(false);
       }

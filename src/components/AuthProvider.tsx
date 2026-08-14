@@ -158,7 +158,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             await updateDoc(docRef, { deviceId: newDeviceId });
             data.deviceId = newDeviceId;
           } catch (e) {
-             console.warn('Failed to link device ID:', e?.message || e);
+             console.warn('Failed to link device ID:', e?.message || "Unknown Error");
            }
          }
          
@@ -191,11 +191,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
            await setDoc(docRef, defaultProfile);
            setProfile(defaultProfile);
          } catch (e) {
-           console.error("Failed to self-heal profile", e?.message || e);
+           console.error("Failed to self-heal profile", e?.message || "Unknown Error");
          }
        }
      } catch (error: any) {
-       console.warn('Error fetching profile:', error.message || error);
+       console.warn('Error fetching profile:', error.message || "Unknown Error");
        if (detectQuotaError(error)) {
          setIsQuotaExceeded(true);
        }
@@ -239,10 +239,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               } catch(e) {}
             }
           }, (err: any) => {
-             console.warn("Profile snapshot error", err?.message || err);
+             console.warn("Profile snapshot error", err?.message || "Unknown Error");
           });
         } catch (e) {
-          console.warn("Could not set up onSnapshot", e?.message || e);
+          console.warn("Could not set up onSnapshot", e?.message || "Unknown Error");
         }
 
       } else {
@@ -254,7 +254,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       setLoading(false);
     }, (error) => {
-      console.warn("Auth state change error:", error.message || error);
+      console.warn("Auth state change error:", error.message || "Unknown Error");
       if (detectQuotaError(error)) {
         setIsQuotaExceeded(true);
       }
@@ -288,7 +288,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setIsQuotaExceeded(true);
           console.warn("Firestore Quota exceeded. Site may not function properly until reset.");
         } else {
-          console.warn("Error fetching site settings:", e.message || e);
+          console.warn("Error fetching site settings:", e.message || "Unknown Error");
         }
       }
     };

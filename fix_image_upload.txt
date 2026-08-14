@@ -1,0 +1,2 @@
+/console.error("Image loading failed"/c\
+        console.error("Image loading failed");
