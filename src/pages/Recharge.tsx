@@ -143,6 +143,9 @@ export function Recharge() {
       
       await batch.commit();
       await refreshProfile();
+      setAmount('');
+      setMobileNumber('');
+      setOperator('');
       toast.success('Mobile Recharge requested successfully!');
       navigate('/wallet?tab=history');
     } catch (error) {

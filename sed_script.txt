@@ -1,0 +1,13 @@
+/setSubmissionCount(prev => prev + 1);/a\
+      setProofText("");\
+      setGenericFile(null);\
+      setGenericFileUrl("");\
+      setGenericFileBase64(null);\
+      setProofImage("");\
+      setProofFile(null);\
+      setImagePreview(null);\
+      setUsername("");\
+      setPassword("");\
+      setTwoFactorCode("");\
+      setVideoUrl("");\
+      setSelectedComment("");

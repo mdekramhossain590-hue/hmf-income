@@ -112,6 +112,8 @@ export function Payment() {
         createdAt: serverTimestamp()
       });
       
+      setSenderNumber('');
+      setTrxId('');
       toast.success('Activation request submitted! Please wait for admin approval.');
       navigate('/');
     } catch (err: any) {

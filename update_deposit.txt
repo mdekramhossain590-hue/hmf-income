@@ -1,0 +1,4 @@
+/toast.success('Deposit request submitted/i\
+      setAmount('');\
+      setSenderNumber('');\
+      setTrxId('');

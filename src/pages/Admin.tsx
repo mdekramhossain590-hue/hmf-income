@@ -1155,6 +1155,44 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
     }
   };
 
+  const handleDownloadAccounts = () => {
+    const categorySubmissions = submissions.filter(s => s.status === 'pending' && (s.jobType || 'Other') === submissionCategory);
+    if (categorySubmissions.length === 0) {
+      toast.error("No pending submissions to export.");
+      return;
+    }
+
+    let csvContent = "\uFEFF"; // BOM for UTF-8 Excel support
+    csvContent += "Username,Password,2FA\n";
+    let count = 0;
+    
+    categorySubmissions.forEach(sub => {
+      if (sub.proofs?.username || sub.proofs?.password) {
+        const u = sub.proofs.username ? `"${sub.proofs.username.replace(/"/g, '""')}"` : "";
+        const p = sub.proofs.password ? `"${sub.proofs.password.replace(/"/g, '""')}"` : "";
+        const t = sub.proofs.twoFactorCode ? `"${sub.proofs.twoFactorCode.replace(/"/g, '""')}"` : "";
+        csvContent += `${u},${p},${t}\n`;
+        count++;
+      }
+    });
+
+    if (count === 0) {
+      toast.error("No accounts found in these submissions.");
+      return;
+    }
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `${submissionCategory}_Accounts.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success(`Exported ${count} accounts!`);
+  };
+
   const handleAddFaq = (e: React.FormEvent) => {
     e.preventDefault();
     if (editingFaqIndex !== null) {
@@ -1367,13 +1405,27 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
         <div className="space-y-4">
           <div className="flex items-center justify-between mb-2 px-1">
             <h3 className="font-black dark:text-white uppercase tracking-tight text-sm">Pending Reviews ({submissions.filter(s => s.status === 'pending').length})</h3>
+            {submissionCategory !== 'All' && (
+              <button 
+                onClick={handleDownloadAccounts} 
+                className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-sm"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Export Accounts
+              </button>
+            )}
           </div>
           
           <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-             <button onClick={() => setSubmissionCategory('All')} className={`shrink-0 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-colors ${submissionCategory === 'All' ? 'bg-indigo-500 text-white shadow-md' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'}`}>All</button>
-             {Array.from(new Set(submissions.filter(s => s.status === 'pending').map(s => s.jobType || 'Other'))).map(cat => (
-                <button key={cat} onClick={() => setSubmissionCategory(cat)} className={`shrink-0 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-colors ${submissionCategory === cat ? 'bg-indigo-500 text-white shadow-md' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'}`}>{cat}</button>
-             ))}
+             <button onClick={() => setSubmissionCategory('All')} className={`shrink-0 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-colors ${submissionCategory === 'All' ? 'bg-indigo-500 text-white shadow-md' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'}`}>All ({submissions.filter(s => s.status === 'pending').length})</button>
+             {Array.from(new Set(submissions.filter(s => s.status === 'pending').map(s => s.jobType || 'Other'))).map(cat => {
+                const catCount = submissions.filter(s => s.status === 'pending' && (s.jobType || 'Other') === cat).length;
+                return (
+                  <button key={cat} onClick={() => setSubmissionCategory(cat)} className={`shrink-0 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-colors ${submissionCategory === cat ? 'bg-indigo-500 text-white shadow-md' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'}`}>
+                    {cat} ({catCount})
+                  </button>
+                );
+             })}
           </div>
 
           {submissions.filter(s => s.status === 'pending' && (submissionCategory === 'All' || (s.jobType || 'Other') === submissionCategory)).length === 0 && (

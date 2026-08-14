@@ -90,6 +90,9 @@ export function Deposit() {
         createdAt: serverTimestamp()
       });
       
+      setAmount('');
+      setSenderNumber('');
+      setTrxId('');
       toast.success('Deposit request submitted! Please wait for admin approval.');
       navigate('/');
     } catch (err: any) {

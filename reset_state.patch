@@ -1,0 +1,21 @@
+--- src/pages/TaskDetail.tsx
++++ src/pages/TaskDetail.tsx
+@@ -377,6 +377,18 @@
+ 
+       setPreviousSubmission(subData);
+       setSubmissionCount(prev => prev + 1);
++      setProofText("");
++      setGenericFile(null);
++      setGenericFileUrl("");
++      setGenericFileBase64(null);
++      setProofImage("");
++      setProofFile(null);
++      setImagePreview(null);
++      setUsername("");
++      setPassword("");
++      setTwoFactorCode("");
++      setVideoUrl("");
++      setSelectedComment("");
+       setShowSubmitForm(false);
+       setShowConfirmModal(false);
+       setShowCelebration(true);
