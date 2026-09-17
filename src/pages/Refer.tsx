@@ -67,7 +67,7 @@ export function Refer() {
             enabled: d.enabled !== false
           });
         }
-      } catch (error) {
+      } catch (error: any) {
         handleFirestoreError(error, OperationType.GET, `Refer`);
       }
     };

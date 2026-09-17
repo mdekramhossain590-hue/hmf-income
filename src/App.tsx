@@ -8,6 +8,7 @@ import { Dashboard } from './pages/Dashboard';
 import { ActivityHistory } from './pages/ActivityHistory';
 import { Tasks } from './pages/Tasks';
 import { Reviews } from './pages/Reviews';
+import { AppReviews } from './pages/AppReviews';
 import { TaskDetail } from './pages/TaskDetail';
 import { Spin } from './pages/Spin';
 import { MathQuiz } from './pages/MathQuiz';
@@ -141,6 +142,7 @@ export default function App() {
             <Route path="/tasks" element={<ActiveGuard><Tasks /></ActiveGuard>} />
             <Route path="/post-job" element={<ActiveGuard><PostJob /></ActiveGuard>} />
             <Route path="/reviews" element={<ActiveGuard><Reviews /></ActiveGuard>} />
+            <Route path="/app-reviews" element={<AppReviews />} />
             <Route path="/tasks/:id" element={<ActiveGuard><TaskDetail /></ActiveGuard>} />
             <Route path="/spin" element={<ActiveGuard><Spin /></ActiveGuard>} />
             <Route path="/math" element={<ActiveGuard><MathQuiz /></ActiveGuard>} />

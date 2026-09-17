@@ -106,6 +106,13 @@ service cloud.firestore {
     }
 
     // ৭. ইউজার রিকোয়েস্ট ও সাবমিশনসমূহ (Submissions, Payments, Support)
+    
+    match /ad_views/{id} {
+      allow read: if isAdmin() || isDataOwner(resource.data) || isDataOwner(request.resource.data) || (isAuth() && request.query.limit <= 100);
+      allow create: if isAdmin() || isDataOwner(request.resource.data);
+      allow update, delete: if isAdmin();
+    }
+    
     match /submissions/{id} {
       allow read: if isAdmin() || isDataOwner(resource.data);
       allow create: if isAdmin() || isDataOwner(request.resource.data);

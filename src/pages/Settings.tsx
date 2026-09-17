@@ -69,7 +69,7 @@ export function Settings() {
           await updateDoc(doc(db, 'users', user.uid), {
             paymentNotificationSubscribed: false
           });
-        } catch (e) {
+        } catch (e: any) {
           console.error("Failed to update profile subscription", e?.message || "Unknown Error");
         }
       }
@@ -88,7 +88,7 @@ export function Settings() {
           new window.Notification("Subscription Active! 🔔", {
             body: "You will now receive desktop popup alerts when admins approve or reject your payments."
           });
-        } catch (err) {
+        } catch (err: any) {
           console.warn("Attempt to trigger preview notification failed:", err?.message || "Unknown Error");
         }
 
@@ -97,7 +97,7 @@ export function Settings() {
             await updateDoc(doc(db, 'users', user.uid), {
               paymentNotificationSubscribed: true
             });
-          } catch (e) {
+          } catch (e: any) {
             console.error("Failed to update profile subscription", e?.message || "Unknown Error");
           }
         }
@@ -107,7 +107,7 @@ export function Settings() {
         localStorage.setItem('payment_status_notifications_subscribed', 'false');
         setBrowserSubscribed(false);
       }
-    } catch (e) {
+    } catch (e: any) {
       setNotificationSupportError("Push notifications are limited within the preview iframe. Try opening the app in a new tab!");
       toast.error("Failed to enable browser notifications.");
       console.error(e?.message || "Unknown Error");

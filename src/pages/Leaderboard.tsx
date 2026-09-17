@@ -47,15 +47,15 @@ export function Leaderboard() {
               referrals,
               bonus
             };
-          } catch (err) {
-            console.warn("Skipping malformed user record:", doc.id, err);
+          } catch (err: any) {
+            console.warn("Skipping malformed user record:", doc.id, err?.message || "Unknown Error");
             return null;
           }
         }).filter(Boolean);
         
         fetchedLeaders.sort((a: any, b: any) => b[sortBy] - a[sortBy]);
         setLeaders(fetchedLeaders.slice(0, 100)); // top 100
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error fetching leaders:", error?.message || "Unknown Error");
         setLeaders([]);
       } finally {

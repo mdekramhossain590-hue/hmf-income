@@ -34,7 +34,7 @@ const tickSound = () => {
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
     osc.start();
     osc.stop(ctx.currentTime + 0.05);
-  } catch (e) {}
+  } catch (e: any) {}
 };
 
 const winSound = () => {
@@ -53,7 +53,7 @@ const winSound = () => {
     gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.5);
     osc.start();
     osc.stop(ctx.currentTime + 0.5);
-  } catch (e) {}
+  } catch (e: any) {}
 };
 
 const loseSound = () => {
@@ -70,7 +70,7 @@ const loseSound = () => {
     gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.5);
     osc.start();
     osc.stop(ctx.currentTime + 0.5);
-  } catch (e) {}
+  } catch (e: any) {}
 };
 
 const Confetti = () => {
@@ -129,7 +129,7 @@ export function Spin() {
             taskReq: data.spinTaskReq || 0,
             referReq: data.spinReferReq || 0
           });
-        } } catch (e) {
+        } } catch (e: any) {
         console.error("Error fetching spin settings:", e?.message || "Unknown Error");
       }
     };

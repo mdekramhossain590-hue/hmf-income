@@ -38,7 +38,7 @@ export function Reviews() {
           .map(doc => ({ id: doc.id, ...doc.data() }))
           .filter((j: any) => j.status === 'active' && j.type === 'Review');
         setJobs(fetchedJobs);
-      } catch (error) {
+      } catch (error: any) {
         handleFirestoreError(error, OperationType.GET, 'reviews');
       }
     };

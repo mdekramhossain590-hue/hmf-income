@@ -41,5 +41,5 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     userFriendlyMessage = error.message;
   }
   toast.error(userFriendlyMessage);
-  throw error;
+  throw new Error(userFriendlyMessage);
 }

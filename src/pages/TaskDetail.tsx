@@ -108,7 +108,7 @@ export function TaskDetail() {
       setProofImage(""); // Clear URL if file is selected
       const reader = new FileReader();
       reader.onerror = () => { 
-        console.error("FileReader error", reader.error); 
+        console.error("FileReader error", reader.error?.message || "Unknown Error"); 
         setErrorMsg("Failed to read image file. Please try again or use a different file.");
         setProofFile(null);
       };
@@ -134,7 +134,7 @@ export function TaskDetail() {
       setGenericFileUrl("");
       const reader = new FileReader();
       reader.onerror = () => {
-        console.error("FileReader error", reader.error);
+        console.error("FileReader error", reader.error?.message || "Unknown Error");
         setErrorMsg("Failed to read file. Please try again or use a different file.");
         setGenericFile(null);
       };
@@ -213,7 +213,7 @@ export function TaskDetail() {
             ...filteredDocs[0].data(),
           });
         }
-      } catch (error) {
+      } catch (error: any) {
         handleFirestoreError(error, OperationType.GET, `jobs/${id}`);
       } finally {
         setLoading(false);
@@ -268,7 +268,7 @@ export function TaskDetail() {
           );
           return;
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error("Error checking daily limit:", err?.message || "Unknown Error");
       }
     }
@@ -417,7 +417,7 @@ export function TaskDetail() {
       toast.error(errorText);
       try {
         handleFirestoreError(e, OperationType.CREATE, "submissions");
-      } catch (err) {
+      } catch (err: any) {
         // Suppress handleFirestoreError throwing again
       }
     } finally {

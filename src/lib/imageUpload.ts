@@ -27,7 +27,7 @@ export async function fileToBase64AndCompress(file: File, maxDim: number = 600):
         return dataUrl;
       }
     }
-  } catch (e) {
+  } catch (e: any) {
     console.warn("createImageBitmap fallback:", e?.message || "Unknown Error");
   }
 
@@ -69,7 +69,7 @@ export async function fileToBase64AndCompress(file: File, maxDim: number = 600):
           ctx.drawImage(img, 0, 0, width, height);
           const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
           resolve(dataUrl);
-        } catch (e) {
+        } catch (e: any) {
           console.error("Canvas compression failed", e?.message || "Unknown Error");
           resolve(result);
         }
@@ -127,8 +127,8 @@ export async function uploadImageOrFallback(
     const data = await res.json();
     if (onProgress) onProgress(100);
     return data.secure_url;
-  } catch (error) {
-    console.warn("Cloudinary upload failed, falling back to base64:", error);
+  } catch (error: any) {
+    console.warn("Cloudinary upload failed, falling back to base64:", error?.message || "Unknown Error");
     if (onProgress) onProgress(30);
     const base64Url = typeof file === 'string' ? file : await fileToBase64AndCompress(file, fallbackMaxDim);
     if (onProgress) onProgress(100);
@@ -196,8 +196,8 @@ export async function uploadFileGeneric(
     const data = await res.json();
     if (onProgress) onProgress(100);
     return data.secure_url;
-  } catch (error) {
-    console.warn("Cloudinary file upload failed, falling back to base64:", error);
+  } catch (error: any) {
+    console.warn("Cloudinary file upload failed, falling back to base64:", error?.message || "Unknown Error");
     if (onProgress) onProgress(30);
     if (typeof file === 'string') {
       if (onProgress) onProgress(100);

@@ -43,8 +43,8 @@ export function Deposit() {
           if (data.bkashEnabled !== false) setMethod('bKash');
           else if (data.nagadEnabled !== false) setMethod('Nagad');
         }
-      } catch (err) {
-        console.error(err);
+      } catch (err: any) {
+        console.error(err?.message || "Unknown Error");
       }
     };
     fetchSettings();

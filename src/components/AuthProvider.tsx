@@ -6,8 +6,6 @@ import { getCachedDoc } from '../lib/cache';
 import { useLanguage } from './LanguageProvider';
 import { ShieldAlert, LogOut } from 'lucide-react';
 
-
-
 const safeStringify = (obj: any) => {
   try {
     const cache = new Set();
@@ -15,42 +13,57 @@ const safeStringify = (obj: any) => {
       if (typeof value === 'object' && value !== null) {
         if (cache.has(value)) return undefined;
         cache.add(value);
-        // Strip out complex Firestore objects which cause circular refs or getters throwing
         if (value.constructor && value.constructor.name !== 'Object' && value.constructor.name !== 'Array') {
           return undefined; 
         }
       }
       return value;
     });
-  } catch (e) {
+  } catch (error: any) {
     return '{}';
   }
 };
+
+const detectQuotaError = (error: any) => {
+  const msg = error?.message?.toLowerCase() || '';
+  return (
+    msg.includes('quota') ||
+    msg.includes('resource exhausted') ||
+    msg.includes('client is offline') ||
+    msg.includes('could not reach cloud firestore') ||
+    msg.includes('backend didn\'t respond')
+  );
+};
+
 export interface UserProfile {
-  uid?: string;
-  fullName: string;
   email: string;
-  photoURL?: string;
-  myReferCode: string;
-  usedReferCode: string;
-  balances: {
-    main: number;
-    bonus: number;
-    referral: number;
-    partner?: number;
-    tasks?: Record<string, number>;
-    gift?: number;
-  };
-  role: string;
-  permissions?: string[];
-  isActive?: boolean;
-  referralBonusPaid?: boolean;
-  totalReferrals?: number;
-  referralCount?: number;
-  partnerClaimedAt?: any;
-  totalTasksCompleted?: number;
-  isBlocked?: boolean;
+  name: string;
+  role: 'user' | 'admin' | 'super_admin' | 'employee';
   deviceId?: string;
+  photoURL?: string;
+  balance?: number;
+  balances?: Record<string, number>;
+  walletAddress?: string;
+  phone?: string;
+  referralCode?: string;
+  createdAt?: string;
+  referredBy?: string;
+  approvedTasks?: number;
+  rejectedTasks?: number;
+  fullName?: string;
+  myReferCode?: string;
+  usedReferCode?: string;
+  totalReferrals?: number;
+  totalTasksCompleted?: number;
+  totalSpinsPlayed?: number;
+  partnerReferrals?: number;
+  isActive?: boolean;
+  uid?: string;
+  partnerClaimedAt?: any;
+  permissions?: any;
+  referralBonusPaid?: boolean;
+  totalMathsPlayed?: number;
+  [key: string]: any;
 }
 
 export interface SiteSettings {
@@ -73,35 +86,28 @@ interface AuthContextType {
   profile: UserProfile | null;
   loading: boolean;
   siteSettings: SiteSettings;
-  refreshProfile: () => Promise<void>;
-  logOut: () => Promise<void>;
   isQuotaExceeded: boolean;
+  logOut: () => Promise<void>;
+  refreshProfile: (uid?: string) => Promise<void>;
+  updateProfile: (data: Partial<UserProfile>) => Promise<void>;
+  setSiteSettings: React.Dispatch<React.SetStateAction<SiteSettings>>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   profile: null,
   loading: true,
-  siteSettings: {},
-  refreshProfile: async () => {},
-  logOut: async () => {},
+  siteSettings: {
+    siteName: '',
+    logoUrl: '',
+    apkUrl: 'https://www.mediafire.com/file/glio303il0rsfr4/app-release.apk/file'
+  },
   isQuotaExceeded: false,
+  logOut: async () => {},
+  refreshProfile: async () => {},
+  updateProfile: async () => {},
+  setSiteSettings: () => {},
 });
-
-const detectQuotaError = (err: any): boolean => {
-  if (!err) return false;
-  const msg = (err.message || String(err)).toLowerCase();
-  return (
-    msg.includes('quota') || 
-    msg.includes('resource_exhausted') || 
-    msg.includes('exceeded') ||
-    msg.includes('free daily read units') ||
-    msg.includes('quota limits') ||
-    msg.includes('offline') ||
-    msg.includes('could not reach cloud firestore') ||
-    msg.includes('backend didn\'t respond')
-  );
-};
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -118,7 +124,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         return parsed;
       }
-    } catch(e) {}
+    } catch (e: any) {}
     return {
       siteName: '',
       logoUrl: '',
@@ -131,83 +137,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshProfile = async (uid?: string) => {
     const targetUid = uid || auth.currentUser?.uid;
     if (!targetUid) return;
-    
+
     try {
-      const docRef = doc(db, 'users', targetUid);
-      
-      let timeoutId: any;
-      const timeoutPromise = new Promise((_, reject) => {
-        timeoutId = setTimeout(() => reject(new Error('timeout')), 8000);
-      });
-      
-      const docSnap = await Promise.race([
-        getDoc(docRef),
-        timeoutPromise
-      ]) as any;
-
-      clearTimeout(timeoutId);
-
-      if (docSnap && docSnap.exists && docSnap.exists()) {
+      const docSnap = await getCachedDoc(doc(db, 'users', targetUid), true);
+      if (docSnap.exists()) {
         const data = docSnap.data() as UserProfile;
+        setProfile(prev => {
+          if (!prev) return data;
+          return { ...data, deviceId: data.deviceId || prev.deviceId };
+        });
         
-        // Auto-link device ID if missing
-        if (!data.deviceId) {
-          try {
-            const { getDeviceId } = await import('../lib/device');
-            const newDeviceId = getDeviceId();
-            await updateDoc(docRef, { deviceId: newDeviceId });
-            data.deviceId = newDeviceId;
-          } catch (e) {
-             console.warn('Failed to link device ID:', e?.message || "Unknown Error");
-           }
-         }
-         
-         setProfile(data);
-         try {
-           localStorage.setItem(`profile_${targetUid}`, safeStringify(data));
-         } catch (e) {}
-       } else if (docSnap && docSnap.exists && !docSnap.exists() && auth.currentUser) {
-         // Profile is completely missing for logged in user! Recover by recreating basic profile.
-         console.warn("Profile completely missing for user. Self-healing by creating default profile.");
-         
-         const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-         const numbers = '0123456789';
-         let myReferCode = '';
-         for (let i = 0; i < 2; i++) { myReferCode += letters.charAt(Math.floor(Math.random() * letters.length)); }
-         for (let i = 0; i < 6; i++) { myReferCode += numbers.charAt(Math.floor(Math.random() * numbers.length)); }
-         
-         const defaultProfile: UserProfile = {
-           fullName: auth.currentUser.displayName || "User",
-           email: auth.currentUser.email || "",
-           myReferCode,
-           usedReferCode: "none",
-           balances: { main: 0, bonus: 0, referral: 0 },
-           role: 'user',
-           isActive: false,
-           deviceId: 'unknown',
-         };
-         
-         try {
-           await setDoc(docRef, defaultProfile);
-           setProfile(defaultProfile);
-         } catch (e) {
-           console.error("Failed to self-heal profile", e?.message || "Unknown Error");
-         }
-       }
-     } catch (error: any) {
-       console.warn('Error fetching profile:', error.message || "Unknown Error");
-       if (detectQuotaError(error)) {
-         setIsQuotaExceeded(true);
-       }
-       try {
-         const cached = localStorage.getItem(`profile_${targetUid}`);
-         if (cached) {
-           setProfile(JSON.parse(cached));
-         }
-       } catch (cacheErr) {
-         console.warn('Cache read error:', cacheErr?.message || cacheErr);
-       }
-     }
+        try {
+          localStorage.setItem(`profile_${targetUid}`, safeStringify(data));
+        } catch (e: any) {}
+      }
+    } catch (error: any) {
+      if (detectQuotaError(error)) {
+        setIsQuotaExceeded(true);
+      }
+    }
+  };
+
+  const updateProfile = async (data: Partial<UserProfile>) => {
+    if (!auth.currentUser) return;
+
+    try {
+      await updateDoc(doc(db, 'users', auth.currentUser.uid), data);
+      await refreshProfile();
+    } catch (error: any) {
+      if (detectQuotaError(error)) {
+        setIsQuotaExceeded(true);
+      }
+      throw error;
+    }
   };
 
   const logOut = async () => {
@@ -216,63 +178,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let unsubscribeProfile: any = null;
-
-    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
-      setUser(user);
-      if (user) {
-        await refreshProfile(user.uid);
-        
-        // Setup real-time listener
-        try {
-          unsubscribeProfile = onSnapshot(doc(db, 'users', user.uid), (docSnap: any) => {
-            if (docSnap.exists()) {
-              const data = docSnap.data();
-              
-              setProfile(prev => {
-                if (!prev) return data;
-                // Preserve deviceId if it was just added locally and not yet synced back
-                return { ...data, deviceId: data.deviceId || prev.deviceId };
-              });
-              
-              try {
-                localStorage.setItem(`profile_${user.uid}`, safeStringify(data));
-              } catch(e) {}
-            }
-          }, (err: any) => {
-             console.warn("Profile snapshot error", err?.message || "Unknown Error");
-          });
-        } catch (e) {
-          console.warn("Could not set up onSnapshot", e?.message || "Unknown Error");
-        }
-
-      } else {
-        if (unsubscribeProfile) {
-          unsubscribeProfile();
-          unsubscribeProfile = null;
-        }
-        setProfile(null);
-      }
-      setLoading(false);
-    }, (error) => {
-      console.warn("Auth state change error:", error.message || "Unknown Error");
-      if (detectQuotaError(error)) {
-        setIsQuotaExceeded(true);
-      }
-      setLoading(false);
-    });
+    let unsubscribeSettings: any = null;
 
     const fetchSiteSettings = async () => {
       try {
-        const snap = await getCachedDoc(doc(db, "settings", "site"));
+        const snap = await getCachedDoc(doc(db, "settings", "site"), true);
         if (snap.exists()) {
           const data = snap.data() as SiteSettings;
           if (!data.apkUrl) {
             data.apkUrl = 'https://www.mediafire.com/file/glio303il0rsfr4/app-release.apk/file';
           }
+          if (data.adsViewEnabled === undefined) {
+              data.adsViewEnabled = false;
+          } else {
+              data.adsViewEnabled = !!data.adsViewEnabled;
+          }
           setSiteSettings(data);
           try {
             localStorage.setItem('siteSettings', safeStringify(data));
-          } catch(e) {}
+          } catch (e: any) {}
           if (data.logoUrl) {
             let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
             if (!link) {
@@ -292,41 +216,123 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
     };
-    
+
     fetchSiteSettings();
 
-    // Fallback for loading state in case auth hang
-    const loadingFallback = setTimeout(() => {
+    try {
+      unsubscribeSettings = onSnapshot(doc(db, "settings", "site"), (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data() as SiteSettings;
+          if (!data.apkUrl) {
+            data.apkUrl = 'https://www.mediafire.com/file/glio303il0rsfr4/app-release.apk/file';
+          }
+          if (data.adsViewEnabled === undefined) {
+              data.adsViewEnabled = false;
+          } else {
+              data.adsViewEnabled = !!data.adsViewEnabled;
+          }
+          setSiteSettings(data);
+          try {
+            localStorage.setItem('siteSettings', safeStringify(data));
+          } catch (e: any) {}
+        }
+      });
+    } catch (e: any) {
+      console.warn("Could not setup settings snapshot");
+    }
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+      setUser(user);
+      if (user) {
+        await refreshProfile(user.uid);
+        
+        try {
+          unsubscribeProfile = onSnapshot(doc(db, 'users', user.uid), (docSnap: any) => {
+            if (docSnap.exists()) {
+              const data = docSnap.data();
+              setProfile(prev => {
+                if (!prev) return data;
+                return { ...data, deviceId: data.deviceId || prev.deviceId };
+              });
+              try {
+                localStorage.setItem(`profile_${user.uid}`, safeStringify(data));
+              } catch (e: any) {}
+            }
+          });
+        } catch (e: any) {
+          console.warn("Could not setup profile snapshot");
+        }
+      } else {
+        setProfile(null);
+      }
       setLoading(false);
+    }, (error) => {
+      console.warn("Auth state change error:", error.message || "Unknown Error");
+      if (detectQuotaError(error)) {
+        setIsQuotaExceeded(true);
+      }
+      setLoading(false);
+    });
+
+    const loadingFallback = setTimeout(() => {
+      if (loading) {
+        setLoading(false);
+      }
     }, 10000);
 
     return () => {
       unsubscribeAuth();
-      if (unsubscribeProfile) unsubscribeProfile();
+      if (unsubscribeProfile) {
+        unsubscribeProfile();
+      }
+      if (unsubscribeSettings) {
+        unsubscribeSettings();
+      }
       clearTimeout(loadingFallback);
     };
   }, []);
 
-  return (
-    <AuthContext.Provider value={{ user, profile, loading, siteSettings, refreshProfile, logOut, isQuotaExceeded }}>
-      {profile?.isBlocked ? (
-        <div className="fixed inset-0 z-[9999] bg-white dark:bg-slate-950 flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-500">
-          <div className="w-20 h-20 bg-rose-100 dark:bg-rose-900/30 rounded-full flex items-center justify-center text-rose-600 dark:text-rose-400 mb-6 shadow-xl shadow-rose-500/20">
-            <ShieldAlert className="w-10 h-10" />
+  if (isQuotaExceeded) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
+          <div className="w-16 h-16 bg-rose-100 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-6">
+            <ShieldAlert className="w-8 h-8" />
           </div>
-          <h1 className="text-2xl font-black text-slate-900 dark:text-white mb-2">{t('account_blocked_title')}</h1>
-          <p className="text-slate-500 dark:text-slate-400 mb-8 max-w-xs">{t('account_blocked_desc')}</p>
-          <button 
-            onClick={logOut}
-            className="flex items-center gap-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-6 py-3 rounded-xl font-bold hover:scale-105 active:scale-95 transition-all shadow-lg"
+          <h2 className="text-2xl font-bold text-slate-800 mb-2">{t('quota_exceeded')}</h2>
+          <p className="text-slate-600 mb-8">{t('quota_exceeded_desc')}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold hover:bg-slate-800 transition-colors"
           >
-            <LogOut className="w-5 h-5" />
-            {t('log_out')}
+            {t('retry')}
           </button>
         </div>
-      ) : children}
+      </div>
+    );
+  }
+
+  return (
+    <AuthContext.Provider value={{
+      user,
+      profile,
+      loading,
+      siteSettings,
+      isQuotaExceeded,
+      logOut,
+      refreshProfile,
+      updateProfile,
+      setSiteSettings
+    }}>
+      {children}
     </AuthContext.Provider>
   );
 }
 
-export const useAuth = () => useContext(AuthContext);
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+}

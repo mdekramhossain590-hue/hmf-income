@@ -68,7 +68,7 @@ export function Tasks() {
         const jobsQuery = query(collection(db, "jobs"), orderBy("createdAt", "desc"), limit(500));
         const jobSnap = forceRefresh ? await getDocs(jobsQuery) : await getCachedQuery(jobsQuery, "jobs_active_list");
         setJobs(jobSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter((j: any) => j.status === 'active'));
-      } catch (error) {
+      } catch (error: any) {
         handleFirestoreError(error, OperationType.GET, 'jobs or tasks');
       } finally {
         if (forceRefresh) setIsRefreshing(false);

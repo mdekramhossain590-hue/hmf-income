@@ -2,13 +2,13 @@ import { processRegistrationReferral } from "../lib/referral";
 import { useNavigate } from "react-router-dom";
 import {
   Clock, XCircle, User, Bell, Wallet, ListChecks, Target, Users, Send, MoreVertical, Settings, HelpCircle, LogOut, Award, Shield, FileText, Calculator, Megaphone, Trophy, Copy, Check, Link, Eye, EyeOff, Smartphone, BookOpen, Banknote, MonitorPlay, Wifi, Sun, Moon, X, Trash2, Activity, ArrowDownLeft, ArrowUpRight, CheckCircle, MessageCircle, Star, Gift, Download, Coins, Briefcase,
-  BadgeCheck} from "lucide-react";
+  BadgeCheck, RotateCcw} from "lucide-react";
 import { useAuth } from "../components/AuthProvider";
 import React, { useState, useEffect } from "react";
 import { triggerRealisticConfetti } from "../lib/confetti";
 import { useLanguage } from "../components/LanguageProvider";
 import { auth, db } from "../lib/firebase";
-import { doc, getDoc, updateDoc, collection, query, orderBy, limit, writeBatch, deleteDoc, getDocs, getCountFromServer, where, serverTimestamp, increment } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, setDoc, collection, query, orderBy, limit, writeBatch, deleteDoc, getDocs, getCountFromServer, where, serverTimestamp, increment } from 'firebase/firestore';
 import { ActivationPopup } from "../components/ActivationPopup";
 import { Celebration } from "../components/Celebration";
 import { motion, AnimatePresence } from "motion/react";
@@ -38,7 +38,7 @@ export function Dashboard() {
       const lastClaimed = new Date(profile.partnerClaimedAt.toDate ? profile.partnerClaimedAt.toDate() : profile.partnerClaimedAt).toISOString().split('T')[0];
       const todayStr = new Date().toISOString().split('T')[0];
       return lastClaimed === todayStr;
-    } catch (e) {
+    } catch (e: any) {
       return false;
     }
   })();
@@ -67,7 +67,7 @@ export function Dashboard() {
         try {
           await processRegistrationReferral(auth.currentUser!.uid);
           await refreshProfile();
-        } catch(e) {
+        } catch (e: any) {
           console.error(e?.message || "Unknown Error");
         }
       }
@@ -101,13 +101,13 @@ export function Dashboard() {
     if (!auth.currentUser) return;
     const fixReferrals = async () => {
       try {
-        const snap = await getDocs(collection(db, "users", auth.currentUser.uid, "referrals"));
+        const snap = await getDocs(collection(db, "users", (auth.currentUser?.uid as string), "referrals"));
         const gen1 = snap.docs.filter(d => !d.data().level || d.data().level === 1).length;
         setActualReferralsCount(gen1);
         if (profile && gen1 !== profile.totalReferrals) {
-           updateDoc(doc(db, "users", auth.currentUser.uid), { totalReferrals: gen1 }).catch(e => {});
+           updateDoc(doc(db, "users", (auth.currentUser?.uid as string)), { totalReferrals: gen1 }).catch(e => {});
         }
-      } catch (e) {}
+      } catch (e: any) {}
     };
     fixReferrals();
   }, [profile?.totalReferrals]);
@@ -152,7 +152,7 @@ export function Dashboard() {
     return () => {
       if (unsubscribe) unsubscribe();
     };
-  }, [auth.currentUser?.uid]);
+  }, [(auth.currentUser?.uid as string)]);
 
   const [userTx, setUserTx] = useState<any[]>([]);
   const [userTasks, setUserTasks] = useState<any[]>([]);
@@ -179,7 +179,7 @@ export function Dashboard() {
       try {
         const snap = await getCountFromServer(collection(db, "users"));
         actualUsersCount = snap.data().count;
-      } catch(e) {}
+      } catch (e: any) {}
 
       let estimatedPaid = 0;
       let estimatedTasks = 0;
@@ -213,22 +213,22 @@ export function Dashboard() {
               photoURL: data.photoURL || null,
               totalIncome,
             };
-          } catch (err) {
-            console.warn("Skipping malformed user record:", doc.id, err);
+          } catch (err: any) {
+            console.warn("Skipping malformed user record:", doc.id, err?.message || "Unknown Error");
             return null;
           }
         }).filter(Boolean) as any[];
         
         fetchedLeaders.sort((a, b) => b.totalIncome - a.totalIncome);
         setTopLeaders(fetchedLeaders.slice(0, 3));
-      } catch (err) {
+      } catch (err: any) {
         console.warn("Failed fetching top leaders", err?.message || "Unknown Error");
       }
 
       // 2. Fetch Stats
       try {
         const statsDoc = await getDoc(doc(db, "admin", "stats"));
-      } catch (err) {
+      } catch (err: any) {
         console.warn("Failed fetching platform stats", err?.message || "Unknown Error");
       }
     };
@@ -238,50 +238,34 @@ export function Dashboard() {
 
   useEffect(() => {
     if (!auth.currentUser) return;
+    const uid = auth.currentUser.uid;
+    let unsubTx: (() => void) | null = null;
+    let unsubTasks: (() => void) | null = null;
+    let unsubRef: (() => void) | null = null;
 
-    const fetchActivity = async () => {
-      try {
-        // Sub to transactions, last 5 items
-        const txRef = collection(
-          db,
-          "users",
-          auth.currentUser!.uid,
-          "transactions",
-        );
-        const txQuery = query(txRef, orderBy("createdAt", "desc"), limit(5));
-        const txSnapshot = await getCachedQuery(
-          txQuery,
-          `dashboard_tx_${auth.currentUser!.uid}`,
-        );
-        const txItems: any[] = [];
-        txSnapshot.forEach((docSnap) => {
-          txItems.push({
-            id: docSnap.id,
-            type: "transaction",
-            ...docSnap.data(),
-          });
-        });
+    import('firebase/firestore').then(({ onSnapshot }) => {
+      // 1. Live transactions
+      const txRef = collection(db, "users", uid, "transactions");
+      const txQuery = query(txRef, orderBy("createdAt", "desc"), limit(5));
+      unsubTx = onSnapshot(txQuery, (snapshot) => {
+        const txItems = snapshot.docs.map((docSnap) => ({
+          id: docSnap.id,
+          type: "transaction",
+          ...docSnap.data(),
+        }));
         setUserTx(txItems);
+      }, (err) => {
+        console.warn("Live tx listener error:", err?.message || err);
+      });
 
-        // Sub to completed tasks, last 5 items
-        const tasksRef = collection(
-          db,
-          "users",
-          auth.currentUser!.uid,
-          "tasks",
-        );
-        const tasksQuery = query(
-          collection(db, "submissions"),
-          where("userId", "==", auth.currentUser!.uid),
-          limit(20)
-        );
-        const taskSnapshot = await getCachedQuery(
-          tasksQuery,
-          `dashboard_tasks_${auth.currentUser!.uid}`,
-        );
-        
-        // Mock the snapshot behavior to sort locally
-        const docs = taskSnapshot.docs;
+      // 2. Live submissions/tasks
+      const tasksQuery = query(
+        collection(db, "submissions"),
+        where("userId", "==", uid),
+        limit(20)
+      );
+      unsubTasks = onSnapshot(tasksQuery, (snapshot) => {
+        const docs = [...snapshot.docs];
         docs.sort((a, b) => {
           const aData = a.data();
           const bData = b.data();
@@ -289,41 +273,40 @@ export function Dashboard() {
           const bTime = bData.submittedAt?.toMillis?.() || 0;
           return bTime - aTime;
         });
-        const limitedDocs = docs.slice(0, 5);
-        taskSnapshot.forEach = (cb) => limitedDocs.forEach(cb);
-        const taskItems: any[] = [];
-        taskSnapshot.forEach((docSnap) => {
-          taskItems.push({ id: docSnap.id, type: "task", ...docSnap.data() });
-        });
+        const taskItems = docs.slice(0, 5).map((docSnap) => ({
+          id: docSnap.id,
+          type: "task",
+          ...docSnap.data(),
+        }));
         setUserTasks(taskItems);
+      }, (err) => {
+        console.warn("Live tasks listener error:", err?.message || err);
+      });
 
-        // Fetch user referrals
-        const refQuery = query(
-          collection(db, "users", auth.currentUser!.uid, "referrals"),
-          orderBy("createdAt", "desc"),
-          limit(5)
-        );
-        const refSnapshot = await getCachedQuery(
-          refQuery,
-          `dashboard_ref_${auth.currentUser!.uid}`
-        );
-        const refItems: any[] = [];
-        refSnapshot.forEach((docSnap) => {
-          refItems.push({
-            id: docSnap.id,
-            type: "referral",
-            ...docSnap.data(),
-          });
-        });
+      // 3. Live referrals
+      const refQuery = query(
+        collection(db, "users", uid, "referrals"),
+        orderBy("createdAt", "desc"),
+        limit(5)
+      );
+      unsubRef = onSnapshot(refQuery, (snapshot) => {
+        const refItems = snapshot.docs.map((docSnap) => ({
+          id: docSnap.id,
+          type: "referral",
+          ...docSnap.data(),
+        }));
         setUserReferrals(refItems);
+      }, (err) => {
+        console.warn("Live ref listener error:", err?.message || err);
+      });
+    });
 
-      } catch (e) {
-        console.warn("Error fetching activity:", e?.message || "Unknown Error");
-      }
+    return () => {
+      if (unsubTx) unsubTx();
+      if (unsubTasks) unsubTasks();
+      if (unsubRef) unsubRef();
     };
-
-    fetchActivity();
-  }, [auth.currentUser?.uid]);
+  }, [(auth.currentUser?.uid as string)]);
 
   
     const getRefBonus = (ref: any) => {
@@ -372,6 +355,56 @@ export function Dashboard() {
     return combined.slice(0, 5);
   };
 
+  const handleResetAdminBalance = async () => {
+    if (!auth.currentUser) return;
+    const confirm = window.confirm("আপনি কি অ্যাডমিন ব্যালেন্স ৳ 0.00 করতে চান?");
+    if (!confirm) return;
+    try {
+      toast.loading("ব্যালেন্স ০ করা হচ্ছে...", { id: "reset_bal" });
+      const uid = auth.currentUser.uid;
+      await updateDoc(doc(db, "users", uid), {
+        balance: 0,
+        balances: { main: 0, bonus: 0, referral: 0, partner: 0, tasks: 0 }
+      });
+      await setDoc(doc(db, "leaderboard", uid), {
+        totalIncome: 0,
+        bonus: 0
+      }, { merge: true });
+      if (refreshProfile) await refreshProfile();
+      toast.success("ব্যালেন্স সফলভাবে ৳ 0.00 করা হয়েছে!", { id: "reset_bal" });
+    } catch (e: any) {
+      toast.error("ব্যালেন্স রিসেট ব্যর্থ: " + (e?.message || "Unknown error"), { id: "reset_bal" });
+    }
+  };
+
+  const handleClearMyActivity = async () => {
+    if (!auth.currentUser) return;
+    const confirm = window.confirm("আপনি কি সমস্ত সাম্প্রতিক লেনদেন ও কাজের হিস্ট্রি মুছতে চান?");
+    if (!confirm) return;
+    try {
+      toast.loading("অ্যাক্টিভিটি হিস্ট্রি মোছা হচ্ছে...", { id: "clear_act" });
+      const uid = auth.currentUser.uid;
+      const txSnap = await getDocs(collection(db, "users", uid, "transactions"));
+      const taskSnap = await getDocs(collection(db, "users", uid, "tasks"));
+      const refSnap = await getDocs(collection(db, "users", uid, "referrals"));
+      const subSnap = await getDocs(query(collection(db, "submissions"), where("userId", "==", uid)));
+
+      const batch = writeBatch(db);
+      txSnap.docs.forEach(d => batch.delete(d.ref));
+      taskSnap.docs.forEach(d => batch.delete(d.ref));
+      refSnap.docs.forEach(d => batch.delete(d.ref));
+      subSnap.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+
+      setUserTx([]);
+      setUserTasks([]);
+      setUserReferrals([]);
+      toast.success("সাম্প্রতিক হিস্ট্রি সফলভাবে খালি করা হয়েছে!", { id: "clear_act" });
+    } catch (e: any) {
+      toast.error("মুছতে ত্রুটি: " + (e?.message || "Unknown error"), { id: "clear_act" });
+    }
+  };
+
 
   const unreadCount = dbNotifications.filter((n) => !n.read).length;
 
@@ -379,10 +412,10 @@ export function Dashboard() {
     if (!auth.currentUser) return;
     try {
       await updateDoc(
-        doc(db, "users", auth.currentUser.uid, "notifications", id),
+        doc(db, "users", (auth.currentUser?.uid as string), "notifications", id),
         { read: true },
       );
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to mark notification as read:", e?.message || "Unknown Error");
     }
   };
@@ -406,7 +439,7 @@ export function Dashboard() {
       });
       await batch.commit();
       toast.success(t("mark_all_read") || "All marked as read");
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to mark all as read:", e?.message || "Unknown Error");
     }
   };
@@ -416,14 +449,14 @@ export function Dashboard() {
     if (!auth.currentUser) return;
     try {
       await deleteDoc(
-        doc(db, "users", auth.currentUser.uid, "notifications", id),
+        doc(db, "users", (auth.currentUser?.uid as string), "notifications", id),
       );
       toast.success(
         language === "Bengali"
           ? "নোটিফিকেশনটি মুছে ফেলা হয়েছে"
           : "Notification deleted",
       );
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to delete notification:", err?.message || "Unknown Error");
       toast.error(
         language === "Bengali" ? "মুছে ফেলতে ব্যর্থ হয়েছে" : "Failed to delete",
@@ -457,7 +490,7 @@ export function Dashboard() {
           ? "সব নোটিফিকেশন মুছে ফেলা হয়েছে"
           : "All notifications cleared",
       );
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to delete all notifications:", err?.message || "Unknown Error");
       toast.error(
         language === "Bengali"
@@ -485,7 +518,7 @@ export function Dashboard() {
       profile &&
       profile.role !== "admin"
     ) {
-      const dbRef = doc(db, "users", auth.currentUser.uid);
+      const dbRef = doc(db, "users", (auth.currentUser?.uid as string));
       updateDoc(dbRef, { role: "admin" })
         .then(() => refreshProfile())
         .catch(() => {});
@@ -749,27 +782,7 @@ export function Dashboard() {
                       </div>
 
                       <div className="mt-4 border-t border-slate-200 dark:border-slate-700/50 pt-3 space-y-1">
-                        <button
-                          onClick={async () => {
-                            if (siteSettings?.apkUrl) {
-                              window.open(siteSettings.apkUrl, "_blank");
-                            } else if (deferredPrompt) {
-                              deferredPrompt.prompt();
-                              const { outcome } =
-                                await deferredPrompt.userChoice;
-                              if (outcome === "accepted") {
-                                clearPwaPrompt();
-                              }
-                            } else {
-                              setShowPwaInstall(true); // Always show manual fallback or instructions modal
-                            }
-                            setMenuOpen(false);
-                          }}
-                          className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-indigo-600 dark:text-indigo-400 font-bold hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-xl transition bg-indigo-50/50 dark:bg-indigo-900/10 mb-2"
-                        >
-                          <Download className="w-[18px] h-[18px]" />{" "}
-                          {t("download_app") || "Download App"}
-                        </button>
+                        
                         <button
                           onClick={() => {
                             navigate("/settings");
@@ -1079,13 +1092,23 @@ export function Dashboard() {
                         <Eye className="w-3 h-3 text-white/60" />
                       )}
                     </button>
+                    {profile?.role === "admin" && (
+                      <button
+                        onClick={handleResetAdminBalance}
+                        title="অ্যাডমিন ব্যালেন্স ৳ 0.00 করুন"
+                        className="p-1 sm:px-2 py-1 bg-rose-500/20 hover:bg-rose-500/40 text-rose-300 rounded-lg text-[10px] font-bold border border-rose-400/20 transition-all flex items-center gap-1 cursor-pointer"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        <span className="hidden sm:inline">ব্যালেন্স ০ করুন</span>
+                      </button>
+                    )}
                   </div>
                   {loading ? (
                     <div className="h-8 sm:h-10 w-28 sm:w-40 bg-white/10 rounded-lg animate-pulse mt-1"></div>
                   ) : (
                     <h1 className="text-2xl sm:text-4xl font-display font-black tracking-tight text-white mt-1 leading-none">
                       {showBalance
-                        ? `৳ ${((profile?.balances?.main || 0) + (profile?.balances?.bonus || 0) + (profile?.balances?.referral || 0) + (profile?.balances?.gift || 0) + (profile?.balances?.partner || 0) + Object.values(profile?.balances?.tasks || {}).reduce((a, b) => (a as number) + (b as number), 0)).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                        ? `৳ ${((profile?.balances?.main || 0) + (profile?.balances?.bonus || 0) + (profile?.balances?.referral || 0) + (profile?.balances?.gift || 0) + (profile?.balances?.partner || 0) + (typeof profile?.balances?.tasks === 'object' ? Object.values(profile.balances.tasks).reduce((a: any, b: any) => Number(a) + Number(b), 0) as number : Number(profile?.balances?.tasks || 0))).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                         : "৳ ••••••"}
                     </h1>
                   )}
@@ -1180,12 +1203,12 @@ export function Dashboard() {
                 // import serverTimestamp from firestore:
                 
                 
-                batch.update(doc(db, "users", auth.currentUser.uid), {
+                batch.update(doc(db, "users", (auth.currentUser?.uid as string)), {
                   "balances.partner": increment(partnerSettings.dailyBonus),
                   partnerClaimedAt: serverTimestamp()
                 });
                 
-                const txRef = doc(collection(db, "users", auth.currentUser.uid, "transactions"));
+                const txRef = doc(collection(db, "users", (auth.currentUser?.uid as string), "transactions"));
                 batch.set(txRef, {
                   amount: partnerSettings.dailyBonus,
                   type: 'partner_bonus',
@@ -1198,7 +1221,7 @@ export function Dashboard() {
                 if (refreshProfile) await refreshProfile();
                 setShowCelebration(true);
                 toast.success(`৳${partnerSettings.dailyBonus} daily partner bonus claimed!`);
-              } catch (err) {
+              } catch (err: any) {
                 console.error(err?.message || "Unknown Error");
                 toast.error("Failed to claim bonus.");
               } finally {
@@ -1777,9 +1800,20 @@ export function Dashboard() {
             <Activity className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
             {t("recent_activity")}
           </h3>
-          <Link to="/activity" className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300">
-            {language === "Bengali" ? "সব দেখুন" : "View All"}
-          </Link>
+          <div className="flex items-center gap-2.5">
+            {profile?.role === "admin" && getCombinedActivity().length > 0 && (
+              <button
+                onClick={handleClearMyActivity}
+                className="text-[11px] font-bold text-rose-500 hover:text-rose-600 dark:hover:text-rose-400 flex items-center gap-1 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/40 px-2.5 py-1 rounded-lg transition-all cursor-pointer border border-rose-200 dark:border-rose-900/50"
+                title="রিসেন্ট অ্যাক্টিভিটি হিস্ট্রি মুছুন"
+              >
+                <Trash2 className="w-3 h-3" /> হিস্ট্রি মুছুন
+              </button>
+            )}
+            <Link to="/activity" className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300">
+              {language === "Bengali" ? "সব দেখুন" : "View All"}
+            </Link>
+          </div>
         </div>
 
         <div className="space-y-3 relative z-10">
@@ -2260,20 +2294,16 @@ export function Dashboard() {
                 <div className="h-6"></div>
 
                 <div className="flex flex-col gap-2">
-                  {(comingSoonFeature.link || siteSettings?.telegramUrl) && (
+                  {comingSoonFeature.link && (
                     <a
-                      href={
-                        comingSoonFeature.link ||
-                        siteSettings?.telegramUrl ||
-                        "#"
-                      }
+                      href={comingSoonFeature.link}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white font-black py-3 px-4 rounded-[18px] text-[11px] uppercase tracking-widest transition-transform hover:scale-[1.01] active:scale-[0.98] shadow-md shadow-blue-500/10 flex items-center justify-center gap-2"
                     >
                       <Send className="w-4 h-4" />{" "}
                       {comingSoonFeature.linkText ||
-                        "অফিসিয়াল চ্যানেল এ যুক্ত হন"}
+                        "Go to Link"}
                     </a>
                   )}
 
@@ -2291,138 +2321,7 @@ export function Dashboard() {
         )}
       </AnimatePresence>
 
-      {/* PWA Install Modal */}
-      <AnimatePresence>
-        {showPwaInstall && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-slate-900/60 dark:bg-slate-900/80 backdrop-blur-sm z-[100] flex items-end sm:items-center justify-center sm:p-4"
-              onClick={() => {
-                setShowPwaInstall(false);
-                localStorage.setItem("pwa_prompt_dismissed", "true");
-              }}
-            />
-            <motion.div
-              initial={{ opacity: 0, y: 100 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 100 }}
-              className="fixed bottom-[80px] sm:bottom-auto w-full sm:w-[400px] z-[101] bg-white dark:bg-slate-800 rounded-3xl shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-700/50 mx-4"
-              style={{ width: "calc(100% - 32px)" }}
-            >
-              <div className="p-6">
-                <div className="flex items-center gap-4 mb-6 relative">
-                  <button
-                    onClick={() => {
-                      setShowPwaInstall(false);
-                      localStorage.setItem("pwa_prompt_dismissed", "true");
-                    }}
-                    className="absolute top-0 right-0 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 bg-slate-100 dark:bg-slate-700 rounded-full transition-colors"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                  <div className="w-16 h-16 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl flex items-center justify-center shrink-0 border border-indigo-100 dark:border-indigo-800">
-                    {siteSettings?.logoUrl ? (
-                      <img
-                        src={siteSettings.logoUrl}
-                        alt="Logo"
-                        className="w-10 h-10 object-contain"
-                      />
-                    ) : (
-                      <Download className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
-                    )}
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-slate-800 dark:text-white text-lg">
-                      Install App
-                    </h3>
-                    {siteSettings?.apkUrl ? (
-                      <p className="text-sm text-slate-500 dark:text-slate-400 leading-tight mt-1">
-                        Download the official HMF Income Android app directly to
-                        your device.
-                      </p>
-                    ) : deferredPrompt ? (
-                      <p className="text-sm text-slate-500 dark:text-slate-400 leading-tight mt-1">
-                        Get an optimized experience by adding HMF Income to your
-                        home screen.
-                      </p>
-                    ) : (
-                      <div className="text-sm text-slate-500 dark:text-slate-400 leading-tight mt-1">
-                        <p className="mb-2">
-                          To install this app on your device manually:
-                        </p>
-                        <ol className="list-decimal pl-4 space-y-1 text-slate-600 dark:text-slate-300">
-                          <li>
-                            Tap the browser's <b>Menu</b> or <b>Share</b>{" "}
-                            button.
-                          </li>
-                          <li>
-                            Select <b>"Add to Home screen"</b>.
-                          </li>
-                        </ol>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => {
-                      setShowPwaInstall(false);
-                      localStorage.setItem("pwa_prompt_dismissed", "true");
-                    }}
-                    className="flex-1 px-4 py-3 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 font-bold rounded-xl transition"
-                  >
-                    {siteSettings?.apkUrl
-                      ? "Not Now"
-                      : deferredPrompt
-                        ? "Not Now"
-                        : "Close"}
-                  </button>
-                  {siteSettings?.apkUrl ? (
-                    <button
-                      onClick={() => {
-                        window.open(siteSettings.apkUrl, "_blank");
-                        setShowPwaInstall(false);
-                      }}
-                      className="flex-1 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-600/20 transition flex items-center justify-center gap-2"
-                    >
-                      <Download className="w-5 h-5" /> Download
-                    </button>
-                  ) : deferredPrompt ? (
-                    <button
-                      onClick={async () => {
-                        if (deferredPrompt) {
-                          deferredPrompt.prompt();
-                          const { outcome } = await deferredPrompt.userChoice;
-                          if (outcome === "accepted") {
-                            clearPwaPrompt();
-                          }
-                        }
-                        setShowPwaInstall(false);
-                      }}
-                      className="flex-1 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-600/20 transition"
-                    >
-                      Install Now
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => {
-                        setShowPwaInstall(false);
-                      }}
-                      className="flex-1 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-600/20 transition flex items-center justify-center gap-2"
-                    >
-                      Got It
-                    </button>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+      
 
       {/* Secure Platform Banner End */}
       <div className="flex flex-col items-center justify-center gap-1.5 mt-8 mb-24 opacity-60">

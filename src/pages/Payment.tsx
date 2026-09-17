@@ -52,8 +52,8 @@ export function Payment() {
           if (data.bkashEnabled !== false) setMethod('bKash');
           else if (data.nagadEnabled !== false) setMethod('Nagad');
         }
-      } catch (error) {
-        console.error(error);
+      } catch (error: any) {
+        console.error(error?.message || "Unknown Error");
       } finally {
         setLoading(false);
       }
@@ -71,7 +71,7 @@ export function Payment() {
       await refreshProfile();
       toast.success("Account activated successfully!");
       navigate('/');
-    } catch (error) {
+    } catch (error: any) {
       toast.error("An error occurred during activation.");
       setSubmitting(false);
     }

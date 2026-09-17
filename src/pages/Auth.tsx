@@ -167,8 +167,8 @@ export function Auth() {
         const actData = actSnap.data();
         initialIsActive = actData?.mode === 'free';
       }
-    } catch (e) {
-      console.warn("Could not fetch activation settings, defaulting to inactive:", e);
+    } catch (e: any) {
+      console.warn("Could not fetch activation settings, defaulting to inactive:", e?.message || "Unknown Error");
     }
 
     try {
@@ -198,7 +198,7 @@ export function Auth() {
       if (referCode && initialIsActive) {
         await processRegistrationReferral(user.uid);
       }
-    } catch (dbError) {
+    } catch (dbError: any) {
 
       handleFirestoreError(dbError, OperationType.CREATE, `users/${user.uid}`);
     }

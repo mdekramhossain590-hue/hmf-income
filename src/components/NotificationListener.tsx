@@ -17,14 +17,14 @@ export function NotificationListener() {
         
         const permission = await Notification.requestPermission();
         if (permission === 'granted') {
-           const currentToken = await getToken(msg, { vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY });
+           const currentToken = await getToken(msg, { vapidKey: (import.meta as any).env.VITE_FIREBASE_VAPID_KEY });
            if (currentToken) {
              await updateDoc(doc(db, 'users', auth.currentUser!.uid), {
                fcmToken: currentToken
              });
            }
         }
-      } catch (err) {
+      } catch (err: any) {
         console.warn('Failed to get FCM token', err?.message || "Unknown Error");
       }
     };
@@ -72,7 +72,7 @@ export function NotificationListener() {
                   tag: item.id,
                   silent: false
                 });
-              } catch (pushErr) {
+              } catch (pushErr: any) {
                 console.warn("Native browser push notification silenced inside frame:", pushErr?.message || "Unknown Error");
               }
             }
@@ -100,7 +100,7 @@ export function NotificationListener() {
                   tag: 'payment-digest-' + Date.now(),
                   silent: false
                 });
-              } catch (pushErr) {
+              } catch (pushErr: any) {
                 console.warn("Native browser push notification silenced inside frame:", pushErr?.message || "Unknown Error");
               }
             }
@@ -153,7 +153,7 @@ export function NotificationListener() {
           console.warn("Notification listener error:", error?.message || "Unknown Error");
         });
       });
-    } catch(err) {
+    } catch (err: any) {
       console.warn("Failed to set up notification listener", err?.message || "Unknown Error");
     }
 
@@ -189,7 +189,7 @@ function showToast(
       await Promise.all(items.map(item => 
         updateDoc(doc(db, 'users', userId, 'notifications', item.id), { read: true })
       ));
-    } catch(e) { /* ignore */ }
+    } catch (e: any) { /* ignore */ }
     toastContainer.remove();
   };
 
@@ -225,6 +225,6 @@ function showToast(
 
   // Auto remove toast DOM after 12s for digests, 10s for single
   setTimeout(() => {
-    try { toastContainer.remove(); } catch(e){}
+    try { toastContainer.remove(); } catch (e: any) {}
   }, isDigest ? 12000 : 10000);
 }

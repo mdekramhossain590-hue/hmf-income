@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Check, ChevronRight, HeadphonesIcon, LineChart, ShieldHalf, LogOut, Moon, Camera, Loader2, Edit2, Copy, Link, User, RefreshCw } from 'lucide-react';
+import { Check, ChevronRight, HeadphonesIcon, LineChart, ShieldHalf, ShieldCheck, LogOut, Moon, Camera, Loader2, Edit2, Copy, Link, User, RefreshCw } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { doc, updateDoc } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
@@ -52,7 +52,7 @@ export function Profile() {
       toast.error("Failed to update referral code.", { id: idToast });
       try {
         handleFirestoreError(e, OperationType.UPDATE, "users");
-      } catch (err) {}
+      } catch (err: any) {}
     } finally {
       setUpgradingCode(false);
     }
@@ -96,7 +96,7 @@ export function Profile() {
       toast.error("Failed to update name.");
       try {
         handleFirestoreError(e, OperationType.UPDATE, "users");
-      } catch (err) {}
+      } catch (err: any) {}
     } finally {
       setSavingName(false);
     }
@@ -117,7 +117,7 @@ export function Profile() {
     try {
       await logOut();
       navigate('/login');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Logout failed', error?.message || "Unknown Error");
     }
   };
@@ -146,7 +146,7 @@ export function Profile() {
       if (e.message && !e.message.includes("Cloudinary") && !e.message.includes("upload image")) {
         try {
           handleFirestoreError(e, OperationType.UPDATE, "users");
-        } catch (err) {}
+        } catch (err: any) {}
       }
     } finally {
       setUploading(false);
@@ -380,10 +380,27 @@ export function Profile() {
             </div>
             <div className="bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 px-4 py-2 rounded-2xl shadow-inner">
               <span className="font-black tracking-tighter text-slate-800 dark:text-white text-lg">
-                ৳ {((profile?.balances?.main || 0) + (profile?.balances?.bonus || 0) + (profile?.balances?.referral || 0) + (profile?.balances?.gift || 0) + (profile?.balances?.partner || 0) + Object.values(profile?.balances?.tasks || {}).reduce((a, b) => (a as number) + (b as number), 0)).toFixed(2)}
+                ৳ {((profile?.balances?.main || 0) + (profile?.balances?.bonus || 0) + (profile?.balances?.referral || 0) + (profile?.balances?.gift || 0) + (profile?.balances?.partner || 0) + (typeof profile?.balances?.tasks === 'object' ? Object.values(profile.balances.tasks).reduce((a: any, b: any) => Number(a||0) + Number(b||0), 0) as number : Number(profile?.balances?.tasks || 0))).toFixed(2)}
               </span>
             </div>
           </div>
+
+          {(profile?.role === 'admin' || profile?.role === 'employee' || auth.currentUser?.email === 'mdekramhossain590@gmail.com') && (
+            <div onClick={() => navigate('/admin')} className="flex items-center justify-between p-4 rounded-[24px] cursor-pointer bg-indigo-50/80 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-all border border-indigo-200 dark:border-indigo-800/60 group shadow-sm">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-lg shadow-indigo-600/30">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div className="text-left">
+                  <span className="text-sm font-black text-indigo-950 dark:text-indigo-200 block">Admin Panel</span>
+                  <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-medium">ইউজার, পেমেন্ট ও সাইট ম্যানেজমেন্ট</span>
+                </div>
+              </div>
+              <div className="w-10 h-10 rounded-full bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 flex items-center justify-center transition-transform group-hover:translate-x-1 shadow-inner">
+                 <ChevronRight className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              </div>
+            </div>
+          )}
 
           <div onClick={() => navigate('/support')} className="flex items-center justify-between p-4 rounded-[24px] cursor-pointer hover:bg-white dark:hover:bg-slate-800/80 transition-all hover:shadow-[0_2px_10px_rgb(0,0,0,0.02)] group">
             <div className="flex items-center gap-4">

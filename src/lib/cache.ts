@@ -1,3 +1,10 @@
+
+export const withTimeout = <T>(promise: Promise<T>, timeoutMs: number, errorMessage = "Timeout"): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error("Timeout")), timeoutMs))
+  ]);
+};
 import { getDoc, getDocs, DocumentReference, DocumentSnapshot, Query, QuerySnapshot } from 'firebase/firestore';
 
 const docCache = new Map<string, { snap: DocumentSnapshot, timestamp: number }>();
@@ -14,7 +21,7 @@ export async function getCachedDoc(docRef: DocumentReference, forceRefresh = fal
     }
   }
 
-  const snap = await getDoc(docRef);
+  const snap = await withTimeout(getDoc(docRef), 8000, "getDoc timed out");
   if (snap.exists()) {
     docCache.set(cacheKey, { snap, timestamp: Date.now() });
   }
@@ -31,7 +38,7 @@ export async function getCachedQuery(queryRef: Query, cacheKey: string, forceRef
     }
   }
 
-  const snap = await getDocs(queryRef);
+  const snap = await withTimeout(getDocs(queryRef), 8000, "getDocs timed out");
   queryCache.set(cacheKey, { snap, timestamp: Date.now() });
   return snap;
 }

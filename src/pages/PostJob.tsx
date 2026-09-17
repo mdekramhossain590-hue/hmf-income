@@ -54,7 +54,7 @@ export function PostJob() {
         return tB - tA;
       });
       setUserJobs(jobsList);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error fetching user jobs:', err?.message || "Unknown Error");
     } finally {
       setLoadingJobs(false);
@@ -161,7 +161,7 @@ export function PostJob() {
       // Refresh user profile and job list
       await refreshProfile();
       fetchUserJobs();
-    } catch (err) {
+    } catch (err: any) {
       handleFirestoreError(err, OperationType.WRITE, 'jobs/user_post');
       toast.error('Failed to post job.');
     } finally {

@@ -23,7 +23,7 @@ export function ActivationPopup({ onClose }: { onClose: () => void }) {
         if (docSnap.exists()) {
           setSettings(docSnap.data() as any);
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error(error?.message || "Unknown Error");
       } finally {
         setLoading(false);
@@ -65,7 +65,7 @@ export function ActivationPopup({ onClose }: { onClose: () => void }) {
         await processRegistrationReferral(auth.currentUser.uid);
         await refreshProfile();
         toast.success("Account activated successfully!");
-      } catch (error) {
+      } catch (error: any) {
         toast.error("An error occurred during activation.");
       }
     } else {
@@ -80,7 +80,7 @@ export function ActivationPopup({ onClose }: { onClose: () => void }) {
         await processRegistrationReferral(auth.currentUser.uid);
         await refreshProfile();
         toast.success("Account activated successfully!");
-      } catch (error) {
+      } catch (error: any) {
         toast.error("Failed to activate account.");
       }
     }

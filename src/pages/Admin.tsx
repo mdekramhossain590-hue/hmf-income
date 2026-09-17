@@ -8,7 +8,7 @@ import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { getCachedDoc, getCachedQuery, clearCache } from '../lib/cache';
 import { uploadImageOrFallback } from '../lib/imageUpload';
 import { processReferralCommission, processRegistrationReferral } from '../lib/referral';
-import { Trash2, CheckCircle, XCircle, Users, ShieldAlert, ShieldCheck, Wallet, ListChecks, Settings, User, Eye, Calculator, MessageSquare, Globe, Coins, Megaphone, Gamepad2, CreditCard, Lock, BellRing, RefreshCw, Smartphone, Mail, Camera, MessageCircle, Send, BookOpen, Layers, Copy, HelpCircle, Database, Search, Download, Gift } from 'lucide-react';
+import { Trash2, CheckCircle, XCircle, Users, ShieldAlert, ShieldCheck, Wallet, ListChecks, Settings, User, Eye, Calculator, MessageSquare, Globe, Coins, Megaphone, Gamepad2, CreditCard, Lock, BellRing, RefreshCw, Smartphone, Mail, Camera, MessageCircle, Send, BookOpen, Layers, Copy, HelpCircle, Database, Search, Download, Gift, Sparkles, RotateCcw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
@@ -89,6 +89,8 @@ export function AdminPanel() {
     message: string;
     isPrompt?: boolean;
     promptExpected?: string;
+    confirmText?: string;
+    isDanger?: boolean;
     onConfirm: () => void;
   } | null>(null);
 
@@ -105,14 +107,14 @@ export function AdminPanel() {
     if (!editingUserBalance) return;
     try {
       await updateDoc(doc(db, "users", editingUserBalance.id), {
-        "balances.main": editingUserBalance.main,
-        "balances.bonus": editingUserBalance.bonus,
-        "balances.referral": editingUserBalance.referral,
-        "balances.partner": editingUserBalance.partner,
-        
+        "balances.main": Number(editingUserBalance.main || 0),
+        "balances.bonus": Number(editingUserBalance.bonus || 0),
+        "balances.referral": Number(editingUserBalance.referral || 0),
+        "balances.partner": Number(editingUserBalance.partner || 0),
+        "balances.tasks": Number(editingUserBalance.tasks || 0)
       });
       await setDoc(doc(db, "leaderboard", editingUserBalance.id), {
-        totalIncome: editingUserBalance.main + editingUserBalance.bonus + editingUserBalance.referral + editingUserBalance.partner 
+        totalIncome: Number(editingUserBalance.main || 0) + Number(editingUserBalance.bonus || 0) + Number(editingUserBalance.referral || 0) + Number(editingUserBalance.partner || 0) + Number(editingUserBalance.tasks || 0)
       }, { merge: true });
       toast.success("Balances updated!");
       setEditingUserBalance(null);
@@ -273,25 +275,33 @@ export function AdminPanel() {
     const unsubs: any[] = [];
     const logErr = (err: any) => { toast.error("Firebase Error: " + err?.message); console.error(err?.message || "Firebase Error"); };
     
-    if (['jobs', 'submissions'].includes(activeTab)) {
-      unsubs.push(onSnapshot(query(collection(db, "jobs"), orderBy("createdAt", "desc"), limit(100)), (snap) => {
-        setJobs(snap.docs.map(d => ({id: d.id, ...d.data()} as any)));
+    if (['jobs', 'submissions', 'dashboard'].includes(activeTab)) {
+      unsubs.push(onSnapshot(query(collection(db, "jobs"), limit(100)), (snap) => {
+        const sorted = snap.docs.map(d => ({id: d.id, ...d.data()} as any));
+        sorted.sort((a, b) => (b.createdAt?.toMillis?.() || b.createdAt?.seconds || 0) - (a.createdAt?.toMillis?.() || a.createdAt?.seconds || 0));
+        setJobs(sorted);
       }, logErr));
-      unsubs.push(onSnapshot(query(collection(db, "submissions"), orderBy("submittedAt", "desc"), limit(100)), (snap) => {
-        setSubmissions(snap.docs.map(d => ({id: d.id, ...d.data()} as any)));
+      unsubs.push(onSnapshot(query(collection(db, "submissions"), limit(100)), (snap) => {
+        const sorted = snap.docs.map(d => ({id: d.id, ...d.data()} as any));
+        sorted.sort((a, b) => (b.submittedAt?.toMillis?.() || b.submittedAt?.seconds || 0) - (a.submittedAt?.toMillis?.() || a.submittedAt?.seconds || 0));
+        setSubmissions(sorted);
       }, logErr));
     }
     
     if (['requests', 'dashboard'].includes(activeTab)) {
-      unsubs.push(onSnapshot(query(collection(db, "payment_requests"), orderBy("createdAt", "desc"), limit(100)), (snap) => {
-        setPaymentRequests(snap.docs.map(d => ({id: d.id, ...d.data()} as any)));
+      unsubs.push(onSnapshot(query(collection(db, "payment_requests"), limit(100)), (snap) => {
+        const sorted = snap.docs.map(d => ({id: d.id, ...d.data()} as any));
+        sorted.sort((a, b) => (b.createdAt?.toMillis?.() || b.createdAt?.seconds || 0) - (a.createdAt?.toMillis?.() || a.createdAt?.seconds || 0));
+        setPaymentRequests(sorted);
       }, logErr));
     }
     
-    if (activeTab === 'users') {
-      unsubs.push(onSnapshot(query(collection(db, "users"), orderBy("createdAt", "desc"), limit(500)), (snap) => {
+    if (['users', 'dashboard'].includes(activeTab)) {
+      unsubs.push(onSnapshot(query(collection(db, "users"), limit(500)), (snap) => {
         if (!userSearchTerm) {
-          setUserList(snap.docs.map(d => ({id: d.id, ...d.data()} as any)));
+          const sorted = snap.docs.map(d => ({id: d.id, ...d.data()} as any));
+          sorted.sort((a, b) => (b.createdAt?.toMillis?.() || b.createdAt?.seconds || 0) - (a.createdAt?.toMillis?.() || a.createdAt?.seconds || 0));
+          setUserList(sorted);
         }
       }, logErr));
     }
@@ -1053,63 +1063,559 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
     });
   };
 
+  // Helper to wipe user subcollections (tasks, transactions, etc.) and reset balance to clean 0
+  const wipeUserSubcollectionsAndResetBalance = async (uid: string, userEmail: string) => {
+    const userSubs = ["tasks", "mathHistory", "transactions", "referrals", "notifications"];
+    for (const s of userSubs) {
+      try {
+        const subQs = await getDocs(collection(db, `users/${uid}/${s}`));
+        if (!subQs.empty) {
+          let b = writeBatch(db);
+          let count = 0;
+          for (const subDoc of subQs.docs) {
+            b.delete(subDoc.ref);
+            count++;
+            if (count % 400 === 0) {
+              await b.commit();
+              b = writeBatch(db);
+            }
+          }
+          if (count % 400 !== 0) {
+            await b.commit();
+          }
+        }
+      } catch (err) {
+        console.warn(`Failed wiping subcollection ${s} for ${uid}:`, err);
+      }
+    }
+
+    // Delete any submissions created by this uid
+    try {
+      const mySubmissionsQs = await getDocs(query(collection(db, "submissions"), where("userId", "==", uid)));
+      if (!mySubmissionsQs.empty) {
+        let b = writeBatch(db);
+        mySubmissionsQs.docs.forEach((d) => b.delete(d.ref));
+        await b.commit();
+      }
+    } catch (subErr) {
+      console.warn("Failed wiping user submissions:", subErr);
+    }
+
+    // Reset user doc balance and stats to clean 0
+    await setDoc(doc(db, "users", uid), {
+      email: userEmail,
+      role: 'admin',
+      fullName: profile?.fullName || profile?.name || 'Administrator',
+      name: profile?.name || profile?.fullName || 'Administrator',
+      balances: { main: 0, bonus: 0, referral: 0, partner: 0, tasks: 0 },
+      balance: 0,
+      approvedTasks: 0,
+      rejectedTasks: 0,
+      totalTasksCompleted: 0,
+      totalReferrals: 0,
+      totalSpinsPlayed: 0,
+      totalMathsPlayed: 0,
+      partnerReferrals: 0,
+      isActive: true,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+
+    await setDoc(doc(db, "leaderboard", uid), {
+      fullName: profile?.fullName || profile?.name || 'Administrator',
+      totalIncome: 0,
+      bonus: 0,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+  };
+
+  const handleResetMyBalanceAndActivity = () => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'ব্যালেন্স ও সাম্প্রতিক কার্যক্রম রিসেট (Reset to 0)',
+      message: 'আপনার অ্যাডমিন অ্যাকাউন্টের সমস্ত ব্যালেন্স (৳ 0.00) এবং রিসেন্ট অ্যাক্টিভিটি হিস্ট্রি (Transactions, Tasks, Referrals) মুছে একদম খালি করতে চান?',
+      isPrompt: false,
+      confirmText: 'Reset to 0',
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          const currentUid = auth.currentUser?.uid;
+          if (!currentUid) {
+            toast.error("ইউজার পাওয়া যায়নি।");
+            return;
+          }
+          toast.loading("ব্যালেন্স ও অ্যাক্টিভিটি হিস্ট্রি ক্লিয়ার হচ্ছে...", { id: "reset_my_data" });
+          setIsSavingSettings(true);
+
+          await wipeUserSubcollectionsAndResetBalance(currentUid, profile?.email || auth.currentUser?.email || 'mdekramhossain590@gmail.com');
+
+          // Clear local cache & localStorage
+          clearCache();
+          try {
+            localStorage.removeItem(`profile_${currentUid}`);
+            localStorage.removeItem(`dashboard_tx_${currentUid}`);
+            localStorage.removeItem(`dashboard_tasks_${currentUid}`);
+            localStorage.removeItem(`dashboard_ref_${currentUid}`);
+          } catch (e) {}
+
+          toast.success("ব্যালেন্স ৳ 0.00 করা হয়েছে এবং রিসেন্ট অ্যাক্টিভিটি সম্পূর্ণ ক্লিয়ার হয়েছে!", { id: "reset_my_data", duration: 4000 });
+          setTimeout(() => {
+            window.location.reload();
+          }, 1000);
+        } catch (err: any) {
+          console.error("Error resetting my balance/activity:", err);
+          toast.error("ত্রুটি: " + (err?.message || "Unknown error"), { id: "reset_my_data" });
+        } finally {
+          setIsSavingSettings(false);
+        }
+      }
+    });
+  };
+
   const handleWipeData = () => {
     setConfirmDialog({
       isOpen: true,
-      title: 'Wipe Database',
-      message: 'Are you absolutely sure you want to WIPE the entire database? This will delete all users (except admins), tasks, transactions, submissions, leaderboards, and requests. This cannot be undone.',
+      title: 'Wipe Database (ফ্যাক্টরি রিসেট)',
+      message: 'আপনি কি নিশ্চিত যে আপনি সম্পূর্ণ ডাটাবেজ মুছে ফেলতে চান? এতে অ্যাডমিন ছাড়া বাকি সব ইউজার, কাজ, সাবমিশন, পেমেন্ট রিকোয়েস্ট এবং ব্যালেন্স ট্রানজেকশন মুছে যাবে। এটি আর ফিরিয়ে আনা যাবে না।',
       isPrompt: true,
       promptExpected: 'WIPE',
       onConfirm: async () => {
         try {
-          toast.loading("Wiping Database (This may take a while)...", { id: "wipe_db" });
+          toast.loading("ডাটাবেজ ওয়াইপ শুরু হচ্ছে...", { id: "wipe_db" });
           setIsSavingSettings(true);
 
-        const adminEmail = profile?.email || 'mdekramhossain590@gmail.com';
+          const adminEmail = profile?.email || auth.currentUser?.email || 'mdekramhossain590@gmail.com';
+          const currentUid = auth.currentUser?.uid;
 
-        // Helper to cleanly delete collection
-        const cleanCol = async (collPath: string) => {
-          const qs = await getDocs(collection(db, collPath));
-          for (const docSnap of qs.docs) {
-            await deleteDoc(doc(db, collPath, docSnap.id)).catch(e => console.warn(e?.message || "Unknown Error"));
-          }
-        };
+          // Helper to delete collection in atomic batches (fast & reliable)
+          const cleanCol = async (collPath: string) => {
+            try {
+              const qs = await getDocs(collection(db, collPath));
+              if (qs.empty) return;
+              let batch = writeBatch(db);
+              let count = 0;
+              for (const docSnap of qs.docs) {
+                batch.delete(docSnap.ref);
+                count++;
+                if (count % 400 === 0) {
+                  await batch.commit();
+                  batch = writeBatch(db);
+                }
+              }
+              if (count % 400 !== 0) {
+                await batch.commit();
+              }
+            } catch (err: any) {
+              console.warn(`Error cleaning collection ${collPath}:`, err?.message || err);
+            }
+          };
 
-        await cleanCol("jobs");
-        await cleanCol("submissions");
-        await cleanCol("payment_requests");
-        await cleanCol("drive_offers");
-        await cleanCol("courses");
+          toast.loading("১/৩: জবস, সাবমিশন ও রিকোয়েস্ট ডিলিট হচ্ছে...", { id: "wipe_db" });
+          await cleanCol("jobs");
+          await cleanCol("submissions");
+          await cleanCol("payment_requests");
+          await cleanCol("drive_offers");
+          await cleanCol("courses");
+          await cleanCol("giftCodes");
+          await cleanCol("ad_views");
+          await cleanCol("reports");
 
-        // Delete users (except admin) and their subcollections
-        const uQs = await getDocs(collection(db, "users"));
-        for (const uDoc of uQs.docs) {
-          const uData = uDoc.data();
-          if (uData.role === 'admin' || uData.email === adminEmail) continue;
+          toast.loading("২/৩: সাধারণ ইউজার ও হিস্ট্রি ডিলিট হচ্ছে...", { id: "wipe_db" });
+          const uQs = await getDocs(collection(db, "users"));
+          let userBatch = writeBatch(db);
+          let userBatchCount = 0;
 
-          // Delete subcollections manually (Firestore structure limits)
-          const uid = uDoc.id;
-          const userSubs = ["tasks", "mathHistory", "transactions", "referrals", "notifications"];
-          for (const s of userSubs) {
-            const subQs = await getDocs(collection(db, `users/${uid}/${s}`));
-            for (const subDoc of subQs.docs) {
-              await deleteDoc(doc(db, `users/${uid}/${s}`, subDoc.id)).catch(() => {});
+          for (const uDoc of uQs.docs) {
+            const uData = uDoc.data();
+            // Protect admin accounts
+            if (uData.role === 'admin' || uData.email === adminEmail || uDoc.id === currentUid) {
+              continue;
+            }
+
+            const uid = uDoc.id;
+            const userSubs = ["tasks", "mathHistory", "transactions", "referrals", "notifications"];
+            for (const s of userSubs) {
+              try {
+                const subQs = await getDocs(collection(db, `users/${uid}/${s}`));
+                for (const subDoc of subQs.docs) {
+                  userBatch.delete(subDoc.ref);
+                  userBatchCount++;
+                  if (userBatchCount % 400 === 0) {
+                    await userBatch.commit();
+                    userBatch = writeBatch(db);
+                  }
+                }
+              } catch (subErr) {
+                console.warn(`Subcollection delete failed for users/${uid}/${s}:`, subErr);
+              }
+            }
+
+            userBatch.delete(doc(db, "users", uid));
+            userBatch.delete(doc(db, "leaderboard", uid));
+            userBatchCount += 2;
+            if (userBatchCount % 400 === 0) {
+              await userBatch.commit();
+              userBatch = writeBatch(db);
             }
           }
-          await deleteDoc(doc(db, "users", uid)).catch(e => console.warn(e?.message || "Unknown Error"));
-          await deleteDoc(doc(db, "leaderboard", uid)).catch(() => {});
-        }
 
-        toast.success("Database successfully wiped!", { id: "wipe_db" });
-      } catch (err: any) {
-        console.error(err?.message || "Unknown Error");
-        toast.error("Error wiping database: " + err.message, { id: "wipe_db" });
-      } finally {
-        setIsSavingSettings(false);
+          if (userBatchCount % 400 !== 0) {
+            await userBatch.commit();
+          }
+
+          // Clean admin subcollections and reset balance to 0
+          if (currentUid) {
+            await wipeUserSubcollectionsAndResetBalance(currentUid, adminEmail);
+          }
+
+          // Clear local cache & state immediately
+          clearCache();
+          setUserList(prev => prev.filter(u => u.role === 'admin' || u.email === adminEmail || u.id === currentUid));
+          setJobs([]);
+          setSubmissions([]);
+          setPaymentRequests([]);
+          setAdminOffers([]);
+          setAdminCourses([]);
+          setGiftCodes([]);
+
+          toast.success("ডাটাবেজ সফলভাবে ওয়াইপ (Wipe) করা হয়েছে!", { id: "wipe_db" });
+        } catch (err: any) {
+          console.error("Error wiping database:", err);
+          toast.error("ওয়াইপ করতে ত্রুটি: " + (err?.message || "Unknown Error"), { id: "wipe_db" });
+        } finally {
+          setIsSavingSettings(false);
+        }
       }
-    }
-  });
-};
+    });
+  };
+
+  const handleFreshSetup = () => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'সম্পূর্ণ নতুন সাইট সেটআপ (Fresh Factory Launch)',
+      message: 'আপনি কি নিশ্চিত যে সাইটটি একদম প্রথম দিনের মতো ব্র্যান্ড-নিউ করে সেটআপ করতে চান? এতে সব পুরোনো টেস্ট ইউজার, ড্রাফট কাজ ও ট্রানজেকশন মুছে যাবে এবং ব্র্যান্ড নিউ অফিসিয়াল সেটিংস, ৩টি বাস্তব মাইক্রোটাস্ক, ড্রাইভ প্যাক ও কোর্স ফ্রেশভাবে তৈরি হবে।',
+      isPrompt: true,
+      promptExpected: 'RESET',
+      confirmText: 'Fresh Launch',
+      isDanger: false,
+      onConfirm: async () => {
+        try {
+          toast.loading("১/৪: পুরোনো টেস্ট ও ডামি ডাটা মুছে ফেলা হচ্ছে...", { id: "fresh_setup" });
+          setIsSavingSettings(true);
+
+          const adminEmail = profile?.email || auth.currentUser?.email || 'mdekramhossain590@gmail.com';
+          const currentUid = auth.currentUser?.uid;
+
+          // Helper to delete collection in atomic batches
+          const cleanCol = async (collPath: string) => {
+            try {
+              const qs = await getDocs(collection(db, collPath));
+              if (qs.empty) return;
+              let batch = writeBatch(db);
+              let count = 0;
+              for (const docSnap of qs.docs) {
+                batch.delete(docSnap.ref);
+                count++;
+                if (count % 400 === 0) {
+                  await batch.commit();
+                  batch = writeBatch(db);
+                }
+              }
+              if (count % 400 !== 0) {
+                await batch.commit();
+              }
+            } catch (err: any) {
+              console.warn(`Error cleaning collection ${collPath}:`, err?.message || err);
+            }
+          };
+
+          // 1. Wipe old transactions, jobs, submissions, etc.
+          await cleanCol("jobs");
+          await cleanCol("submissions");
+          await cleanCol("payment_requests");
+          await cleanCol("drive_offers");
+          await cleanCol("courses");
+          await cleanCol("giftCodes");
+          await cleanCol("ad_views");
+          await cleanCol("reports");
+
+          // Delete non-admin users and subcollections
+          const uQs = await getDocs(collection(db, "users"));
+          let userBatch = writeBatch(db);
+          let userBatchCount = 0;
+
+          for (const uDoc of uQs.docs) {
+            const uData = uDoc.data();
+            if (uData.role === 'admin' || uData.email === adminEmail || uDoc.id === currentUid) {
+              continue;
+            }
+
+            const uid = uDoc.id;
+            const userSubs = ["tasks", "mathHistory", "transactions", "referrals", "notifications"];
+            for (const s of userSubs) {
+              try {
+                const subQs = await getDocs(collection(db, `users/${uid}/${s}`));
+                for (const subDoc of subQs.docs) {
+                  userBatch.delete(subDoc.ref);
+                  userBatchCount++;
+                  if (userBatchCount % 400 === 0) {
+                    await userBatch.commit();
+                    userBatch = writeBatch(db);
+                  }
+                }
+              } catch (subErr) {
+                console.warn(`Subcollection delete failed for users/${uid}/${s}:`, subErr);
+              }
+            }
+
+            userBatch.delete(doc(db, "users", uid));
+            userBatch.delete(doc(db, "leaderboard", uid));
+            userBatchCount += 2;
+            if (userBatchCount % 400 === 0) {
+              await userBatch.commit();
+              userBatch = writeBatch(db);
+            }
+          }
+
+          if (userBatchCount % 400 !== 0) {
+            await userBatch.commit();
+          }
+
+          // Clean admin subcollections and reset balance to clean 0
+          if (currentUid) {
+            await wipeUserSubcollectionsAndResetBalance(currentUid, adminEmail);
+          }
+
+          toast.loading("২/৪: ব্র্যান্ড নিউ অফিসিয়াল সেটিংস কনফিগার হচ্ছে...", { id: "fresh_setup" });
+
+          // Seed default clean settings
+          await setDoc(doc(db, "settings", "site"), {
+            siteName: "HMF Income",
+            logoUrl: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200&auto=format&fit=crop&q=80",
+            telegramUrl: "https://t.me/hmfincome",
+            dailyTaskLimit: 0,
+            driveOffersEnabled: true,
+            coursesEnabled: true,
+            rechargeEnabled: true,
+            adsViewEnabled: true,
+            reviewsEnabled: true,
+            apkUrl: "https://www.mediafire.com/file/glio303il0rsfr4/app-release.apk/file",
+            updatedAt: serverTimestamp()
+          });
+
+          await setDoc(doc(db, "settings", "deposit"), {
+            bkashNumber: "01700000000",
+            bkashEnabled: true,
+            nagadNumber: "01800000000",
+            nagadEnabled: true,
+            rocketNumber: "01900000000",
+            rocketEnabled: true,
+            minDeposit: 50,
+            maxDeposit: 10000,
+            depositNotice: "বিকাশ বা নগদ পার্সোনাল নাম্বারে Send Money করুন এবং ট্রানজেকশন আইডি (TrxID) নিচে সাবমিট করুন।"
+          });
+
+          await setDoc(doc(db, "settings", "withdraw"), {
+            minWithdraw: 50,
+            maxWithdraw: 5000,
+            withdrawNotice: "প্রতিদিন সকাল ৯টা থেকে রাত ১০টা পর্যন্ত উইথড্র রিকোয়েস্ট গ্রহণ করা হয়। ১-২৪ ঘণ্টার মধ্যে পেমেন্ট সম্পন্ন হবে।",
+            presetAmounts: [50, 100, 200, 300, 500, 1000],
+            methods: ["bKash", "Nagad", "Rocket", "Recharge"]
+          });
+
+          await setDoc(doc(db, "settings", "spin"), {
+            rewards: [1, 2, 5, 10, 0, 20, 50, 0],
+            dailyLimit: 5,
+            cost: 0
+          });
+
+          await setDoc(doc(db, "settings", "games"), {
+            mathQuizReward: 1,
+            dailyMathLimit: 10
+          });
+
+          await setDoc(doc(db, "settings", "referral"), {
+            tier1: 5,
+            tier2: 3,
+            tier3: 1,
+            signupBonus: 50
+          });
+
+          await setDoc(doc(db, "settings", "partner"), {
+            requiredReferrals: 10,
+            dailyBonus: 20,
+            withdrawEnabled: true
+          });
+
+          await setDoc(doc(db, "settings", "activation"), {
+            fee: 0,
+            enabled: false
+          });
+
+          await setDoc(doc(db, "settings", "popup"), {
+            enabled: true,
+            title: "HMF Income-এ স্বাগতম!",
+            message: "দৈনিক মাইক্রো টাস্ক, কুইজ ও স্পিন করে সহজে টাকা আয় করুন এবং বিকাশ/নগদে সরাসরি উইথড্র নিন।"
+          });
+
+          await setDoc(doc(db, "settings", "faqs"), {
+            faqs: [
+              {
+                question_bn: "কিভাবে কাজ করে আয় করব?",
+                answer_bn: "টাস্ক মেন্যুতে গিয়ে বিভিন্ন সহজ মাইক্রো-টাস্ক (টেলিগ্রাম জয়েন, ইউটিউব সাবস্ক্রাইব ইত্যাদি) নিয়ম মেনে সম্পন্ন করে স্ক্রিনশট প্রুফ জমা দিন। অ্যাডমিন ভেরিফাই করলে আপনার একাউন্টে টাকা যোগ হবে।",
+                question_en: "How to earn money from tasks?",
+                answer_en: "Go to the Tasks section, complete micro-tasks as instructed, and submit proof screenshots. Once verified by admin, reward will be credited."
+              },
+              {
+                question_bn: "কিভাবে টাকা উইথড্র করব?",
+                answer_bn: "ওয়ালেট অপশনে গিয়ে 'উইথড্র' বাটনে চাপ দিন। আপনার বিকাশ, নগদ বা রকেট নাম্বার এবং কাঙ্ক্ষিত পরিমাণ লিখে সাবমিট করুন।",
+                question_en: "How to withdraw earnings?",
+                answer_en: "Visit the Wallet page, click Withdraw, choose your preferred payment method (bKash/Nagad/Rocket), enter amount and account number."
+              },
+              {
+                question_bn: "রেফারেল বোনাস কিভাবে পাওয়া যায়?",
+                answer_bn: "আপনার নিজস্ব রেফার কোড দিয়ে বন্ধুদের সাইন আপ করান। তারা জয়েন করলে সাথে সাথে আপনি ৩ জেনারেশন রেফার বোনাস পাবেন।",
+                question_en: "How does the referral bonus work?",
+                answer_en: "Share your referral link with friends. You will earn multi-tier bonuses when they sign up and complete activities."
+              },
+              {
+                question_bn: "স্পিন ও কুইজ খেলে কি সত্যি আয় হয়?",
+                answer_bn: "হ্যাঁ! প্রতিদিন আপনি নির্দিষ্ট সংখ্যক ফ্রি স্পিন ও সহজ গণিত কুইজ খেলে সরাসরি বোনাস ব্যালেন্স আয় করতে পারবেন।",
+                question_en: "Can I earn from Spin and Math Quiz?",
+                answer_en: "Yes! Every day you can play free lucky spins and solve simple math quizzes to earn bonus balance directly."
+              }
+            ]
+          });
+
+          await setDoc(doc(db, "admin", "stats"), {
+            totalUsers: 1,
+            totalPaid: 0,
+            tasksCompleted: 0,
+            activeJobs: 3
+          });
+
+          toast.loading("৩/৪: আকর্ষণীয় স্টার্টার মাইক্রোটাস্ক তৈরি হচ্ছে...", { id: "fresh_setup" });
+
+          const starterJobs = [
+            {
+              id: "job_starter_telegram",
+              title: "Telegram অফিসিয়াল চ্যানেলে জয়েন করুন",
+              description: "আমাদের অফিশিয়াল টেলিগ্রাম চ্যানেলে জয়েন করে একটিভ থাকুন এবং প্রতিদিনের নতুন কাজ ও পেমেন্ট প্রুফ সবার আগে পান।",
+              category: "Telegram",
+              type: "Telegram",
+              reward: 3.00,
+              capacity: 1000,
+              completedCount: 0,
+              proofRequirement: "আপনার টেলিগ্রাম ইউজারনেম (@username) এবং চ্যানেলে জয়েন করার স্ক্রিনশট দিন।",
+              requiredProofs: ["screenshot", "text"],
+              link: "https://t.me/hmfincome",
+              status: "active",
+              createdAt: serverTimestamp(),
+              postedBy: "Admin"
+            },
+            {
+              id: "job_starter_youtube",
+              title: "YouTube ভিডিও দেখুন ও চ্যানেল সাবস্ক্রাইব করুন",
+              description: "প্রদত্ত লিংকে গিয়ে সম্পূর্ণ ভিডিওটি মনোযোগ সহকারে দেখুন, একটি লাইক দিন এবং চ্যানেলটি সাবস্ক্রাইব করে বেল আইকন প্রেস করুন।",
+              category: "YouTube",
+              type: "YouTube",
+              reward: 4.00,
+              capacity: 1000,
+              completedCount: 0,
+              proofRequirement: "ভিডিওতে লাইক ও সাবস্ক্রাইব করার প্রমাণস্বরূপ ফুল স্ক্রিনশট সাবমিট করুন।",
+              requiredProofs: ["screenshot"],
+              link: "https://youtube.com",
+              status: "active",
+              createdAt: serverTimestamp(),
+              postedBy: "Admin"
+            },
+            {
+              id: "job_starter_facebook",
+              title: "Facebook অফিসিয়াল পেজ ফলো ও লাইক",
+              description: "আমাদের ফেসবুক অফিশিয়াল পেজটিতে লাইক ও ফলো দিন। পেজের পিন পোস্টে একটি সুন্দর কমেন্ট করুন।",
+              category: "Facebook",
+              type: "Facebook",
+              reward: 3.00,
+              capacity: 1000,
+              completedCount: 0,
+              proofRequirement: "আপনার ফেসবুক আইডির নাম এবং পেজ ফলো করার স্ক্রিনশট আপলোড করুন।",
+              requiredProofs: ["screenshot", "text"],
+              link: "https://facebook.com",
+              status: "active",
+              createdAt: serverTimestamp(),
+              postedBy: "Admin"
+            }
+          ];
+
+          for (const j of starterJobs) {
+            await setDoc(doc(db, "jobs", j.id), j);
+          }
+
+          const starterDrives = [
+            {
+              id: "drive_gp_40gb",
+              title: "GP 40GB + 800 Min (30 Days)",
+              operator: "Grameenphone",
+              originalPrice: 799,
+              salePrice: 599,
+              validity: "30 Days",
+              category: "Internet & Minute",
+              status: "active",
+              createdAt: serverTimestamp()
+            },
+            {
+              id: "drive_bl_35gb",
+              title: "Banglalink 35GB + 700 Min (30 Days)",
+              operator: "Banglalink",
+              originalPrice: 699,
+              salePrice: 499,
+              validity: "30 Days",
+              category: "Internet & Minute",
+              status: "active",
+              createdAt: serverTimestamp()
+            }
+          ];
+
+          for (const d of starterDrives) {
+            await setDoc(doc(db, "drive_offers", d.id), d);
+          }
+
+          const starterCourse = {
+            id: "course_starter_guide",
+            title: "মাইক্রোটাস্ক ও অনলাইন আর্নিং গাইডলাইন",
+            category: "ফ্রি গাইড",
+            description: "নতুনদের জন্য সহজ উপায়ে ঘরে বসে মোবাইল দিয়ে মাইক্রো-টাস্ক সম্পন্ন করার সম্পূর্ণ নিয়মাবলী ও সিক্রেট টিপস।",
+            thumbnailUrl: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=600&auto=format&fit=crop&q=80",
+            items: [
+              {
+                title: "ক্লাস ১: মাইক্রোটাস্কের সঠিক নিয়ম ও স্ক্রিনশট প্রুফ",
+                description: "কিভাবে কাজ জমা দিলে ১০০% অ্যাপ্রুভ হবে",
+                thumbnailUrl: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=600&auto=format&fit=crop&q=80",
+                videoLink: "https://www.youtube.com"
+              }
+            ],
+            status: "active",
+            createdAt: serverTimestamp()
+          };
+          await setDoc(doc(db, "courses", starterCourse.id), starterCourse);
+
+          toast.loading("৪/৪: লোকাল ক্যাশ ক্লিয়ার ও রিফ্রেশ হচ্ছে...", { id: "fresh_setup" });
+          clearCache();
+          localStorage.clear();
+
+          toast.success("অভিনন্দন! সাইটটি সম্পূর্ণ নতুন এবং নিখুঁতভাবে সেটআপ সম্পন্ন হয়েছে!", { id: "fresh_setup", duration: 6000 });
+          setTimeout(() => {
+            window.location.reload();
+          }, 1200);
+
+        } catch (err: any) {
+          console.error("Error setting up fresh database:", err);
+          toast.error("সেটআপ করতে ত্রুটি: " + (err?.message || "Unknown Error"), { id: "fresh_setup" });
+        } finally {
+          setIsSavingSettings(false);
+        }
+      }
+    });
+  };
 
   const handleSaveEmployeeConfig = async () => {
     if (!employeeConfigUser) return;
@@ -1305,6 +1811,35 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
             >
               <Download className="w-4 h-4" /> Download Build ZIP
             </a>
+          </div>
+
+          <div className="bg-gradient-to-r from-violet-600 via-indigo-600 to-blue-600 text-white p-5 rounded-3xl shadow-xl shadow-indigo-500/20 border border-indigo-400/30 flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="space-y-1 text-center md:text-left">
+              <div className="flex items-center justify-center md:justify-start gap-2">
+                <Sparkles className="w-5 h-5 text-amber-300" />
+                <h4 className="font-black text-base tracking-tight uppercase">সাইট সম্পূর্ণ নতুন করার কুইক বাটন (Fresh Launch)</h4>
+              </div>
+              <p className="text-xs text-indigo-100 max-w-xl leading-relaxed">
+                এক ক্লিকে সমস্ত পুরোনো টেস্ট ইউজার ও ট্রানজেকশন ডিলিট করে সাইটকে ব্র্যান্ড নিউ অফিসিয়াল সেটিংস ও ৩টি বাস্তব মাইক্রোটাস্ক দিয়ে সাজান।
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+              <button 
+                onClick={handleFreshSetup}
+                disabled={isSavingSettings}
+                className="bg-white hover:bg-amber-50 text-indigo-900 px-4 py-3 rounded-2xl font-black uppercase tracking-wider text-xs flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all active:scale-95 shrink-0 cursor-pointer"
+              >
+                <Sparkles className="w-4 h-4 text-amber-500" /> সাইট একদম নতুন করুন
+              </button>
+              <button 
+                onClick={handleResetMyBalanceAndActivity}
+                disabled={isSavingSettings}
+                className="bg-rose-500 hover:bg-rose-600 text-white px-4 py-3 rounded-2xl font-black uppercase tracking-wider text-xs flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all active:scale-95 shrink-0 cursor-pointer border border-rose-400/30"
+                title="ব্যালেন্স ৳ 0.00 করুন এবং রিসেন্ট হিস্ট্রি ক্লিয়ার করুন"
+              >
+                <RotateCcw className="w-4 h-4 text-white" /> ব্যালেন্স ও হিস্ট্রি ০ করুন
+              </button>
+            </div>
           </div>
 
           <div className="flex items-center justify-between px-1">
@@ -3647,27 +4182,82 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
           </motion.div>
 
           {settingsSubTab === 'danger' && (
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.9 }} className="bg-rose-50 dark:bg-rose-900/10 p-6 rounded-[32px] shadow-sm border border-rose-200 dark:border-rose-900/30 md:col-span-2 mt-4">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-2xl bg-rose-100 dark:bg-rose-900/50 flex items-center justify-center text-rose-600">
-                  <Trash2 className="w-5 h-5" />
+            <div className="space-y-6 md:col-span-2 mt-4">
+              {/* Option 1: Fresh Brand New Setup */}
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8 }} className="bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-950/40 dark:to-blue-950/30 p-6 rounded-[32px] shadow-sm border border-indigo-200 dark:border-indigo-800/40">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-2xl bg-indigo-100 dark:bg-indigo-900/60 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                    <Sparkles className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-indigo-900 dark:text-indigo-300 uppercase tracking-tight">সম্পূর্ণ নতুন সাইট সেটআপ (Fresh Factory Launch)</h3>
+                    <p className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest leading-none">Complete Fresh Start & Seed</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-black text-rose-700 dark:text-rose-400 uppercase tracking-tight">Danger Zone: Factory Reset</h3>
-                  <p className="text-[10px] font-bold text-rose-500/80 uppercase tracking-widest leading-none">Irreversible Database Wipe</p>
+                <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-4 leading-relaxed">
+                  সাইটকে একদম প্রথম দিনের মতো ব্র্যান্ড-নিউ করে তুলুন। এটি সমস্ত পুরোনো টেস্ট ইউজার, ভুয়া সাবমিশন ও ট্রানজেকশন মুছে দেবে এবং নতুন প্রফেশনাল সেটিংস, ৩টি বাস্তব স্টার্টার মাইক্রোটাস্ক, ড্রাইভ প্যাক ও কোর্স দিয়ে পুরো প্ল্যাটফর্মটি সম্পূর্ণ রেডি করে দেবে।
+                </p>
+                <div className="bg-white/80 dark:bg-slate-900/80 rounded-2xl p-4 mb-5 border border-indigo-100 dark:border-indigo-900/50 space-y-2 text-xs text-slate-700 dark:text-slate-300">
+                  <div className="flex items-center gap-2">✅ <b>ক্লিন ইউজার বেস:</b> অ্যাডমিন ছাড়া সব পুরোনো টেস্ট ইউজার ডিলিট হবে।</div>
+                  <div className="flex items-center gap-2">✅ <b>অফিশিয়াল সেটিংস:</b> বিকাশ/নগদ গেটওয়ে, রেফারেল, স্পিন ও উইথড্র নিয়মাবলি ডিফল্ট হবে।</div>
+                  <div className="flex items-center gap-2">✅ <b>৩টি লাইভ মাইক্রো-টাস্ক:</b> টেলিগ্রাম, ইউটিউব ও ফেসবুক টাস্ক স্বয়ংক্রিয়ভাবে তৈরি হবে।</div>
+                  <div className="flex items-center gap-2">✅ <b>ব্যালেন্স ও হিস্ট্রি ফ্রেশ:</b> অ্যাডমিনের ব্যালেন্স ৳ 0.00 এবং রিসেন্ট হিস্ট্রি সম্পূর্ণ খালি হবে।</div>
                 </div>
-              </div>
-              <p className="text-sm font-semibold text-rose-600 dark:text-rose-400 mb-6">
-                This action will completely wipe all user accounts (except admins), tasks, courses, requests, and transactions from Firestore. This cannot be undone. Ensure you have backed up the data if needed.
-              </p>
-              <button 
-                onClick={handleWipeData} 
-                disabled={isSavingSettings} 
-                className="w-full bg-rose-600 hover:bg-rose-700 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-rose-600/20 active:scale-95 transition-all text-xs"
-              >
-                Understand & Wipe Everything
-              </button>
-            </motion.div>
+                <button 
+                  onClick={handleFreshSetup} 
+                  disabled={isSavingSettings} 
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-indigo-600/25 active:scale-95 transition-all text-xs flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Sparkles className="w-4 h-4" /> সাইট একদম নতুন করে সাজান (Fresh Launch)
+                </button>
+              </motion.div>
+
+              {/* Option 2: Empty Wipe */}
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.9 }} className="bg-rose-50 dark:bg-rose-900/10 p-6 rounded-[32px] shadow-sm border border-rose-200 dark:border-rose-900/30">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-2xl bg-rose-100 dark:bg-rose-900/50 flex items-center justify-center text-rose-600">
+                    <Trash2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-rose-700 dark:text-rose-400 uppercase tracking-tight">শুধু ডাটাবেজ খালি করুন (Empty Database Wipe)</h3>
+                    <p className="text-[10px] font-bold text-rose-500/80 uppercase tracking-widest leading-none">Irreversible Empty Wipe</p>
+                  </div>
+                </div>
+                <p className="text-sm font-semibold text-rose-600 dark:text-rose-400 mb-6 leading-relaxed">
+                  এটি ডাটাবেজ থেকে সমস্ত কাজ, ইউজার ও ট্রানজেকশন মুছে সম্পূর্ণ খালি করে রাখবে (কোনো স্টার্টার ডাটা তৈরি করবে না)।
+                </p>
+                <button 
+                  onClick={handleWipeData} 
+                  disabled={isSavingSettings} 
+                  className="w-full bg-rose-600 hover:bg-rose-700 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-rose-600/20 active:scale-95 transition-all text-xs flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Trash2 className="w-4 h-4" /> ডাটাবেজ পুরোপুরি খালি করুন (Wipe Only)
+                </button>
+              </motion.div>
+
+              {/* Option 3: Reset Admin Balance & History */}
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.0 }} className="bg-amber-50 dark:bg-amber-950/20 p-6 rounded-[32px] shadow-sm border border-amber-200 dark:border-amber-900/40">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-100 dark:bg-amber-900/60 flex items-center justify-center text-amber-600 dark:text-amber-400">
+                    <RotateCcw className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-amber-900 dark:text-amber-300 uppercase tracking-tight">অ্যাডমিন ব্যালেন্স ও রিসেন্ট এক্টিভিটি ০ করুন (Clear Balance & History)</h3>
+                    <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-widest leading-none">Instant Personal Balance & History Reset</p>
+                  </div>
+                </div>
+                <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-6 leading-relaxed">
+                  পুরো ডাটাবেজ ডিলিট না করে শুধুমাত্র আপনার অ্যাডমিন অ্যাকাউন্টের সমস্ত ব্যালেন্স (৳ 0.00) এবং রিসেন্ট অ্যাক্টিভিটি হিস্ট্রি (Transactions, Tasks, Referrals) মুছে একদম খালি করতে এটি ব্যবহার করুন।
+                </p>
+                <button 
+                  onClick={handleResetMyBalanceAndActivity} 
+                  disabled={isSavingSettings} 
+                  className="w-full bg-amber-600 hover:bg-amber-700 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-amber-600/25 active:scale-95 transition-all text-xs flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <RotateCcw className="w-4 h-4" /> ব্যালেন্স ও হিস্ট্রি ০ করুন (Reset to 0)
+                </button>
+              </motion.div>
+            </div>
           )}
           </div>
         </div>
@@ -3728,21 +4318,31 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
             animate={{ opacity: 1, scale: 1 }}
             className="bg-white dark:bg-slate-800 rounded-[32px] p-6 shadow-2xl max-w-sm w-full border border-slate-100 dark:border-slate-700"
           >
-            <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-4">
-              <ShieldAlert className="w-8 h-8" />
+            <div className={`w-16 h-16 ${confirmDialog.isDanger !== false ? 'bg-rose-100 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400' : 'bg-indigo-100 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-400'} rounded-full flex items-center justify-center mx-auto mb-4`}>
+              {confirmDialog.isDanger !== false ? <ShieldAlert className="w-8 h-8" /> : <Sparkles className="w-8 h-8" />}
             </div>
             <h3 className="text-center font-black text-xl mb-2 text-slate-800 dark:text-white uppercase tracking-tight">{confirmDialog.title}</h3>
             <p className="text-center font-medium text-slate-500 mb-6">{confirmDialog.message}</p>
             
             {confirmDialog.isPrompt && (
-              <div className="mb-6">
+              <div className="mb-6 space-y-2">
                 <input 
                   type="text" 
                   value={promptInput}
                   onChange={(e) => setPromptInput(e.target.value)}
-                  placeholder={`Type '${confirmDialog.promptExpected}' here...`}
-                  className="w-full text-center bg-slate-50 border border-slate-200 dark:bg-slate-900 dark:border-slate-700 rounded-2xl px-4 py-3 font-bold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500 transition-all font-mono uppercase"
+                  placeholder={`টাইপ করুন: ${confirmDialog.promptExpected}`}
+                  className="w-full text-center bg-slate-50 border border-slate-200 dark:bg-slate-900 dark:border-slate-700 rounded-2xl px-4 py-3 font-bold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono uppercase text-sm"
                 />
+                <div className="flex justify-between items-center px-1">
+                  <span className="text-[11px] font-bold text-slate-400">কনফার্ম করতে <span className="text-indigo-500 font-mono font-black">{confirmDialog.promptExpected}</span> লিখুন</span>
+                  <button 
+                    type="button" 
+                    onClick={() => setPromptInput(confirmDialog.promptExpected || '')}
+                    className="text-[11px] font-black uppercase text-indigo-600 dark:text-indigo-400 hover:underline bg-indigo-50 dark:bg-indigo-950/50 px-2 py-0.5 rounded-md"
+                  >
+                    অটো-টাইপ {confirmDialog.promptExpected}
+                  </button>
+                </div>
               </div>
             )}
             
@@ -3751,22 +4351,27 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                 onClick={() => { setConfirmDialog(null); setPromptInput(''); }}
                 className="flex-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 py-3.5 rounded-2xl font-black uppercase text-xs tracking-widest active:scale-95 transition-all"
               >
-                Cancel
+                বাতিল
               </button>
               <button 
-                disabled={confirmDialog.isPrompt && promptInput !== confirmDialog.promptExpected}
-                onClick={() => {
-                  confirmDialog.onConfirm();
+                disabled={Boolean(confirmDialog.isPrompt && promptInput.trim().toUpperCase() !== (confirmDialog.promptExpected || '').toUpperCase())}
+                onClick={async () => {
+                  const onConfirmFn = confirmDialog.onConfirm;
                   setConfirmDialog(null);
                   setPromptInput('');
+                  if (onConfirmFn) {
+                    await onConfirmFn();
+                  }
                 }}
                 className={`flex-1 py-3.5 rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg active:scale-95 transition-all ${
-                  (confirmDialog.isPrompt && promptInput !== confirmDialog.promptExpected)
-                    ? 'bg-rose-300 text-white/50 cursor-not-allowed shadow-none'
-                    : 'bg-rose-600 hover:bg-rose-700 text-white shadow-rose-600/20'
+                  (confirmDialog.isPrompt && promptInput.trim().toUpperCase() !== (confirmDialog.promptExpected || '').toUpperCase())
+                    ? 'bg-slate-300 dark:bg-slate-700 text-white/50 cursor-not-allowed shadow-none'
+                    : (confirmDialog.isDanger !== false 
+                        ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-rose-600/20' 
+                        : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/20')
                 }`}
               >
-                Confirm
+                {confirmDialog.confirmText || 'Confirm'}
               </button>
             </div>
           </motion.div>

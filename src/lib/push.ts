@@ -6,7 +6,7 @@ export async function sendPushNotification(userId: string | 'all', title: string
       body: JSON.stringify({ userId, title, message })
     });
     return response.ok;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Push notification failed:', error?.message || "Unknown Error");
     return false;
   }

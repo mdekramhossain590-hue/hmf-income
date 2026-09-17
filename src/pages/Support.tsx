@@ -22,7 +22,7 @@ export function Support() {
             facebook: data.facebook || ''
           });
         }
-      } catch (e) {
+      } catch (e: any) {
         console.warn('Failed to load support settings');
       }
     };

@@ -1,15 +1,48 @@
 import { useState, useEffect } from 'react';
-import { collection, query, orderBy, limit, getDocs, where } from 'firebase/firestore';
+import { collection, query, orderBy, limit, getDocs, where, writeBatch } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { getCachedQuery } from '../lib/cache';
-import { Activity, CheckCircle, Clock, XCircle, ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
+import { Activity, CheckCircle, Clock, XCircle, ArrowDownCircle, ArrowUpCircle, Trash2 } from 'lucide-react';
 import { useLanguage } from '../components/LanguageProvider';
+import { useAuth } from '../components/AuthProvider';
 import { motion } from 'motion/react';
+import toast from 'react-hot-toast';
 
 export function ActivityHistory() {
   const [activities, setActivities] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isClearing, setIsClearing] = useState(false);
   const { t, language } = useLanguage();
+  const { profile } = useAuth();
+
+  const handleClearHistory = async () => {
+    if (!auth.currentUser) return;
+    const confirm = window.confirm("আপনি কি সমস্ত সাম্প্রতিক লেনদেন ও কাজের হিস্ট্রি মুছতে চান?");
+    if (!confirm) return;
+    try {
+      setIsClearing(true);
+      toast.loading("হিস্ট্রি মোছা হচ্ছে...", { id: "clear_act_history" });
+      const uid = auth.currentUser.uid;
+      const txSnap = await getDocs(collection(db, "users", uid, "transactions"));
+      const taskSnap = await getDocs(collection(db, "users", uid, "tasks"));
+      const refSnap = await getDocs(collection(db, "users", uid, "referrals"));
+      const subSnap = await getDocs(query(collection(db, "submissions"), where("userId", "==", uid)));
+
+      const batch = writeBatch(db);
+      txSnap.docs.forEach(d => batch.delete(d.ref));
+      taskSnap.docs.forEach(d => batch.delete(d.ref));
+      refSnap.docs.forEach(d => batch.delete(d.ref));
+      subSnap.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+
+      setActivities([]);
+      toast.success("অ্যাক্টিভিটি হিস্ট্রি সফলভাবে খালি করা হয়েছে!", { id: "clear_act_history" });
+    } catch (e: any) {
+      toast.error("হিস্ট্রি মুছতে ত্রুটি: " + (e?.message || "Unknown error"), { id: "clear_act_history" });
+    } finally {
+      setIsClearing(false);
+    }
+  };
 
   const getRefBonus = (ref: any) => {
     let raw = ref.bonusEarned !== undefined ? Number(ref.bonusEarned) : 0;
@@ -76,18 +109,30 @@ export function ActivityHistory() {
 
   return (
     <div className="pt-6 px-4 pb-24 max-w-lg mx-auto">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 flex items-center justify-center rounded-2xl">
-          <Activity className="w-5 h-5" />
+      <div className="flex items-center justify-between gap-3 mb-6">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 flex items-center justify-center rounded-2xl">
+            <Activity className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-xl font-display font-black text-slate-800 dark:text-white tracking-tight">
+              Activity History
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+              Your recent tasks and transactions
+            </p>
+          </div>
         </div>
-        <div>
-          <h2 className="text-xl font-display font-black text-slate-800 dark:text-white tracking-tight">
-            Activity History
-          </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
-            Your recent tasks and transactions
-          </p>
-        </div>
+        {profile?.role === "admin" && activities.length > 0 && (
+          <button
+            onClick={handleClearHistory}
+            disabled={isClearing}
+            className="text-xs font-bold text-rose-500 hover:text-rose-600 dark:hover:text-rose-400 flex items-center gap-1.5 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/40 px-3 py-1.5 rounded-xl transition-all cursor-pointer border border-rose-200 dark:border-rose-900/50"
+            title="সমস্ত অ্যাক্টিভিটি হিস্ট্রি খালি করুন"
+          >
+            <Trash2 className="w-3.5 h-3.5" /> হিস্ট্রি মুছুন
+          </button>
+        )}
       </div>
 
       <div className="space-y-3">

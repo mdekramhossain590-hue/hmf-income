@@ -35,7 +35,7 @@ export function Recharge() {
             tasksFee: data.tasksFee || 0
           });
         }
-      } catch(e) {}
+      } catch (e: any) {}
     };
     fetchSettings();
   }, []);
@@ -48,7 +48,7 @@ export function Recharge() {
     if (selectedWallet === 'main') currentBal = profile?.balances?.main || 0;
     else if (selectedWallet === 'bonus') currentBal = profile?.balances?.bonus || 0;
     else if (selectedWallet === 'referral') currentBal = profile?.balances?.referral || 0;
-    else currentBal = profile?.balances?.tasks?.[selectedWallet] || 0;
+    else currentBal = (profile?.balances?.tasks as any)?.[selectedWallet] || 0;
 
     const rechargeAmount = parseFloat(amount);
     
@@ -86,7 +86,7 @@ export function Recharge() {
         if (selectedWallet === 'main') actualCurrentBal = userData.balances?.main || 0;
         else if (selectedWallet === 'bonus') actualCurrentBal = userData.balances?.bonus || 0;
         else if (selectedWallet === 'referral') actualCurrentBal = userData.balances?.referral || 0;
-        else actualCurrentBal = userData.balances?.tasks?.[selectedWallet] || 0;
+        else actualCurrentBal = (userData.balances?.tasks as any)?.[selectedWallet] || 0;
 
         if (rechargeAmount > actualCurrentBal) {
           toast.error('Insufficient balance');
@@ -148,7 +148,7 @@ export function Recharge() {
       setOperator('');
       toast.success('Mobile Recharge requested successfully!');
       navigate('/wallet?tab=history');
-    } catch (error) {
+    } catch (error: any) {
       handleFirestoreError(error, OperationType.UPDATE, `users/${auth.currentUser?.uid}`);
       toast.error("Error processing recharge.");
     } finally {

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../components/AuthProvider';
-import { collection, writeBatch, doc, increment, serverTimestamp, setDoc, getDocs } from 'firebase/firestore';
+import { collection, writeBatch, doc, increment, serverTimestamp, setDoc, getDocs, getDoc } from 'firebase/firestore';
 import { ArrowLeft, Wifi, ShoppingBag, Phone, MapPin, Wallet, CheckCircle2, ShieldCheck, HelpCircle, Gift } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import toast from 'react-hot-toast';
@@ -64,7 +64,7 @@ export function Drive() {
           }
         });
         setOffers(list);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Failed to load drive offers:", error?.message || "Unknown Error");
       } finally {
         setLoading(false);
@@ -86,7 +86,7 @@ export function Drive() {
       });
       await batch.commit();
       toast.success("Default Drive Offers loaded successfully!");
-    } catch (err) {
+    } catch (err: any) {
       toast.error("Failed to load samples");
       console.error(err?.message || "Unknown Error");
     } finally {

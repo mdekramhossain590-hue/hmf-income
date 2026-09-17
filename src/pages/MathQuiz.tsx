@@ -68,7 +68,7 @@ export function MathQuiz() {
             taskReq: data.mathTaskReq || 0,
             referReq: data.mathReferReq || 0
           });
-        } } catch (error) {
+        } } catch (error: any) {
         handleFirestoreError(error, OperationType.GET, `MathQuiz`);
       }
     };

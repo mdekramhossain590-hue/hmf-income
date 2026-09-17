@@ -103,7 +103,7 @@ export function GiftCode() {
       setCode('');
       await refreshProfile();
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error claiming code:", error?.message || "Unknown Error");
       toast.error('Failed to claim gift code. Please try again.');
     } finally {

@@ -68,14 +68,7 @@ export function Layout() {
             >
               <HelpCircle className="w-6 h-6" />
             </button>
-            <a
-              href={siteSettings?.telegramUrl || "https://t.me/"}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-14 h-14 bg-gradient-to-tr from-[#0088cc] to-[#39abef] text-white rounded-full flex items-center justify-center shadow-[0_8px_30px_rgba(0,136,204,0.5)] hover:scale-110 hover:-translate-y-1 active:scale-95 transition-all duration-300 ring-4 ring-white/30 dark:ring-slate-800/80 animate-[bounce_4s_ease-in-out_infinite]"
-            >
-              <Send className="w-6 h-6 ml-[-2px] mt-[2px]" />
-            </a>
+            
           </div>
           <Tabs.Root 
             value={currentTabValue} 

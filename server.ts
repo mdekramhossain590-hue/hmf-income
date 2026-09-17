@@ -7,17 +7,64 @@ import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 
 dotenv.config();
+
+import mysql from 'mysql2/promise';
+
+const pool = mysql.createPool({
+  host: process.env.MYSQL_HOST || 'localhost',
+  user: process.env.MYSQL_USER || 'root',
+  password: process.env.MYSQL_PASSWORD || '',
+  database: process.env.MYSQL_DATABASE || 'test',
+  port: Number(process.env.MYSQL_PORT) || 3306,
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
+  connectTimeout: 10000
+});
+
+async function initMySQL() {
+  try {
+    const connection = await pool.getConnection();
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS app_reviews (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_name VARCHAR(255) NOT NULL,
+        user_photo VARCHAR(255),
+        rating INT NOT NULL DEFAULT 5,
+        comment TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log("MySQL Database Initialized & Tables Created.");
+    connection.release();
+  } catch (error: any) {
+    if (error.code === 'ETIMEDOUT') {
+      console.error("MySQL Initialization Error: Connection Timed Out.");
+      console.error("IMPORTANT: Your database server (server.procloudify.com) is blocking the connection.");
+      console.error("If you are using cPanel, you must go to 'Remote MySQL' and whitelist our IP address (or use '%' to allow all IPs) to allow external connections on port 3306.");
+    } else {
+      console.error("MySQL Initialization Error:", error);
+    }
+  }
+}
+initMySQL();
+
+
 const ai = process.env.GEMINI_API_KEY ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY }) : null;
 
 
-let firebaseAdminApp;
+let firebaseAdminApp: any;
 try {
   if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-    firebaseAdminApp = admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount)
-    });
-    console.log("Firebase Admin Initialized successfully.");
+    try {
+      const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+      firebaseAdminApp = admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+      });
+      console.log("Firebase Admin Initialized successfully.");
+    } catch (parseError) {
+      console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT. Make sure it is a valid JSON object, not a code snippet.");
+    }
   } else {
     console.warn("FIREBASE_SERVICE_ACCOUNT env variable is missing. Push notifications won't work.");
   }
@@ -30,6 +77,33 @@ async function startServer() {
   const app = express();
   const PORT = process.env.PORT || 3000;
   app.use(express.json());
+
+  
+  app.get("/api/mysql-reviews", async (req, res) => {
+    try {
+      const [rows] = await pool.query('SELECT * FROM app_reviews ORDER BY created_at DESC');
+      res.json(rows);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to fetch reviews" });
+    }
+  });
+
+  app.post("/api/mysql-reviews", async (req, res) => {
+    try {
+      const { user_name, user_photo, rating, comment } = req.body;
+      if (!user_name || !comment) return res.status(400).json({ error: "Missing fields" });
+      
+      const [result] = await pool.execute(
+        'INSERT INTO app_reviews (user_name, user_photo, rating, comment) VALUES (?, ?, ?, ?)',
+        [user_name, user_photo || '', Number(rating) || 5, comment]
+      );
+      res.json({ success: true, id: (result as any).insertId });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to post review" });
+    }
+  });
 
   app.get("/api/download-zip", (req, res) => {
     const filePath = path.join(process.cwd(), "dist.zip");
@@ -94,12 +168,12 @@ async function startServer() {
     const { userId, title, message } = req.body;
     
     try {
-       const db = admin.firestore();
+       const db: any = admin.firestore();
        let tokens = [];
        
        if (userId === 'all') {
           const usersSnap = await db.collection('users').where('fcmToken', '!=', null).get();
-          usersSnap.forEach(doc => {
+          usersSnap.forEach((doc: any) => {
             const tk = doc.data().fcmToken;
             if (tk) tokens.push(tk);
           });
@@ -143,7 +217,7 @@ async function startServer() {
       const userRecord = await admin.auth().getUserByEmail(email);
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
       
-      const db = admin.firestore();
+      const db: any = admin.firestore();
       await db.collection("password_resets").doc(email).set({
         otp,
         expiresAt: Date.now() + 10 * 60 * 1000, // 10 minutes
@@ -193,7 +267,7 @@ async function startServer() {
     if (!email || !otp || !newPassword) return res.status(400).json({ error: "Missing fields" });
 
     try {
-      const db = admin.firestore();
+      const db: any = admin.firestore();
       const docRef = db.collection("password_resets").doc(email);
       const docSnap = await docRef.get();
       
@@ -244,7 +318,7 @@ async function startServer() {
       const { amount, uid, name, email, type = "deposit" } = req.body;
       if (!amount || !uid) return res.status(400).json({ error: "Amount and uid required" });
       
-      const db = admin.firestore();
+      const db: any = admin.firestore();
       
       // Store pending request
       const docRef = await db.collection("payment_requests").add({
@@ -298,7 +372,77 @@ async function startServer() {
   });
 
 
-  app.post("/api/uddoktapay/webhook", async (req, res) => {
+  
+  app.post("/api/ads/claim", async (req, res) => {
+    if (!firebaseAdminApp) {
+       return res.status(500).json({ error: "Firebase Admin is not configured." });
+    }
+    const { uid, adId } = req.body;
+    const ipAddress = req.ip || req.connection.remoteAddress || "unknown";
+
+    if (!uid || !adId) return res.status(400).json({ error: "Missing fields" });
+
+    try {
+      const db: any = admin.firestore();
+      
+      // Get settings
+      const settingsSnap = await db.collection("settings").doc("adsIncome").get();
+      const settings = settingsSnap.data() || {};
+      const rewardAmount = Number(settings.rewardPerAdView) || 0.50;
+      const dailyLimit = Number(settings.dailyAdLimit) || 10;
+
+      // Start of day
+      const now = new Date();
+      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+      // Check daily limit and if ad already claimed
+      const viewsSnap = await db.collection("ad_views")
+        .where("userId", "==", uid)
+        .where("viewedAt", ">=", startOfDay)
+        .get();
+      
+      if (viewsSnap.size >= dailyLimit) {
+        return res.status(400).json({ error: "Daily ad limit reached." });
+      }
+
+      const alreadyClaimed = viewsSnap.docs.some((doc: any) => doc.data().adId === adId);
+      if (alreadyClaimed) {
+        return res.status(400).json({ error: "You have already claimed this ad." });
+      }
+
+      // Process reward
+      await db.runTransaction(async (t: any) => {
+        // Create ad view record
+        const viewRef = db.collection("ad_views").doc();
+        t.set(viewRef, {
+          userId: uid,
+          adId: adId,
+          rewardAmount: rewardAmount,
+          ipAddress: ipAddress,
+          viewedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        // Update user wallet (Watch Ads)
+        const userRef = db.collection("users").doc(uid);
+        t.update(userRef, {
+          "balances.tasks.Watch Ads": admin.firestore.FieldValue.increment(rewardAmount)
+        });
+
+        // Update leaderboard if needed
+        const leaderboardRef = db.collection("leaderboard").doc(uid);
+        t.set(leaderboardRef, { 
+          totalIncome: admin.firestore.FieldValue.increment(rewardAmount)
+        }, { merge: true });
+      });
+
+      return res.json({ success: true, rewardAmount, message: `Congratulations! ${rewardAmount} BDT added to your Ads Income Wallet.` });
+    } catch (err: any) {
+      console.error("Ad Claim Error:", err);
+      return res.status(500).json({ error: "Failed to claim ad reward" });
+    }
+  });
+
+app.post("/api/uddoktapay/webhook", async (req, res) => {
     try {
       const apiKey = process.env.UDDOKTAPAY_API_KEY;
       const signature = req.headers['rt-uddoktapay-api-key'];
@@ -308,10 +452,10 @@ async function startServer() {
 
       const { status, amount, metadata, transaction_id, payment_method, sender_number } = req.body;
       if (status === 'COMPLETED' && metadata && metadata.depositId && metadata.uid) {
-        const db = admin.firestore();
+        const db: any = admin.firestore();
         const docRef = db.collection("payment_requests").doc(metadata.depositId);
         
-        await db.runTransaction(async (t) => {
+        await db.runTransaction(async (t: any) => {
           const docSnap = await t.get(docRef);
           if (!docSnap.exists) return;
           
@@ -399,3 +543,4 @@ async function startServer() {
   });
 }
 startServer();
+// build fixed

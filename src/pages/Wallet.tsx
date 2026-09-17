@@ -116,7 +116,7 @@ export function Wallet() {
           const data = pSnap.data();
           setPartnerSettings({ withdrawEnabled: data.withdrawEnabled !== false });
         }
-      } catch (error) {
+      } catch (error: any) {
         handleFirestoreError(error, OperationType.GET, `Wallet`);
       }
     };
@@ -153,7 +153,7 @@ export function Wallet() {
           setIsSubmitting(false);
           return;
         }
-      } catch (err) {
+      } catch (err: any) {
         console.warn("Could not fetch live partner settings, falling back to local state");
         if (!partnerSettings.withdrawEnabled) {
            toast.error('Partner withdrawals are currently disabled.');
@@ -169,7 +169,7 @@ export function Wallet() {
     else if (selectedWallet === 'referral') currentBal = profile?.balances?.referral || 0;
     else if (selectedWallet === 'partner') currentBal = profile?.balances?.partner || 0;
     else if (selectedWallet === 'gift') currentBal = profile?.balances?.gift || 0;
-    else currentBal = profile?.balances?.tasks?.[selectedWallet] || 0;
+    else currentBal = (profile?.balances?.tasks as any)?.[selectedWallet] || 0;
 
     const amount = parseFloat(withdrawAmount);
     
@@ -231,7 +231,7 @@ export function Wallet() {
         else if (selectedWallet === 'referral') actualCurrentBal = userData.balances?.referral || 0;
         else if (selectedWallet === 'partner') actualCurrentBal = userData.balances?.partner || 0;
         else if (selectedWallet === 'gift') actualCurrentBal = userData.balances?.gift || 0;
-        else actualCurrentBal = userData.balances?.tasks?.[selectedWallet] || 0;
+        else actualCurrentBal = (userData.balances?.tasks as any)?.[selectedWallet] || 0;
 
         if (amount > actualCurrentBal) {
           toast.error("Insufficient balance.");
@@ -298,7 +298,7 @@ export function Wallet() {
       setWithdrawMethod('');
       setWithdrawAccount('');
       setShowConfirmWithdraw(false);
-    } catch (error) {
+    } catch (error: any) {
       handleFirestoreError(error, OperationType.UPDATE, `users/${auth.currentUser?.uid}`);
       toast.error("Error processing withdrawal.");
       setShowConfirmWithdraw(false);
@@ -423,7 +423,7 @@ export function Wallet() {
           </p>
           <div className="flex overflow-x-auto gap-3 pb-2 no-scrollbar px-1 items-center">
             {['Facebook', 'Gmail', 'Instagram', 'Review', 'Sell Accounts', 'Microjob', 'Typing', 'Watch Ads', 'Other'].map((taskName) => {
-              const balance = profile?.balances?.tasks?.[taskName] || 0;
+              const balance = (profile?.balances?.tasks as any)?.[taskName] || 0;
               return (
                 <div key={taskName} className="bg-slate-50 dark:bg-slate-900/50 rounded-2xl p-3 min-w-[120px] flex-shrink-0 relative overflow-hidden border border-slate-200 dark:border-slate-700">
                    <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider truncate">{taskName}</p>
@@ -506,7 +506,7 @@ export function Wallet() {
                 <option value="partner">Partner (৳{profile?.balances?.partner?.toFixed(2) || '0.00'})</option>
                 <option value="gift">Gift Wallet (৳{profile?.balances?.gift?.toFixed(2) || '0.00'})</option>
                 {['Facebook', 'Gmail', 'Instagram', 'Review', 'Sell Accounts', 'Microjob', 'Typing', 'Watch Ads', 'Other'].map((taskName) => {
-                  const balance = profile?.balances?.tasks?.[taskName] || 0;
+                  const balance = (profile?.balances?.tasks as any)?.[taskName] || 0;
                   return (
                     <option key={taskName} value={taskName}>{taskName} (৳{balance.toFixed(2)})</option>
                   );
