@@ -2,7 +2,7 @@ import { processRegistrationReferral } from "../lib/referral";
 import { useNavigate } from "react-router-dom";
 import {
   Clock, XCircle, User, Bell, Wallet, ListChecks, Target, Users, Send, MoreVertical, Settings, HelpCircle, LogOut, Award, Shield, FileText, Calculator, Megaphone, Trophy, Copy, Check, Link, Eye, EyeOff, Smartphone, BookOpen, Banknote, MonitorPlay, Wifi, Sun, Moon, X, Trash2, Activity, ArrowDownLeft, ArrowUpRight, CheckCircle, MessageCircle, Star, Gift, Download, Coins, Briefcase,
-  BadgeCheck, RotateCcw} from "lucide-react";
+  BadgeCheck, RotateCcw, Gamepad2} from "lucide-react";
 import { useAuth } from "../components/AuthProvider";
 import React, { useState, useEffect } from "react";
 import { triggerRealisticConfetti } from "../lib/confetti";
@@ -1417,30 +1417,25 @@ export function Dashboard() {
             </div>
           </motion.div>
 
-          {/* Salary */}
+          {/* Top-Up (Replaces Salary) */}
           <motion.div
             whileTap={{ scale: 0.95 }}
             onClick={() => {
               playTapSound();
-              setComingSoonFeature({
-                title: "Monthly Salary",
-                desc: 'একটি নির্দিষ্ট সংখ্যক রেফার ও টাস্ক সম্পন্নকারী বিশ্বস্ত ইউজারদের জন্য মাসিক নিয়মিত "ফিক্সড স্যালারি" বা ফিক্সড বেতন ফিচার আসছে! কাজের ধারাবাহিকতা বজায় রাখুন।',
-                icon: <Banknote className="w-7 h-7" />,
-                color: "from-[#D4A017] to-[#8A6508]",
-              });
+              window.open("https://rushtopbd.shop", "_blank", "noopener,noreferrer");
             }}
-            className="relative flex items-center gap-3 p-3 sm:p-4 rounded-[24px] border border-[#3D3215] bg-[#101010] opacity-60 transition-all cursor-pointer group"
+            className="relative flex items-center gap-3 p-3 sm:p-4 rounded-[24px] border border-[#3D3215] bg-[#101010] hover:bg-[#1A1508] hover:border-[#FACC15]/60 transition-all cursor-pointer group shadow-sm"
           >
-            <div className="w-10 h-10 sm:w-12 sm:h-12 flex-shrink-0 rounded-[16px] flex items-center justify-center bg-[#1C1C1C] text-[#737373]">
-              <Banknote className="w-5 h-5 sm:w-6 sm:h-6" strokeWidth={1.5} />
+            <div className="w-10 h-10 sm:w-12 sm:h-12 flex-shrink-0 rounded-[16px] flex items-center justify-center bg-gradient-to-br from-[#8A6508]/30 to-[#D4A017]/20 border border-[#D4A017]/40 text-[#FACC15] group-hover:scale-105 transition-transform shadow-inner">
+              <Gamepad2 className="w-5 h-5 sm:w-6 sm:h-6 text-[#FACC15]" strokeWidth={1.75} />
             </div>
             <div className="flex flex-col justify-center min-w-0 pr-2">
-              <span className="text-[11px] sm:text-[13px] font-bold truncate text-[#737373]">
-                {t("salary")}
+              <span className="text-[11px] sm:text-[13px] font-bold truncate text-[#FFFFFF] group-hover:text-[#FACC15] transition-colors">
+                Top-Up
               </span>
-              <span className="text-[9px] font-black text-rose-500 uppercase tracking-widest flex items-center gap-1 mt-0.5">
-                <div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></div>
-                OFFLINE
+              <span className="text-[9px] font-black text-[#FACC15] uppercase tracking-widest flex items-center gap-1 mt-0.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-[#FACC15] animate-pulse"></div>
+                LIVE NOW
               </span>
             </div>
           </motion.div>
