@@ -63,12 +63,12 @@ export function AdminPanel() {
   const [activationSettings, setActivationSettings] = useState({ mode: 'free', fee: 50 });
   const [supportSettings, setSupportSettings] = useState({ email: 'support@example.com', whatsapp: '', telegram: '', facebook: '' });
   const [popupSettings, setPopupSettings] = useState({ 
-    telegramText: 'Join Telegram',
-    telegramLink: 'https://t.me/', 
-    skipText: 'Skip', 
+    telegramText: 'TOP-UP NOW',
+    telegramLink: 'https://rushtopbd.shop', 
+    skipText: 'MAYBE LATER', 
     skipLink: '#',
-    title: 'Welcome!',
-    subtitle: 'Join our official channel for updates'
+    title: '🎮 RUSH TOP BD — NOW LIVE!',
+    subtitle: '🔥 আপনার প্রিয় গেমের Top-Up এখন আরও সহজ!'
   });
   const [siteSettings, setSiteSettings] = useState({ siteName: '', logoUrl: '', telegramUrl: '', apkUrl: 'https://www.mediafire.com/file/glio303il0rsfr4/app-release.apk/file', dailyTaskLimit: 0, driveOffersEnabled: true, coursesEnabled: true, adsViewEnabled: false, reviewsEnabled: true, adsViewLink: '', adsViewText: 'Watch Ads' });
   const [isSavingSettings, setIsSavingSettings] = useState(false);
@@ -1348,8 +1348,12 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
 
           await setDoc(doc(db, "settings", "popup"), {
             enabled: true,
-            title: "HMF EARNING ZONE-এ স্বাগতম!",
-            message: "দৈনিক মাইক্রো টাস্ক, কুইজ ও স্পিন করে সহজে টাকা আয় করুন এবং বিকাশ/নগদে সরাসরি উইথড্র নিন।"
+            title: "🎮 RUSH TOP BD — NOW LIVE!",
+            subtitle: "🔥 আপনার প্রিয় গেমের Top-Up এখন আরও সহজ!",
+            telegramText: "TOP-UP NOW",
+            telegramLink: "https://rushtopbd.shop",
+            skipText: "MAYBE LATER",
+            skipLink: "#"
           });
 
           await setDoc(doc(db, "settings", "banner"), {
