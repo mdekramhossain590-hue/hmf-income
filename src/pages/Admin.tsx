@@ -1101,12 +1101,41 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
       console.warn("Failed wiping user submissions:", subErr);
     }
 
+    // Preserve or generate myReferCode
+    let referCodeToKeep = profile?.myReferCode;
+    try {
+      const uSnap = await getDoc(doc(db, "users", uid));
+      if (uSnap.exists() && uSnap.data().myReferCode) {
+        referCodeToKeep = uSnap.data().myReferCode;
+      }
+    } catch (e: any) {}
+    if (!referCodeToKeep || !/^[A-Z]{2}[0-9]{6}$/.test(referCodeToKeep)) {
+      const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      const numbers = '0123456789';
+      let prefix = '';
+      const name = profile?.fullName || profile?.name || 'HE';
+      const parts = name.trim().split(/\s+/);
+      if (parts.length >= 2 && parts[0][0] && parts[1][0] && /[a-zA-Z]/.test(parts[0][0]) && /[a-zA-Z]/.test(parts[1][0])) {
+        prefix = (parts[0][0] + parts[1][0]).toUpperCase();
+      } else {
+        for (let i = 0; i < 2; i++) {
+          prefix += letters.charAt(Math.floor(Math.random() * letters.length));
+        }
+      }
+      let digits = '';
+      for (let i = 0; i < 6; i++) {
+        digits += numbers.charAt(Math.floor(Math.random() * numbers.length));
+      }
+      referCodeToKeep = `${prefix}${digits}`;
+    }
+
     // Reset user doc balance and stats to strictly 0 (no merge: true, so no old residual map properties remain)
     await setDoc(doc(db, "users", uid), {
       email: userEmail,
       role: 'admin',
       fullName: profile?.fullName || profile?.name || 'Administrator',
       name: profile?.name || profile?.fullName || 'Administrator',
+      myReferCode: referCodeToKeep,
       balance: 0,
       balances: {
         main: 0,

@@ -1148,7 +1148,7 @@ export function Dashboard() {
                   {t("member_id")}
                 </p>
                 <p className="text-xs sm:text-[14px] font-mono font-bold tracking-[0.1em] text-[#FACC15]">
-                  {profile?.myReferCode || "####"}
+                  {profile?.myReferCode || "HE000001"}
                 </p>
               </div>
             </div>
@@ -1585,7 +1585,9 @@ export function Dashboard() {
               {t("code")}:
             </span>
             <span className="font-mono font-bold text-[#FACC15] flex-1 truncate">
-              {profile?.myReferCode || "Unavailable"}
+              {profile?.myReferCode || (
+                <span className="text-xs text-[#737373] animate-pulse">Generating...</span>
+              )}
             </span>
             <button
               onClick={() => handleCopy(profile?.myReferCode || "", "code")}
@@ -1603,10 +1605,10 @@ export function Dashboard() {
             <span className="text-xs text-[#A3A3A3] font-medium whitespace-nowrap min-w-[50px]">
               {t("link")}:
             </span>
-            <span className="text-xs text-[#A3A3A3] flex-1 truncate opacity-90">
+            <span className="text-xs text-[#A3A3A3] flex-1 truncate opacity-90 select-all">
               {profile?.myReferCode
                 ? `${window.location.origin}/register?ref=${profile.myReferCode}`
-                : "Unavailable"}
+                : <span className="text-xs text-[#737373] animate-pulse">Generating link...</span>}
             </span>
             <button
               onClick={() =>

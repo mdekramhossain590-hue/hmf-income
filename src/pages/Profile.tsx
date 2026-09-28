@@ -59,8 +59,8 @@ export function Profile() {
   };
 
   useEffect(() => {
-    if (profile?.myReferCode) {
-      const isCorrectFormat = /^[A-Z]{2}[0-9]{6}$/.test(profile.myReferCode);
+    if (profile) {
+      const isCorrectFormat = profile.myReferCode && /^[A-Z]{2}[0-9]{6}$/.test(profile.myReferCode);
       if (!isCorrectFormat) {
         upgradeReferralCode();
       }

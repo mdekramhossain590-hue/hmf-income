@@ -109,6 +109,42 @@ const AuthContext = createContext<AuthContextType>({
   setSiteSettings: () => {},
 });
 
+export const generateUserReferralCode = (fullName?: string): string => {
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const numbers = '0123456789';
+  let prefix = '';
+  const trimmed = (fullName || '').trim();
+  const parts = trimmed.split(/\s+/);
+  if (parts.length >= 2 && parts[0][0] && parts[1][0] && /[a-zA-Z]/.test(parts[0][0]) && /[a-zA-Z]/.test(parts[1][0])) {
+    prefix = (parts[0][0] + parts[1][0]).toUpperCase();
+  } else if (trimmed.length >= 2 && /[a-zA-Z]/.test(trimmed[0]) && /[a-zA-Z]/.test(trimmed[1])) {
+    prefix = (trimmed[0] + trimmed[1]).toUpperCase();
+  } else {
+    for (let i = 0; i < 2; i++) {
+      prefix += letters.charAt(Math.floor(Math.random() * letters.length));
+    }
+  }
+  let digits = '';
+  for (let i = 0; i < 6; i++) {
+    digits += numbers.charAt(Math.floor(Math.random() * numbers.length));
+  }
+  return `${prefix}${digits}`;
+};
+
+const ensureValidReferralCode = async (uid: string, data: any): Promise<any> => {
+  if (!data) return data;
+  if (!data.myReferCode || !/^[A-Z]{2}[0-9]{6}$/.test(data.myReferCode)) {
+    const newReferCode = generateUserReferralCode(data.fullName || data.name);
+    data.myReferCode = newReferCode;
+    try {
+      await updateDoc(doc(db, 'users', uid), { myReferCode: newReferCode });
+    } catch (e: any) {
+      console.warn("Could not persist auto-generated refer code:", e?.message || e);
+    }
+  }
+  return data;
+};
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -144,7 +180,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const docSnap = await getCachedDoc(doc(db, 'users', targetUid), true);
       if (docSnap.exists()) {
-        const data = docSnap.data() as UserProfile;
+        let data = docSnap.data() as UserProfile;
+        data = await ensureValidReferralCode(targetUid, data);
         setProfile(prev => {
           if (!prev) return data;
           return { ...data, deviceId: data.deviceId || prev.deviceId };
@@ -256,9 +293,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await refreshProfile(user.uid);
         
         try {
-          unsubscribeProfile = onSnapshot(doc(db, 'users', user.uid), (docSnap: any) => {
+          unsubscribeProfile = onSnapshot(doc(db, 'users', user.uid), async (docSnap: any) => {
             if (docSnap.exists()) {
-              const data = docSnap.data();
+              let data = docSnap.data();
+              data = await ensureValidReferralCode(user.uid, data);
               setProfile(prev => {
                 if (!prev) return data;
                 return { ...data, deviceId: data.deviceId || prev.deviceId };
