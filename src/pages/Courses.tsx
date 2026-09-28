@@ -145,23 +145,23 @@ export function Courses() {
   });
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white pb-32">
+    <div className="min-h-screen bg-[#090909] text-white pb-32">
       {/* Dynamic Glassy Header */}
-      <div className="sticky top-0 z-40 bg-white/85 dark:bg-slate-900/85 backdrop-blur-2xl border-b border-slate-100 dark:border-slate-800/60 px-4 py-4 transition-colors">
+      <div className="sticky top-0 z-40 bg-[#090909]/90 backdrop-blur-2xl border-b border-[#3D3215] px-4 py-4 transition-colors">
         <div className="max-w-md mx-auto flex items-center justify-between">
           <button 
             onClick={() => navigate('/')}
-            className="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:scale-95 transition-transform"
+            className="w-10 h-10 rounded-2xl bg-[#151515] border border-[#3D3215] flex items-center justify-center text-[#A3A3A3] hover:text-[#FACC15] hover:scale-95 transition-all"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
           
           <div className="text-center flex-1">
-            <h1 className="text-base font-black tracking-tight font-display flex items-center justify-center gap-1.5 uppercase leading-none">
-              <BookOpen className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+            <h1 className="text-base font-black tracking-tight font-display flex items-center justify-center gap-1.5 uppercase leading-none text-white">
+              <BookOpen className="w-4 h-4 text-[#FACC15]" />
               কোর্স ও হেল্প সেন্টার
             </h1>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">LEARN & EARN TUTORIALS</p>
+            <p className="text-[10px] text-[#A3A3A3] font-bold uppercase tracking-widest mt-0.5">LEARN & EARN TUTORIALS</p>
           </div>
 
           <div className="w-10"></div>
@@ -170,32 +170,32 @@ export function Courses() {
 
       {/* Hero Welcome banner inside limit container */}
       <div className="max-w-md mx-auto px-4 mt-5 space-y-5">
-        <div className="bg-gradient-to-br from-purple-600 via-indigo-650 to-indigo-800 rounded-[28px] p-6 text-white relative overflow-hidden shadow-xl shadow-indigo-500/10 dark:shadow-none">
-          <div className="absolute -top-12 -right-12 w-32 h-32 bg-white/5 rounded-full blur-xl"></div>
-          <div className="absolute -bottom-10 -left-10 w-24 h-24 bg-indigo-500/10 rounded-full blur-lg"></div>
+        <div className="bg-gradient-to-br from-[#1C1C1C] via-[#151515] to-[#101010] border border-[#3D3215] rounded-[28px] p-6 text-white relative overflow-hidden shadow-xl shadow-black/50">
+          <div className="absolute -top-12 -right-12 w-32 h-32 bg-[#D4A017]/10 rounded-full blur-xl"></div>
+          <div className="absolute -bottom-10 -left-10 w-24 h-24 bg-[#D4A017]/5 rounded-full blur-lg"></div>
           
-          <div className="flex items-center gap-2 mb-2 bg-white/10 dark:bg-white/5 backdrop-blur-md px-3 py-1 rounded-full border border-white/20 w-fit">
-            <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
-            <span className="text-[9px] font-black tracking-wider uppercase">Official Training Gide</span>
+          <div className="flex items-center gap-2 mb-2 bg-[#D4A017]/15 border border-[#D4A017]/30 text-[#FACC15] px-3 py-1 rounded-full w-fit">
+            <Sparkles className="w-3.5 h-3.5 text-[#FACC15] animate-pulse" />
+            <span className="text-[9px] font-black tracking-wider uppercase">Official Training Guide</span>
           </div>
           
-          <h2 className="text-xl sm:text-2xl font-black font-display tracking-tight leading-tight">
+          <h2 className="text-xl sm:text-2xl font-black font-display tracking-tight leading-tight text-white">
             সহজ গাইডলাইন শিখে <br/>দ্বিগুণ আর্নিং করুন!
           </h2>
-          <p className="text-[11px] text-indigo-100 font-medium leading-relaxed mt-2">
+          <p className="text-[11px] text-[#A3A3A3] font-medium leading-relaxed mt-2">
             কিভাবে নির্ভুল উপায়ে কাজ সম্পন্ন করবেন, কিভাবে দ্রুত পেমেন্ট হাতে পাবেন তা আমাদের মাল্টিপল ভিডিও টিউটোরিয়ালগুলোর মাধ্যমে ক্লিয়ার হয়ে নিন।
           </p>
         </div>
 
         {/* Search Bar Input */}
         <div className="relative">
-          <Search className="absolute left-4.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <Search className="absolute left-4.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#737373]" />
           <input 
             type="text" 
             placeholder="সার্চ করুন (টাস্ক, উইথড্র, কমিশন...)" 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-white dark:bg-slate-900 border-none pl-12 pr-4 py-3.5 rounded-2xl text-xs font-semibold ring-1 ring-slate-100 dark:ring-slate-800 shadow-sm focus:ring-2 focus:ring-purple-555 transition-all outline-none text-slate-800 dark:text-white dark:placeholder-slate-500" 
+            className="w-full bg-[#151515] border border-[#3D3215] pl-12 pr-4 py-3.5 rounded-2xl text-xs font-semibold shadow-sm focus:border-[#FACC15] focus:ring-1 focus:ring-[#FACC15] transition-all outline-none text-white placeholder-[#737373]" 
           />
         </div>
 
@@ -214,8 +214,8 @@ export function Courses() {
                 onClick={() => setSelectedCategory(tab.id as any)}
                 className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all whitespace-nowrap shrink-0 border
                   ${IsActive 
-                    ? 'bg-purple-600 text-white border-purple-600 shadow-lg shadow-purple-600/15' 
-                    : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 border-slate-100 dark:border-slate-800/80 hover:bg-slate-50'
+                    ? 'bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] border-[#FACC15] shadow-lg shadow-[#D4A017]/20' 
+                    : 'bg-[#151515] text-[#A3A3A3] border-[#3D3215] hover:text-white hover:border-[#D4A017]/50'
                   }`}
               >
                 <tab.icon className="w-3.5 h-3.5" />
@@ -228,22 +228,22 @@ export function Courses() {
         {/* Courses & Tutorials list */}
         {loading ? (
           <div className="py-20 flex flex-col items-center justify-center gap-3">
-            <div className="w-8 h-8 border-4 border-purple-250 border-t-purple-600 rounded-full animate-spin"></div>
-            <p className="text-slate-405 text-xs font-black uppercase tracking-wider">টপিকগুলো লোড হচ্ছে...</p>
+            <div className="w-8 h-8 border-4 border-[#3D3215] border-t-[#FACC15] rounded-full animate-spin"></div>
+            <p className="text-[#A3A3A3] text-xs font-black uppercase tracking-wider">টপিকগুলো লোড হচ্ছে...</p>
           </div>
         ) : filteredCourses.length === 0 ? (
-          <div className="bg-white dark:bg-slate-900 rounded-[28px] p-8 text-center border border-slate-100 dark:border-slate-800 shadow-sm">
-            <div className="w-16 h-16 bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <div className="bg-[#151515] rounded-[28px] p-8 text-center border border-[#3D3215] shadow-sm">
+            <div className="w-16 h-16 bg-[#101010] border border-[#3D3215] text-[#FACC15] rounded-2xl flex items-center justify-center mx-auto mb-4">
               <BookOpen className="w-8 h-8" />
             </div>
-            <h3 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider">কোনো কোর্স পাওয়া যায়নি</h3>
-            <p className="text-[11px] text-slate-400 font-bold uppercase tracking-tight mt-1.5 leading-relaxed">
+            <h3 className="text-sm font-black text-white uppercase tracking-wider">কোনো কোর্স পাওয়া যায়নি</h3>
+            <p className="text-[11px] text-[#A3A3A3] font-bold uppercase tracking-tight mt-1.5 leading-relaxed">
               অনুসন্ধান মেলেনি বা এখনো কোনো টিউটোরিয়াল আপডেট করা হয়নি।
             </p>
             {profile?.role === 'admin' && courses.length === 0 && (
               <button 
                 onClick={handleImportSampleCourses}
-                className="mt-5 inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-550 text-white text-[10px] font-black uppercase tracking-widest px-4 py-3 rounded-xl shadow-lg shadow-purple-600/10 transition-all"
+                className="mt-5 inline-flex items-center gap-2 bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] text-[10px] font-black uppercase tracking-widest px-4 py-3 rounded-xl shadow-lg shadow-[#D4A017]/20 transition-all cursor-pointer"
               >
                 নমুনা কোর্সসমূহ ইম্পোর্ট করুন
               </button>
@@ -259,17 +259,17 @@ export function Courses() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95 }}
                   transition={{ delay: idx * 0.05 }}
-                  className="bg-white dark:bg-slate-900 rounded-[24px] overflow-hidden border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-md transition-all group flex flex-col"
+                  className="bg-[#151515] rounded-[24px] overflow-hidden border border-[#3D3215] hover:border-[#D4A017]/50 shadow-sm hover:shadow-md transition-all group flex flex-col"
                 >
                   {/* Thumbnail Cover image container with play badge button */}
-                  <div className="aspect-video w-full relative overflow-hidden bg-slate-100 dark:bg-slate-950 border-b border-slate-50 dark:border-slate-900">
+                  <div className="aspect-video w-full relative overflow-hidden bg-[#101010] border-b border-[#3D3215]">
                     <img 
                       src={course.thumbnailUrl || "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=600&auto=format&fit=crop"} 
                       alt={course.title} 
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />
-                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/70 via-slate-950/30 to-transparent p-4 flex justify-between items-end">
-                      <span className="px-2.5 py-1 rounded-lg bg-purple-600/90 text-white text-[9px] font-black uppercase tracking-widest shadow-sm">
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#090909]/90 via-[#090909]/40 to-transparent p-4 flex justify-between items-end">
+                      <span className="px-2.5 py-1 rounded-lg bg-[#101010]/90 border border-[#3D3215] text-[#FACC15] text-[9px] font-black uppercase tracking-widest shadow-sm">
                         {course.category}
                       </span>
                     </div>
@@ -277,7 +277,7 @@ export function Courses() {
                     {/* Play floating action button over center */}
                     <button 
                       onClick={() => setSelectedCourse(course)}
-                      className="absolute inset-0 m-auto w-12 h-12 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md text-purple-600 dark:text-purple-400 rounded-full flex items-center justify-center shadow-lg hover:scale-110 active:scale-95 transition-transform cursor-pointer"
+                      className="absolute inset-0 m-auto w-12 h-12 bg-[#151515]/90 border border-[#3D3215] text-[#FACC15] rounded-full flex items-center justify-center shadow-lg hover:bg-[#D4A017] hover:text-[#090909] hover:scale-110 active:scale-95 transition-all cursor-pointer"
                     >
                       <Play className="w-5 h-5 fill-current ml-0.5" />
                     </button>
@@ -286,10 +286,10 @@ export function Courses() {
                   {/* Body textual content */}
                   <div className="p-5 flex-1 flex flex-col justify-between">
                     <div className="space-y-1.5 mb-4">
-                      <h3 className="text-xs sm:text-sm font-black text-slate-800 dark:text-white leading-snug group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
+                      <h3 className="text-xs sm:text-sm font-black text-white leading-snug group-hover:text-[#FACC15] transition-colors">
                         {course.title}
                       </h3>
-                      <p className="text-[10px] sm:text-[11px] text-slate-400 font-semibold line-clamp-2 leading-relaxed">
+                      <p className="text-[10px] sm:text-[11px] text-[#A3A3A3] font-semibold line-clamp-2 leading-relaxed">
                         {course.description}
                       </p>
                     </div>
@@ -297,7 +297,7 @@ export function Courses() {
                     <div className="flex gap-2">
                       <button 
                         onClick={() => setSelectedCourse(course)}
-                        className="flex-1 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 hover:bg-slate-100 hover:dark:bg-slate-800/80 text-purple-600 dark:text-purple-400 text-[10px] font-black uppercase tracking-widest border border-slate-100/40 dark:border-slate-800/50 transition-all flex items-center justify-center gap-1"
+                        className="flex-1 py-2.5 rounded-xl bg-[#101010] hover:bg-[#1C1C1C] text-[#FACC15] text-[10px] font-black uppercase tracking-widest border border-[#3D3215] transition-all flex items-center justify-center gap-1 cursor-pointer"
                       >
                         বিস্তারিত পড়ুন
                         <ChevronRight className="w-3.5 h-3.5" />
@@ -308,7 +308,7 @@ export function Courses() {
                           href={course.videoLink}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="px-3.5 rounded-xl bg-purple-600 hover:bg-purple-550 text-white flex items-center justify-center shadow-md shadow-purple-600/10 transition-all"
+                          className="px-3.5 rounded-xl bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] flex items-center justify-center shadow-md shadow-[#D4A017]/20 transition-all hover:opacity-95"
                         >
                           <ExternalLink className="w-3.5 h-3.5" />
                         </a>
@@ -331,17 +331,17 @@ export function Courses() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setSelectedCourse(null)}
-              className="fixed inset-0 bg-slate-950/75 z-55 backdrop-blur-md"
+              className="fixed inset-0 bg-black/80 z-55 backdrop-blur-md"
             />
             
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="fixed inset-x-4 bottom-6 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:top-1/2 md:-translate-y-1/2 md:bottom-auto md:w-full md:max-w-md bg-white dark:bg-slate-900 rounded-[30px] overflow-hidden shadow-2xl z-55 border border-slate-100 dark:border-slate-800/80"
+              className="fixed inset-x-4 bottom-6 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:top-1/2 md:-translate-y-1/2 md:bottom-auto md:w-full md:max-w-md bg-[#151515] rounded-[30px] overflow-hidden shadow-2xl z-55 border border-[#3D3215]"
             >
               {/* Cover cover frame layout */}
-              <div className="aspect-video w-full relative bg-slate-100 dark:bg-slate-950 border-b border-slate-100 dark:border-slate-850">
+              <div className="aspect-video w-full relative bg-[#101010] border-b border-[#3D3215]">
                 <img 
                   src={selectedCourse.thumbnailUrl} 
                   alt={selectedCourse.title} 
@@ -349,14 +349,14 @@ export function Courses() {
                 />
                 
                 {/* Floating watch action overlay */}
-                <div className="absolute inset-0 bg-black/45 flex items-center justify-center">
+                <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                   <a 
                     href={selectedCourse.videoLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 px-5 py-2.5 bg-white text-slate-900 text-[10px] font-black uppercase tracking-widest rounded-full shadow-lg active:scale-95 hover:scale-105 transition-all"
+                    className="flex items-center gap-1.5 px-5 py-2.5 bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] text-[10px] font-black uppercase tracking-widest rounded-full shadow-lg active:scale-95 hover:scale-105 transition-all"
                   >
-                    <Play className="w-3.5 h-3.5 fill-current text-purple-600" />
+                    <Play className="w-3.5 h-3.5 fill-current text-[#090909]" />
                     ভিডিও টিউটোরিয়াল দেখুন
                   </a>
                 </div>
@@ -365,45 +365,45 @@ export function Courses() {
               {/* textual layout sheets list */}
               <div className="p-6 space-y-4">
                 <div className="space-y-1">
-                  <span className="px-2.5 py-1 bg-purple-50 dark:bg-purple-950/30 text-purple-600 dark:text-purple-400 border border-purple-100/30 rounded-lg text-[9px] font-black uppercase tracking-widest">
+                  <span className="px-2.5 py-1 bg-[#101010] text-[#FACC15] border border-[#3D3215] rounded-lg text-[9px] font-black uppercase tracking-widest">
                     {selectedCourse.category}
                   </span>
-                  <h3 className="text-sm sm:text-base font-black text-slate-800 dark:text-white leading-snug pt-1.5">
+                  <h3 className="text-sm sm:text-base font-black text-white leading-snug pt-1.5">
                     {selectedCourse.title}
                   </h3>
                 </div>
 
-                <div className="bg-slate-50 dark:bg-slate-950/30 p-4 rounded-2xl border border-slate-100 dark:border-slate-850 text-slate-600 dark:text-slate-350 text-xs sm:text-[13px] leading-relaxed font-semibold max-h-[140px] overflow-y-auto">
+                <div className="bg-[#101010] p-4 rounded-2xl border border-[#3D3215] text-[#A3A3A3] text-xs sm:text-[13px] leading-relaxed font-semibold max-h-[140px] overflow-y-auto">
                   {selectedCourse.description}
                 </div>
 
                 {/* Multiple custom sub-tutorials/options inside the Course */}
                 {selectedCourse.items && selectedCourse.items.length > 0 && (
-                  <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-                    <h4 className="text-[11px] font-black text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-1.5 mb-2">
-                      <Layers className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                  <div className="space-y-2 pt-2 border-t border-[#3D3215]">
+                    <h4 className="text-[11px] font-black text-white uppercase tracking-wider flex items-center gap-1.5 mb-2">
+                      <Layers className="w-3.5 h-3.5 text-[#FACC15]" />
                       আলাদা আলাদা অপশন / বিষয়সমূহ ({selectedCourse.items.length})
                     </h4>
                     <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
                       {selectedCourse.items.map((opt, oIdx) => (
                         <div 
                           key={oIdx} 
-                          className="bg-slate-55/40 dark:bg-slate-950/20 p-2.5 rounded-xl border border-slate-100 dark:border-slate-850/80 flex items-start gap-2.5 hover:border-purple-300 dark:hover:border-purple-900 transition-all"
+                          className="bg-[#101010] p-2.5 rounded-xl border border-[#3D3215] flex items-start gap-2.5 hover:border-[#D4A017]/50 transition-all"
                         >
                           <img 
                             src={opt.thumbnailUrl || "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=600&auto=format&fit=crop"} 
                             alt="" 
-                            className="w-14 h-10 object-cover rounded-lg bg-slate-100 shrink-0 border border-slate-200/40 dark:border-slate-850"
+                            className="w-14 h-10 object-cover rounded-lg bg-[#151515] shrink-0 border border-[#3D3215]"
                           />
                           <div className="min-w-0 flex-1">
-                            <h5 className="text-[11px] font-black text-slate-850 dark:text-slate-150 line-clamp-1 leading-normal">{opt.title}</h5>
-                            <p className="text-[9px] text-slate-400 font-bold line-clamp-2 mt-0.5 leading-relaxed">{opt.description}</p>
+                            <h5 className="text-[11px] font-black text-white line-clamp-1 leading-normal">{opt.title}</h5>
+                            <p className="text-[9px] text-[#A3A3A3] font-bold line-clamp-2 mt-0.5 leading-relaxed">{opt.description}</p>
                             {opt.videoLink && (
                               <a 
                                 href={opt.videoLink}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-[9px] font-black text-purple-600 dark:text-purple-400 hover:underline mt-1 uppercase"
+                                className="inline-flex items-center gap-1 text-[9px] font-black text-[#FACC15] hover:underline mt-1 uppercase"
                               >
                                 <Play className="w-2.5 h-2.5 fill-current" />
                                 প্লে ভিডিও বা লিংক
@@ -423,7 +423,7 @@ export function Courses() {
                       href={selectedCourse.videoLink}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="w-full py-3.5 rounded-[18px] text-white text-[10px] font-black uppercase tracking-widest shadow-lg shadow-purple-600/10 bg-purple-600 hover:bg-purple-550 transition-all text-center flex items-center justify-center gap-1"
+                      className="w-full py-3.5 rounded-[18px] text-[#090909] text-[10px] font-black uppercase tracking-widest shadow-lg shadow-[#D4A017]/20 bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] hover:opacity-95 transition-all text-center flex items-center justify-center gap-1"
                     >
                       টিউটোরিয়াল ভিডিও লিংক (Link)
                       <ExternalLink className="w-3.5 h-3.5" />
@@ -432,7 +432,7 @@ export function Courses() {
 
                   <button 
                     onClick={() => setSelectedCourse(null)}
-                    className="w-full py-3 rounded-[16px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-700 hover:dark:text-slate-300 text-[10px] font-black uppercase tracking-wider transition-colors"
+                    className="w-full py-3 rounded-[16px] bg-[#1C1C1C] border border-[#3D3215] text-[#A3A3A3] hover:text-white text-[10px] font-black uppercase tracking-wider transition-colors cursor-pointer"
                   >
                     ডায়ালগ উইন্ডো অফ করুন
                   </button>

@@ -5,34 +5,34 @@ import { useNavigate } from 'react-router-dom';
 
 const steps = [
   {
-    title: "Welcome to HMF Income!",
+    title: "Welcome to HMF EARNING ZONE!",
     description: "Your platform to earn real money by completing simple tasks, playing games, and referring friends.",
     icon: Target,
-    color: "bg-blue-500 shadow-blue-500/40"
+    color: "bg-gradient-to-tr from-[#8A6508] via-[#D4A017] to-[#FACC15] shadow-[#D4A017]/40 text-[#090909]"
   },
   {
     title: "Complete Micro Jobs",
     description: "Browse the 'Earn Money' section, follow the simple instructions, and submit proof to get paid.",
     icon: CheckCircle,
-    color: "bg-green-500 shadow-green-500/40"
+    color: "bg-gradient-to-tr from-[#8A6508] via-[#D4A017] to-[#FACC15] shadow-[#D4A017]/40 text-[#090909]"
   },
   {
     title: "Play Daily Games",
     description: "Test your luck with the Spin Wheel or solve Math Quizzes to earn extra bonus points every day.",
     icon: Gift,
-    color: "bg-purple-500 shadow-purple-500/40"
+    color: "bg-gradient-to-tr from-[#8A6508] via-[#D4A017] to-[#FACC15] shadow-[#D4A017]/40 text-[#090909]"
   },
   {
     title: "Invite & Earn",
     description: "Share your referral code! Get a fixed bonus and a lifetime percentage commission from their task earnings.",
     icon: Users,
-    color: "bg-amber-500 shadow-amber-500/40"
+    color: "bg-gradient-to-tr from-[#8A6508] via-[#D4A017] to-[#FACC15] shadow-[#D4A017]/40 text-[#090909]"
   },
   {
     title: "Withdraw Instantly",
     description: "Reach the minimum balance and cash out directly to your bKash, Nagad, or Rocket account.",
     icon: Wallet,
-    color: "bg-teal-500 shadow-teal-500/40"
+    color: "bg-gradient-to-tr from-[#8A6508] via-[#D4A017] to-[#FACC15] shadow-[#D4A017]/40 text-[#090909]"
   }
 ];
 
@@ -75,16 +75,16 @@ export function Onboarding() {
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#090909]/80 backdrop-blur-sm">
         <motion.div 
           initial={{ opacity: 0, scale: 0.95, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
-          className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-[360px] overflow-hidden shadow-2xl relative"
+          className="bg-[#151515] border border-[#3D3215] rounded-3xl w-full max-w-[360px] overflow-hidden shadow-2xl relative"
         >
           <button 
             onClick={handleClose}
-            className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 z-10 p-1"
+            className="absolute top-4 right-4 text-[#737373] hover:text-[#FFFFFF] z-10 p-1"
           >
             <X className="w-5 h-5" />
           </button>
@@ -99,14 +99,14 @@ export function Onboarding() {
                 transition={{ duration: 0.2 }}
                 className="flex flex-col items-center"
               >
-                <div className={`w-20 h-20 rounded-full ${steps[currentStep].color} shadow-lg flex items-center justify-center text-white mb-6 transition-colors`}>
-                  <StepIcon className="w-10 h-10" />
+                <div className={`w-20 h-20 rounded-full ${steps[currentStep].color} shadow-lg flex items-center justify-center mb-6 transition-colors`}>
+                  <StepIcon className="w-10 h-10 text-[#090909]" />
                 </div>
                 
-                <h3 className="text-xl font-bold mb-3 text-gray-900 dark:text-white">
+                <h3 className="text-xl font-bold mb-3 text-[#FFFFFF]">
                   {steps[currentStep].title}
                 </h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed min-h-[60px]">
+                <p className="text-sm text-[#A3A3A3] leading-relaxed min-h-[60px]">
                   {steps[currentStep].description}
                 </p>
               </motion.div>
@@ -118,7 +118,7 @@ export function Onboarding() {
               {steps.map((_, i) => (
                 <div 
                   key={i} 
-                  className={`h-2 rounded-full transition-all duration-300 ${i === currentStep ? 'w-6 bg-[#0D47A1] dark:bg-blue-500' : 'w-2 bg-gray-200 dark:bg-slate-700'}`}
+                  className={`h-2 rounded-full transition-all duration-300 ${i === currentStep ? 'w-6 bg-[#FACC15]' : 'w-2 bg-[#3D3215]'}`}
                 />
               ))}
             </div>
@@ -128,14 +128,14 @@ export function Onboarding() {
                 {currentStep > 0 && (
                   <button 
                     onClick={prevStep}
-                    className="flex-1 py-3 rounded-xl font-bold bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-600 transition active:scale-95 text-sm"
+                    className="flex-1 py-3 rounded-xl font-bold bg-[#1C1C1C] border border-[#3D3215] text-[#A3A3A3] hover:text-[#FFFFFF] transition active:scale-95 text-sm"
                   >
                     Back
                   </button>
                 )}
                 <button 
                   onClick={nextStep}
-                  className="flex-[2] py-3 rounded-xl font-bold bg-[#0D47A1] text-white shadow-lg shadow-blue-900/20 dark:shadow-blue-500/30 hover:opacity-90 transition active:scale-95 text-sm"
+                  className="flex-[2] py-3 rounded-xl font-black bg-gradient-to-r from-[#D4A017] to-[#FACC15] text-[#090909] shadow-lg shadow-[#D4A017]/25 hover:opacity-95 transition active:scale-95 text-sm"
                 >
                   {currentStep === steps.length - 1 ? "Let's Earn!" : "Next"}
                 </button>
@@ -143,7 +143,7 @@ export function Onboarding() {
               {currentStep < steps.length - 1 && (
                 <button 
                   onClick={handleClose}
-                  className="py-2 text-xs font-semibold text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                  className="py-2 text-xs font-semibold text-[#737373] hover:text-[#A3A3A3] transition-colors"
                 >
                   Skip Tutorial
                 </button>

@@ -17,15 +17,15 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     if (!validLoads.length) return null;
 
     return (
-      <div className="bg-[#0f172a]/95 border border-slate-700 p-3 rounded-xl shadow-2xl backdrop-blur-md min-w-[140px] z-50">
-        <p className="text-slate-400 text-[10px] uppercase font-black tracking-widest mb-2 border-b border-slate-700/50 pb-2">{label}</p>
+      <div className="bg-[#151515]/95 border border-[#3D3215] p-3 rounded-xl shadow-2xl backdrop-blur-md min-w-[140px] z-50">
+        <p className="text-[#A3A3A3] text-[10px] uppercase font-black tracking-widest mb-2 border-b border-[#3D3215]/50 pb-2">{label}</p>
         <div className="space-y-1.5">
           {validLoads.map((entry: any, index: number) => (
             <div key={`item-${index}`} className="flex items-center justify-between gap-4">
               <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: entry.color }}>
                 {entry.name}
               </span>
-              <span className={`text-[12px] font-black font-mono ${entry.name === 'Withdrawal' ? 'text-rose-500' : 'text-emerald-400'}`}>
+              <span className={`text-[12px] font-black font-mono ${entry.name === 'Withdrawal' ? 'text-rose-400' : 'text-[#FACC15]'}`}>
                 {entry.name === 'Withdrawal' ? '-' : '+'}{entry.value}৳
               </span>
             </div>
@@ -345,89 +345,89 @@ export function Wallet() {
 
   return (
     <div className="pt-6 px-4 pb-24">
-      <h2 className="text-2xl font-display font-black mb-6 tracking-tight text-slate-800 dark:text-white text-center">{t('wallet')}</h2>
+      <h2 className="text-2xl font-display font-black mb-6 tracking-tight text-white text-center">{t('wallet')}</h2>
       
       <div className="mb-8 space-y-4">
-        <div className="bg-gradient-to-br from-indigo-900 to-slate-900 rounded-3xl p-6 shadow-2xl shadow-indigo-500/10 relative overflow-hidden border border-white/10">
-           <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/20 blur-3xl rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
-           <div className="absolute bottom-0 left-0 w-48 h-48 bg-blue-500/20 blur-3xl rounded-full translate-y-1/2 -translate-x-1/2 pointer-events-none"></div>
+        <div className="bg-gradient-to-br from-[#1C1C1C] to-[#101010] rounded-3xl p-6 shadow-2xl shadow-black/60 relative overflow-hidden border border-[#3D3215]">
+           <div className="absolute top-0 right-0 w-64 h-64 bg-[#D4A017]/10 blur-3xl rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
+           <div className="absolute bottom-0 left-0 w-48 h-48 bg-[#FACC15]/10 blur-3xl rounded-full translate-y-1/2 -translate-x-1/2 pointer-events-none"></div>
            
            <div className="relative z-10">
              <div className="flex justify-between items-start mb-6">
                <div className="flex items-center gap-2">
-                 <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center backdrop-blur-md border border-white/10">
-                   <WalletIcon className="w-5 h-5 text-indigo-300" />
+                 <div className="w-10 h-10 rounded-full bg-[#D4A017]/10 flex items-center justify-center backdrop-blur-md border border-[#3D3215]">
+                   <WalletIcon className="w-5 h-5 text-[#FACC15]" />
                  </div>
                  <div>
-                   <p className="text-[10px] font-bold text-indigo-200/70 uppercase tracking-widest">Main Balance</p>
-                   <p className="text-sm font-semibold text-white/90">Add Money Wallet</p>
+                   <p className="text-[10px] font-bold text-[#D4A017] uppercase tracking-widest">Main Balance</p>
+                   <p className="text-sm font-semibold text-[#A3A3A3]">Add Money Wallet</p>
                  </div>
                </div>
-               <button onClick={() => navigate('/deposit')} className="bg-indigo-500 hover:bg-indigo-400 text-white text-xs font-bold px-4 py-2 rounded-xl transition-all shadow-lg shadow-indigo-500/25 flex items-center gap-1.5 active:scale-95">
+               <button onClick={() => navigate('/deposit')} className="bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] text-xs font-bold px-4 py-2 rounded-xl transition-all shadow-lg shadow-[#D4A017]/20 flex items-center gap-1.5 active:scale-95">
                  Add Funds <ArrowDownLeft className="w-4 h-4" />
                </button>
              </div>
              
              <div className="flex items-end gap-2">
-               <span className="text-2xl font-bold text-white/50 mb-1">৳</span>
-               <h3 className="text-5xl font-display font-black tracking-tight text-white">{profile?.balances?.main?.toFixed(2) || '0.00'}</h3>
+               <span className="text-2xl font-bold text-[#FFE082] mb-1">৳</span>
+               <h3 className="text-5xl font-display font-black tracking-tight text-[#FACC15]">{profile?.balances?.main?.toFixed(2) || '0.00'}</h3>
              </div>
            </div>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-           <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-2xl p-4 shadow-sm border border-slate-100 dark:border-slate-700/50 hover:scale-[1.02] transition-transform duration-300">
+           <div className="bg-[#151515] rounded-2xl p-4 shadow-sm border border-[#3D3215] hover:scale-[1.02] transition-transform duration-300">
              <div className="flex items-center gap-2 mb-2">
-               <div className="w-6 h-6 rounded-md bg-emerald-500/10 flex items-center justify-center">
-                 <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
+               <div className="w-6 h-6 rounded-md bg-[#D4A017]/10 flex items-center justify-center">
+                 <TrendingUp className="w-3.5 h-3.5 text-[#FACC15]" />
                </div>
-               <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Bonus</p>
+               <p className="text-[10px] font-bold text-[#A3A3A3] uppercase tracking-widest">Bonus</p>
              </div>
-             <h3 className="text-xl font-display font-black tracking-tight text-slate-800 dark:text-white">৳ {profile?.balances?.bonus?.toFixed(2) || '0.00'}</h3>
+             <h3 className="text-xl font-display font-black tracking-tight text-white">৳ {profile?.balances?.bonus?.toFixed(2) || '0.00'}</h3>
            </div>
            
-           <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-2xl p-4 shadow-sm border border-slate-100 dark:border-slate-700/50 hover:scale-[1.02] transition-transform duration-300">
+           <div className="bg-[#151515] rounded-2xl p-4 shadow-sm border border-[#3D3215] hover:scale-[1.02] transition-transform duration-300">
              <div className="flex items-center gap-2 mb-2">
-               <div className="w-6 h-6 rounded-md bg-purple-500/10 flex items-center justify-center">
-                 <ArrowRightLeft className="w-3.5 h-3.5 text-purple-500" />
+               <div className="w-6 h-6 rounded-md bg-[#D4A017]/10 flex items-center justify-center">
+                 <ArrowRightLeft className="w-3.5 h-3.5 text-[#EAB308]" />
                </div>
-               <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Referral</p>
+               <p className="text-[10px] font-bold text-[#A3A3A3] uppercase tracking-widest">Referral</p>
              </div>
-             <h3 className="text-xl font-display font-black tracking-tight text-slate-800 dark:text-white">৳ {profile?.balances?.referral?.toFixed(2) || '0.00'}</h3>
+             <h3 className="text-xl font-display font-black tracking-tight text-white">৳ {profile?.balances?.referral?.toFixed(2) || '0.00'}</h3>
            </div>
 
-           <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-2xl p-4 shadow-sm border border-slate-100 dark:border-slate-700/50 hover:scale-[1.02] transition-transform duration-300">
+           <div className="bg-[#151515] rounded-2xl p-4 shadow-sm border border-[#3D3215] hover:scale-[1.02] transition-transform duration-300">
              <div className="flex items-center gap-2 mb-2">
-               <div className="w-6 h-6 rounded-md bg-amber-500/10 flex items-center justify-center">
-                 <Shield className="w-3.5 h-3.5 text-amber-500" />
+               <div className="w-6 h-6 rounded-md bg-[#D4A017]/10 flex items-center justify-center">
+                 <Shield className="w-3.5 h-3.5 text-[#D4A017]" />
                </div>
-               <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Partner</p>
+               <p className="text-[10px] font-bold text-[#A3A3A3] uppercase tracking-widest">Partner</p>
              </div>
-             <h3 className="text-xl font-display font-black tracking-tight text-slate-800 dark:text-white">৳ {profile?.balances?.partner?.toFixed(2) || '0.00'}</h3>
+             <h3 className="text-xl font-display font-black tracking-tight text-white">৳ {profile?.balances?.partner?.toFixed(2) || '0.00'}</h3>
            </div>
 
-           <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-2xl p-4 shadow-sm border border-slate-100 dark:border-slate-700/50 hover:scale-[1.02] transition-transform duration-300">
+           <div className="bg-[#151515] rounded-2xl p-4 shadow-sm border border-[#3D3215] hover:scale-[1.02] transition-transform duration-300">
              <div className="flex items-center gap-2 mb-2">
-               <div className="w-6 h-6 rounded-md bg-rose-500/10 flex items-center justify-center">
-                 <Zap className="w-3.5 h-3.5 text-rose-500" />
+               <div className="w-6 h-6 rounded-md bg-[#D4A017]/10 flex items-center justify-center">
+                 <Zap className="w-3.5 h-3.5 text-[#FFE082]" />
                </div>
-               <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Gift</p>
+               <p className="text-[10px] font-bold text-[#A3A3A3] uppercase tracking-widest">Gift</p>
              </div>
-             <h3 className="text-xl font-display font-black tracking-tight text-slate-800 dark:text-white">৳ {profile?.balances?.gift?.toFixed(2) || '0.00'}</h3>
+             <h3 className="text-xl font-display font-black tracking-tight text-white">৳ {profile?.balances?.gift?.toFixed(2) || '0.00'}</h3>
            </div>
         </div>
 
-        <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-3xl p-5 shadow-sm border border-slate-100 dark:border-slate-700/50">
-          <p className="text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-4 ml-1 uppercase tracking-widest flex items-center gap-2">
-            <Zap className="w-4 h-4 text-indigo-500" /> Task Earnings
+        <div className="bg-[#151515] rounded-3xl p-5 shadow-sm border border-[#3D3215]">
+          <p className="text-[11px] font-bold text-[#A3A3A3] mb-4 ml-1 uppercase tracking-widest flex items-center gap-2">
+            <Zap className="w-4 h-4 text-[#FACC15]" /> Task Earnings
           </p>
           <div className="flex overflow-x-auto gap-3 pb-2 no-scrollbar px-1 items-center">
             {['Facebook', 'Gmail', 'Instagram', 'Review', 'Sell Accounts', 'Microjob', 'Typing', 'Watch Ads', 'Other'].map((taskName) => {
               const balance = (profile?.balances?.tasks as any)?.[taskName] || 0;
               return (
-                <div key={taskName} className="bg-slate-50 dark:bg-slate-900/50 rounded-2xl p-3 min-w-[120px] flex-shrink-0 relative overflow-hidden border border-slate-200 dark:border-slate-700">
-                   <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider truncate">{taskName}</p>
-                   <h3 className="text-lg font-display font-black tracking-tight text-slate-800 dark:text-white">৳ {balance.toFixed(2)}</h3>
+                <div key={taskName} className="bg-[#101010] rounded-2xl p-3 min-w-[120px] flex-shrink-0 relative overflow-hidden border border-[#3D3215]">
+                   <p className="text-[10px] font-bold text-[#A3A3A3] mb-1 uppercase tracking-wider truncate">{taskName}</p>
+                   <h3 className="text-lg font-display font-black tracking-tight text-white">৳ {balance.toFixed(2)}</h3>
                 </div>
               );
             })}
@@ -435,22 +435,22 @@ export function Wallet() {
         </div>
       </div>
 
-      <div className="flex bg-slate-200/50 dark:bg-slate-800/50 p-1.5 rounded-2xl mb-6 ring-1 ring-slate-200 dark:ring-slate-700/50 backdrop-blur-sm relative z-10 mx-1">
+      <div className="flex bg-[#101010] p-1.5 rounded-2xl mb-6 ring-1 ring-[#3D3215] backdrop-blur-sm relative z-10 mx-1">
         <button 
           onClick={() => setActiveTab('deposit')}
-          className={`flex-1 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all duration-300 ${activeTab === 'deposit' ? 'bg-white shadow-md text-indigo-600 dark:bg-slate-700 dark:text-white scale-[1.02]' : 'bg-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
+          className={`flex-1 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all duration-300 ${activeTab === 'deposit' ? 'bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] shadow-md scale-[1.02]' : 'bg-transparent text-[#737373] hover:text-[#A3A3A3]'}`}
         >
           <ArrowDownLeft className="w-4 h-4" /> {t('deposit')}
         </button>
         <button 
           onClick={() => setActiveTab('withdraw')}
-          className={`flex-1 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all duration-300 ${activeTab === 'withdraw' ? 'bg-white shadow-md text-indigo-600 dark:bg-slate-700 dark:text-white scale-[1.02]' : 'bg-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
+          className={`flex-1 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all duration-300 ${activeTab === 'withdraw' ? 'bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] shadow-md scale-[1.02]' : 'bg-transparent text-[#737373] hover:text-[#A3A3A3]'}`}
         >
           <ArrowUpRight className="w-4 h-4" /> {t('withdraw')}
         </button>
         <button 
           onClick={() => setActiveTab('history')}
-          className={`flex-1 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all duration-300 ${activeTab === 'history' ? 'bg-white shadow-md text-indigo-600 dark:bg-slate-700 dark:text-white scale-[1.02]' : 'bg-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
+          className={`flex-1 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all duration-300 ${activeTab === 'history' ? 'bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] shadow-md scale-[1.02]' : 'bg-transparent text-[#737373] hover:text-[#A3A3A3]'}`}
         >
           <History className="w-4 h-4" /> History
         </button>
@@ -462,15 +462,15 @@ export function Wallet() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
-          className="bg-white/70 backdrop-blur-md p-5 rounded-3xl shadow-sm border border-slate-100 dark:bg-slate-800/80 dark:border-slate-700"
+          className="bg-[#151515] p-5 rounded-3xl shadow-sm border border-[#3D3215]"
         >
           <div className="space-y-4">
-          <p className="text-sm text-slate-500 dark:text-slate-400">
+          <p className="text-sm text-[#A3A3A3]">
             Please use our dedicated deposit page to add funds manually via bKash or Nagad.
           </p>
           <button
             onClick={() => navigate('/deposit')}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-3.5 px-4 rounded-xl text-sm uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 mt-4"
+            className="w-full bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] font-black py-3.5 px-4 rounded-xl text-sm uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 mt-4"
           >
             <WalletIcon className="w-5 h-5" />
             Go to Deposit Page
@@ -484,21 +484,21 @@ export function Wallet() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
-          className="bg-white/70 backdrop-blur-md p-5 rounded-3xl shadow-sm border border-slate-100 dark:bg-slate-800/80 dark:border-slate-700"
+          className="bg-[#151515] p-5 rounded-3xl shadow-sm border border-[#3D3215]"
         >
-          <div className="bg-indigo-50 border border-indigo-200 dark:bg-indigo-900/20 dark:border-indigo-800 p-5 rounded-2xl mb-6 flex flex-col items-center relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-400/10 rounded-full blur-2xl transform translate-x-1/2 -translate-y-1/2"></div>
-            <ArrowUpRight className="w-8 h-8 text-indigo-500 mb-2 z-10" />
-            <h3 className="font-bold text-slate-800 dark:text-white z-10">Withdraw Funds</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 text-center mt-1 z-10">Select wallet and method to withdraw your balance</p>
+          <div className="bg-[#101010] border border-[#3D3215] p-5 rounded-2xl mb-6 flex flex-col items-center relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-[#D4A017]/10 rounded-full blur-2xl transform translate-x-1/2 -translate-y-1/2"></div>
+            <ArrowUpRight className="w-8 h-8 text-[#FACC15] mb-2 z-10" />
+            <h3 className="font-bold text-white z-10">Withdraw Funds</h3>
+            <p className="text-xs text-[#A3A3A3] text-center mt-1 z-10">Select wallet and method to withdraw your balance</p>
           </div>
           <form onSubmit={handleWithdraw} className="space-y-4">
             <div>
-              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest pl-1 mb-1.5">From Wallet</label>
+              <label className="block text-[11px] font-bold text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1.5">From Wallet</label>
               <select 
                 value={selectedWallet} 
                 onChange={e => setSelectedWallet(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 dark:bg-slate-900/50 dark:border-slate-700 dark:text-white rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold transition-all"
+                className="w-full bg-[#101010] border border-[#3D3215] text-white rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#D4A017] font-bold transition-all"
               >
                 <option value="main">Main Wallet (৳{profile?.balances?.main?.toFixed(2) || '0.00'})</option>
                 <option value="bonus">Bonus (৳{profile?.balances?.bonus?.toFixed(2) || '0.00'})</option>
@@ -513,44 +513,44 @@ export function Wallet() {
                 })}
               </select>
             </div>
-                                    <div>
-              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest pl-1 mb-1.5">{t('select_method') || 'Method'}</label>
+            <div>
+              <label className="block text-[11px] font-bold text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1.5">{t('select_method') || 'Method'}</label>
               <div className="flex gap-4">
                 {depositSettings.bkashEnabled !== false && (
                   <button
                     type="button"
                     onClick={() => setWithdrawMethod('bKash')}
-                    className={`flex-1 py-3 px-2 rounded-xl flex flex-col items-center justify-center gap-2 border-2 transition-all ${withdrawMethod === 'bKash' ? 'border-[#E2136E] bg-[#E2136E]/10 scale-105' : 'border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                    className={`flex-1 py-3 px-2 rounded-xl flex flex-col items-center justify-center gap-2 border-2 transition-all ${withdrawMethod === 'bKash' ? 'border-[#E2136E] bg-[#E2136E]/10 scale-105' : 'border-[#3D3215] bg-[#101010] hover:bg-[#1C1C1C]'}`}
                   >
                     <img src="https://freelogopng.com/images/all_img/1656234745bkash-app-logo-png.png" alt="bKash" className="h-8 object-contain" />
-                    <span className="text-xs font-bold dark:text-white">bKash</span>
+                    <span className="text-xs font-bold text-white">bKash</span>
                   </button>
                 )}
                 {depositSettings.nagadEnabled !== false && (
                   <button
                     type="button"
                     onClick={() => setWithdrawMethod('Nagad')}
-                    className={`flex-1 py-3 px-2 rounded-xl flex flex-col items-center justify-center gap-2 border-2 transition-all ${withdrawMethod === 'Nagad' ? 'border-[#F7931E] bg-[#F7931E]/10 scale-105' : 'border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                    className={`flex-1 py-3 px-2 rounded-xl flex flex-col items-center justify-center gap-2 border-2 transition-all ${withdrawMethod === 'Nagad' ? 'border-[#F7931E] bg-[#F7931E]/10 scale-105' : 'border-[#3D3215] bg-[#101010] hover:bg-[#1C1C1C]'}`}
                   >
                     <img src="https://freelogopng.com/images/all_img/1679248787Nagad-Logo.png" alt="Nagad" className="h-8 object-contain" />
-                    <span className="text-xs font-bold dark:text-white">Nagad</span>
+                    <span className="text-xs font-bold text-white">Nagad</span>
                   </button>
                 )}
               </div>
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest pl-1 mb-1.5">{t('account_number') || 'Account details'}</label>
+              <label className="block text-[11px] font-bold text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1.5">{t('account_number') || 'Account details'}</label>
               <input 
                 type="text" 
                 placeholder="e.g. 017XXXXXXXX" 
                 required 
                 value={withdrawAccount}
                 onChange={(e) => setWithdrawAccount(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 dark:bg-slate-900/50 dark:border-slate-700 dark:text-white rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono transition-all"
+                className="w-full bg-[#101010] border border-[#3D3215] text-white rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#D4A017] font-mono transition-all"
               />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest pl-1 mb-2">উইথড্র পরিমাণ (Withdraw Amount)</label>
+              <label className="block text-[11px] font-bold text-[#A3A3A3] uppercase tracking-widest pl-1 mb-2">উইথড্র পরিমাণ (Withdraw Amount)</label>
               
               {/* Select amount options configured by admin */}
               {(() => {
@@ -580,8 +580,8 @@ export function Wallet() {
                             onClick={() => setWithdrawAmount(opt)}
                             className={`py-3 px-4 rounded-2xl border text-sm font-black transition-all duration-200 flex items-center justify-center gap-1.5 shadow-sm active:scale-95 ${
                               isSelected 
-                                ? 'bg-indigo-600 border-indigo-600 text-white font-black shadow-md shadow-indigo-500/10' 
-                                : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-indigo-400 dark:hover:border-indigo-500'
+                                ? 'bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] border-[#FACC15] text-[#090909] font-black shadow-md shadow-[#D4A017]/20' 
+                                : 'bg-[#101010] border-[#3D3215] text-[#A3A3A3] hover:border-[#D4A017]'
                             }`}
                           >
                             <span className="text-sm font-extrabold">{opt}</span>
@@ -591,7 +591,7 @@ export function Wallet() {
                       })}
                     </div>
 
-                    {/* Green box showing dynamic charging and net payout */}
+                    {/* Golden box showing dynamic charging and net payout */}
                     {withdrawAmount && (
                       (() => {
                         const amt = parseFloat(withdrawAmount) || 0;
@@ -605,15 +605,15 @@ export function Wallet() {
                         const netAmount = Math.max(0, amt - fee);
 
                         return (
-                          <div className="bg-emerald-500/10 dark:bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-4 flex items-center justify-around text-center text-sm font-bold text-emerald-600 dark:text-emerald-400 transition-all duration-300">
+                          <div className="bg-[#101010] border border-[#3D3215] rounded-2xl p-4 flex items-center justify-around text-center text-sm font-bold text-[#FACC15] transition-all duration-300">
                             <div>
-                              <p className="text-[10px] uppercase font-black text-slate-400 dark:text-slate-500 tracking-wider mb-0.5">চার্জ (Charge)</p>
-                              <p className="text-sm font-black text-rose-500 dark:text-rose-400">{fee.toFixed(2)} ৳</p>
+                              <p className="text-[10px] uppercase font-black text-[#737373] tracking-wider mb-0.5">চার্জ (Charge)</p>
+                              <p className="text-sm font-black text-rose-400">{fee.toFixed(2)} ৳</p>
                             </div>
-                            <div className="w-px h-8 bg-emerald-500/20"></div>
+                            <div className="w-px h-8 bg-[#3D3215]"></div>
                             <div>
-                              <p className="text-[10px] uppercase font-black text-slate-400 dark:text-slate-500 tracking-wider mb-0.5">পাবেন (Will Receive)</p>
-                              <p className="text-sm font-black text-emerald-600 dark:text-emerald-400">{netAmount.toFixed(2)} ৳</p>
+                              <p className="text-[10px] uppercase font-black text-[#737373] tracking-wider mb-0.5">পাবেন (Will Receive)</p>
+                              <p className="text-sm font-black text-[#FACC15]">{netAmount.toFixed(2)} ৳</p>
                             </div>
                           </div>
                         );
@@ -623,15 +623,15 @@ export function Wallet() {
                 );
               })()}
             </div>
-            <button type="submit" className="w-full bg-indigo-600 dark:bg-indigo-500 text-white font-bold py-4 rounded-xl shadow-lg mt-4 hover:bg-indigo-700 dark:hover:bg-indigo-600 transition active:scale-[0.98] text-base">
+            <button type="submit" className="w-full bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] font-bold py-4 rounded-xl shadow-lg mt-4 transition active:scale-[0.98] text-base">
               {t('request_withdraw')}
             </button>
             
             {/* Trust Info */}
             <div className="flex flex-col items-center gap-1.5 mt-5 px-4 pt-1 opacity-70 hover:opacity-100 transition-opacity">
-               <Shield className="w-5 h-5 text-emerald-500" />
-               <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest leading-none">Your withdrawals are 100% secure</p>
-               <p className="text-[9px] font-semibold text-slate-400 dark:text-slate-500 leading-none">Powered by standard SSL encryption</p>
+               <Shield className="w-5 h-5 text-[#D4A017]" />
+               <p className="text-[10px] font-bold text-[#A3A3A3] uppercase tracking-widest leading-none">Your withdrawals are 100% secure</p>
+               <p className="text-[9px] font-semibold text-[#737373] leading-none">Powered by standard SSL encryption</p>
             </div>
           </form>
         </motion.div>
@@ -645,15 +645,15 @@ export function Wallet() {
           exit={{ opacity: 0, scale: 0.95 }}
           className="space-y-4"
         >
-          <div className="bg-[#0f172a] p-4 sm:p-5 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-[#1e293b] relative overflow-hidden">
-            <h3 className="text-xs font-mono font-bold text-slate-400 mb-4 px-1 flex items-center justify-between">
+          <div className="bg-[#151515] p-4 sm:p-5 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.5)] border border-[#3D3215] relative overflow-hidden">
+            <h3 className="text-xs font-mono font-bold text-[#A3A3A3] mb-4 px-1 flex items-center justify-between">
               <span>TRX/BDT</span>
-              <span className="text-[10px] text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full">+ LIVE</span>
+              <span className="text-[10px] text-[#FACC15] bg-[#D4A017]/10 border border-[#3D3215] px-2 py-0.5 rounded-full">+ LIVE</span>
             </h3>
             {barChartData.length > 0 ? (
               <div className="h-48 w-full relative">
                 {/* Y Axis Labels (Rough max/min) */}
-                <div className="absolute left-0 top-0 bottom-0 flex flex-col justify-between text-[8px] text-slate-500 font-mono py-2 opacity-60">
+                <div className="absolute left-0 top-0 bottom-0 flex flex-col justify-between text-[8px] text-[#737373] font-mono py-2 opacity-60">
                   <span>৳{Math.max(...barChartData.map(d => d.High)).toFixed(0)}</span>
                   <span>৳{Math.min(...barChartData.map(d => d.Low)).toFixed(0)}</span>
                 </div>
@@ -662,7 +662,7 @@ export function Wallet() {
                 <svg width="100%" height="100%" viewBox="0 0 300 150" preserveAspectRatio="none" className="pl-6">
                   {/* Horizontal Grid Lines */}
                   {Array.from({ length: 5 }).map((_, i) => (
-                    <line key={`h-${i}`} x1="0" y1={i * (150 / 4)} x2="300" y2={i * (150 / 4)} stroke="#1e293b" strokeWidth="1" strokeDasharray="2 4" />
+                    <line key={`h-${i}`} x1="0" y1={i * (150 / 4)} x2="300" y2={i * (150 / 4)} stroke="#3D3215" strokeWidth="1" strokeDasharray="2 4" />
                   ))}
                   
                   {(() => {
@@ -685,7 +685,7 @@ export function Wallet() {
                       const yO = mapY(d.Open);
                       const yC = mapY(d.Close);
                       const isUp = d.Close >= d.Open;
-                      const color = isUp ? '#10b981' : '#ef4444'; // Emerald/Rose
+                      const color = isUp ? '#FACC15' : '#ef4444'; // Gold/Rose
                       const top = Math.min(yO, yC);
                       const bottom = Math.max(yO, yC);
                       const h = Math.max(1.5, bottom - top); // min body height
@@ -710,10 +710,10 @@ export function Wallet() {
                           {/* Selected Date highlight text */}
                           {selectedTxId === d.txId && (
                             <>
-                              <line x1={x} y1="0" x2={x} y2="150" stroke="#3b82f6" strokeWidth="0.5" strokeDasharray="2 2" className="opacity-50" />
-                              <circle cx={x} cy={yC} r="2" fill="#3b82f6" />
-                              <rect x={Math.max(0, x - 25)} y={Math.max(0, yH - 24)} width="50" height="20" fill="#1e293b" rx="2" className="shadow-lg" />
-                              <text x={x} y={yH - 10} fill="#f8fafc" fontSize="7" textAnchor="middle" fontWeight="bold">৳{d.amt}</text>
+                              <line x1={x} y1="0" x2={x} y2="150" stroke="#FACC15" strokeWidth="0.5" strokeDasharray="2 2" className="opacity-50" />
+                              <circle cx={x} cy={yC} r="2" fill="#FACC15" />
+                              <rect x={Math.max(0, x - 25)} y={Math.max(0, yH - 24)} width="50" height="20" fill="#1C1C1C" stroke="#3D3215" rx="2" className="shadow-lg" />
+                              <text x={x} y={yH - 10} fill="#FACC15" fontSize="7" textAnchor="middle" fontWeight="bold">৳{d.amt}</text>
                             </>
                           )}
                         </g>
@@ -723,9 +723,9 @@ export function Wallet() {
                 </svg>
               </div>
             ) : (
-              <div className="h-32 flex flex-col items-center justify-center text-slate-500 text-sm">
-                <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center mb-2">
-                  <TrendingUp className="w-5 h-5 opacity-50" />
+              <div className="h-32 flex flex-col items-center justify-center text-[#737373] text-sm">
+                <div className="w-12 h-12 rounded-full bg-[#1C1C1C] border border-[#3D3215] flex items-center justify-center mb-2">
+                  <TrendingUp className="w-5 h-5 opacity-50 text-[#D4A017]" />
                 </div>
                 <p>No trading data yet.</p>
               </div>
@@ -733,13 +733,13 @@ export function Wallet() {
           </div>
 
           <div className="flex justify-between items-end mt-4 px-1">
-            <h3 className="text-sm font-display font-bold text-slate-700 dark:text-slate-300 capitalize tracking-wide">
+            <h3 className="text-sm font-display font-bold text-white capitalize tracking-wide">
               {selectedTxId ? 'Transaction Focus' : 'All History'}
             </h3>
             {selectedTxId && (
               <button 
                 onClick={() => setSelectedTxId(null)}
-                className="text-[10px] text-blue-500 font-bold uppercase tracking-widest bg-blue-50 dark:bg-blue-900/30 px-3 py-1 rounded-full active:scale-95 transition-all"
+                className="text-[10px] text-[#FACC15] font-bold uppercase tracking-widest bg-[#D4A017]/10 border border-[#3D3215] px-3 py-1 rounded-full active:scale-95 transition-all"
               >
                 Clear Filter
               </button>
@@ -753,7 +753,7 @@ export function Wallet() {
                 : transactions;
 
               if (filteredTxs.length === 0) {
-                return <div className="text-center py-6 text-slate-400 text-sm">No transactions found.</div>;
+                return <div className="text-center py-6 text-[#737373] text-sm">No transactions found.</div>;
               }
 
               return filteredTxs.map((tx) => (
@@ -761,27 +761,27 @@ export function Wallet() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   key={tx.id} 
-                  className="bg-white/90 backdrop-blur-md dark:bg-slate-800/90 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex justify-between items-center"
+                  className="bg-[#151515] p-4 rounded-2xl shadow-sm border border-[#3D3215] flex justify-between items-center"
                 >
                   <div className="flex items-center gap-3">
                     <div className={`w-12 h-12 flex items-center justify-center rounded-2xl shadow-inner ${
-                      tx.type === 'withdraw' || tx.type === 'activation' ? 'bg-rose-50 text-rose-500 dark:bg-rose-900/20 dark:text-rose-400' : 'bg-emerald-50 text-emerald-500 dark:bg-emerald-900/20 dark:text-emerald-400'
+                      tx.type === 'withdraw' || tx.type === 'activation' ? 'bg-rose-950/20 text-rose-400 border border-rose-900/30' : 'bg-[#D4A017]/10 text-[#FACC15] border border-[#3D3215]'
                     }`}>
                       {tx.type === 'withdraw' || tx.type === 'activation' ? <ArrowUpRight className="w-6 h-6" /> : <ArrowDownLeft className="w-6 h-6" />}
                     </div>
                     <div>
-                      <h4 className="text-sm font-bold text-slate-800 dark:text-white capitalize">{tx.type.replace('_', ' ')}</h4>
-                      <p className="text-[11px] font-medium text-slate-500 mt-0.5 tracking-wide">{tx.createdAt?.toDate().toLocaleDateString() || 'Pending'}</p>
-                      <div className="flex items-center gap-1.5 mt-1 bg-slate-50 dark:bg-slate-900/45 px-2 py-0.5 rounded-lg border border-slate-100 dark:border-slate-800">
-                        <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 select-all">
-                          ID: <span className="font-semibold">{tx.trxId || tx.id}</span>
+                      <h4 className="text-sm font-bold text-white capitalize">{tx.type.replace('_', ' ')}</h4>
+                      <p className="text-[11px] font-medium text-[#737373] mt-0.5 tracking-wide">{tx.createdAt?.toDate().toLocaleDateString() || 'Pending'}</p>
+                      <div className="flex items-center gap-1.5 mt-1 bg-[#101010] px-2 py-0.5 rounded-lg border border-[#3D3215]">
+                        <span className="text-[10px] font-mono text-[#A3A3A3] select-all">
+                          ID: <span className="font-semibold text-white">{tx.trxId || tx.id}</span>
                         </span>
                         <button
                           onClick={() => {
                             navigator.clipboard.writeText(tx.trxId || tx.id);
                             toast.success('ID Copied!');
                           }}
-                          className="hover:text-indigo-500 text-slate-400 transition p-0.5 rounded cursor-pointer active:scale-95"
+                          className="hover:text-[#FACC15] text-[#737373] transition p-0.5 rounded cursor-pointer active:scale-95"
                           title="Copy ID to Clipboard"
                         >
                           <Copy className="w-3 h-3" />
@@ -791,13 +791,13 @@ export function Wallet() {
                   </div>
                   <div className="text-right">
                     <p className={`text-base font-black tracking-tight ${
-                      tx.type === 'withdraw' || tx.type === 'activation' ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'
+                      tx.type === 'withdraw' || tx.type === 'activation' ? 'text-rose-400' : 'text-[#FACC15]'
                     }`}>
                       {tx.type === 'withdraw' || tx.type === 'activation' ? '-' : '+'}৳{tx.amount?.toFixed(2)}
                     </p>
-                    {tx.status === 'pending' && <p className="text-[10px] text-amber-500 font-bold uppercase mt-1 tracking-wider bg-amber-50 dark:bg-amber-900/30 px-2 py-0.5 rounded-full inline-block">Pending</p>}
-                    {tx.status === 'approved' && <p className="text-[10px] text-emerald-500 font-bold uppercase mt-1 tracking-wider bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full inline-block">Approved</p>}
-                    {tx.status === 'rejected' && <p className="text-[10px] text-rose-500 font-bold uppercase mt-1 tracking-wider bg-rose-50 dark:bg-rose-900/30 px-2 py-0.5 rounded-full inline-block">Rejected</p>}
+                    {tx.status === 'pending' && <p className="text-[10px] text-[#FACC15] font-bold uppercase mt-1 tracking-wider bg-[#D4A017]/10 border border-[#3D3215] px-2 py-0.5 rounded-full inline-block">Pending</p>}
+                    {tx.status === 'approved' && <p className="text-[10px] text-emerald-400 font-bold uppercase mt-1 tracking-wider bg-emerald-950/30 border border-emerald-800/30 px-2 py-0.5 rounded-full inline-block">Approved</p>}
+                    {tx.status === 'rejected' && <p className="text-[10px] text-rose-400 font-bold uppercase mt-1 tracking-wider bg-rose-950/30 border border-rose-800/30 px-2 py-0.5 rounded-full inline-block">Rejected</p>}
                   </div>
                 </motion.div>
               ))
@@ -815,43 +815,43 @@ export function Wallet() {
         else currentFeePercent = withdrawSettings.tasksFee;
         
         return (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 w-full max-w-sm shadow-2xl relative animate-in zoom-in-95 duration-200">
-            <h3 className="text-xl font-bold mb-4 dark:text-white">Confirm Withdraw</h3>
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#151515] border border-[#3D3215] rounded-3xl p-6 w-full max-w-sm shadow-2xl relative animate-in zoom-in-95 duration-200">
+            <h3 className="text-xl font-bold mb-4 text-white">Confirm Withdraw</h3>
             <div className="space-y-2 mb-6">
-              <p className="text-gray-600 dark:text-gray-300 text-sm">
-                <strong>Amount:</strong> ৳{parseFloat(withdrawAmount).toFixed(2)}
+              <p className="text-[#A3A3A3] text-sm">
+                <strong>Amount:</strong> <span className="text-[#FACC15]">৳{parseFloat(withdrawAmount).toFixed(2)}</span>
               </p>
               {currentFeePercent > 0 && (
                 <>
-                  <p className="text-gray-600 dark:text-gray-300 text-sm text-red-500">
+                  <p className="text-rose-400 text-sm">
                     <strong>Fee ({currentFeePercent}%):</strong> ৳{((parseFloat(withdrawAmount) * currentFeePercent) / 100).toFixed(2)}
                   </p>
-                  <p className="text-gray-600 dark:text-gray-300 text-sm font-bold text-green-600 dark:text-green-400">
+                  <p className="text-[#FACC15] text-sm font-bold">
                     <strong>Net Received:</strong> ৳{(parseFloat(withdrawAmount) - (parseFloat(withdrawAmount) * currentFeePercent) / 100).toFixed(2)}
                   </p>
                 </>
               )}
-              <p className="text-gray-600 dark:text-gray-300 text-sm">
-                <strong>Wallet:</strong> {selectedWallet}
+              <p className="text-[#A3A3A3] text-sm">
+                <strong>Wallet:</strong> <span className="text-white">{selectedWallet}</span>
               </p>
-              <p className="text-gray-600 dark:text-gray-300 text-sm">
-                <strong>Method:</strong> {withdrawMethod}
+              <p className="text-[#A3A3A3] text-sm">
+                <strong>Method:</strong> <span className="text-white">{withdrawMethod}</span>
               </p>
-              <p className="text-gray-600 dark:text-gray-300 text-sm">
-                <strong>Account:</strong> {withdrawAccount}
+              <p className="text-[#A3A3A3] text-sm">
+                <strong>Account:</strong> <span className="text-white">{withdrawAccount}</span>
               </p>
             </div>
             <div className="flex gap-3">
               <button 
                 onClick={() => setShowConfirmWithdraw(false)}
-                className="flex-1 py-3 rounded-xl bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-300 font-bold hover:bg-gray-200 dark:hover:bg-slate-600 transition"
+                className="flex-1 py-3 rounded-xl bg-[#1C1C1C] border border-[#3D3215] text-[#A3A3A3] hover:text-white font-bold transition"
               >
                 Cancel
               </button>
               <button 
                 onClick={executeWithdraw}
-                className="flex-1 py-3 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold transition"
+                className="flex-1 py-3 rounded-xl bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] font-bold transition shadow-lg shadow-[#D4A017]/20"
               >
                 Confirm
               </button>

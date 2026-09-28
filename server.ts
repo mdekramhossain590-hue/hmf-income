@@ -389,7 +389,7 @@ async function startServer() {
       const settingsSnap = await db.collection("settings").doc("adsIncome").get();
       const settings = settingsSnap.data() || {};
       const rewardAmount = Number(settings.rewardPerAdView) || 0.50;
-      const dailyLimit = Number(settings.dailyAdLimit) || 10;
+      const dailyLimit = Number(settings.dailyAdLimit) || 20;
 
       // Start of day
       const now = new Date();

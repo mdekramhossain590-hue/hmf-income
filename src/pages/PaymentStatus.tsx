@@ -69,24 +69,25 @@ useEffect(() => {
   }, [status, searchParams]);
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-50 dark:bg-slate-950">
-      <div className="bg-white dark:bg-slate-900 p-8 rounded-[32px] shadow-2xl flex flex-col items-center text-center max-w-sm w-full">
+    <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-[#090909] text-white">
+      <div className="bg-[#151515] p-8 rounded-[32px] shadow-2xl border border-[#3D3215] flex flex-col items-center text-center max-w-sm w-full relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-[#D4A017]/10 blur-2xl rounded-full pointer-events-none"></div>
          {loading ? (
-           <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+           <div className="w-12 h-12 border-4 border-[#3D3215] border-t-[#FACC15] rounded-full animate-spin mb-4"></div>
          ) : status === 'success' ? (
            <>
-             <CheckCircle className="w-20 h-20 text-emerald-500 mb-4" />
-             <h2 className="text-2xl font-black text-slate-800 dark:text-white mb-2">Payment Successful!</h2>
-             <p className="text-slate-500 dark:text-slate-400 mb-6">Your transaction has been verified and your balance is updated.</p>
+             <CheckCircle className="w-20 h-20 text-[#FACC15] mb-4" />
+             <h2 className="text-2xl font-black text-white mb-2">Payment Successful!</h2>
+             <p className="text-[#A3A3A3] text-sm mb-6 font-medium">Your transaction has been verified and your balance is updated.</p>
            </>
          ) : (
            <>
              <XCircle className="w-20 h-20 text-rose-500 mb-4" />
-             <h2 className="text-2xl font-black text-slate-800 dark:text-white mb-2">Payment Cancelled</h2>
-             <p className="text-slate-500 dark:text-slate-400 mb-6">You have cancelled the payment process.</p>
+             <h2 className="text-2xl font-black text-white mb-2">Payment Cancelled</h2>
+             <p className="text-[#A3A3A3] text-sm mb-6 font-medium">You have cancelled the payment process.</p>
            </>
          )}
-         <button onClick={() => navigate('/wallet')} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 rounded-xl uppercase tracking-widest transition-all">
+         <button onClick={() => navigate('/wallet')} className="w-full bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] font-black py-4 rounded-xl uppercase tracking-widest transition-all cursor-pointer active:scale-95 shadow-lg">
            Go to Wallet
          </button>
       </div>

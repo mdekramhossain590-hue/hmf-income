@@ -98,7 +98,7 @@ const AuthContext = createContext<AuthContextType>({
   profile: null,
   loading: true,
   siteSettings: {
-    siteName: '',
+    siteName: 'HMF EARNING ZONE',
     logoUrl: '',
     apkUrl: 'https://www.mediafire.com/file/glio303il0rsfr4/app-release.apk/file'
   },
@@ -122,11 +122,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!parsed.apkUrl) {
           parsed.apkUrl = 'https://www.mediafire.com/file/glio303il0rsfr4/app-release.apk/file';
         }
+        if (!parsed.siteName || parsed.siteName.toLowerCase().includes('income')) {
+          parsed.siteName = 'HMF EARNING ZONE';
+        }
         return parsed;
       }
     } catch (e: any) {}
     return {
-      siteName: '',
+      siteName: 'HMF EARNING ZONE',
       logoUrl: '',
       apkUrl: 'https://www.mediafire.com/file/glio303il0rsfr4/app-release.apk/file'
     };
@@ -185,6 +188,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const snap = await getCachedDoc(doc(db, "settings", "site"), true);
         if (snap.exists()) {
           const data = snap.data() as SiteSettings;
+          if (!data.siteName || data.siteName.toLowerCase().includes('income')) {
+            data.siteName = 'HMF EARNING ZONE';
+          }
           if (!data.apkUrl) {
             data.apkUrl = 'https://www.mediafire.com/file/glio303il0rsfr4/app-release.apk/file';
           }
@@ -223,6 +229,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       unsubscribeSettings = onSnapshot(doc(db, "settings", "site"), (docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data() as SiteSettings;
+          if (!data.siteName || data.siteName.toLowerCase().includes('income')) {
+            data.siteName = 'HMF EARNING ZONE';
+          }
           if (!data.apkUrl) {
             data.apkUrl = 'https://www.mediafire.com/file/glio303il0rsfr4/app-release.apk/file';
           }

@@ -128,7 +128,32 @@ export default function App() {
   return (
     <AuthProvider>
       <DynamicFavicon />
-      <Toaster position="top-center" />
+      <Toaster 
+        position="top-center" 
+        toastOptions={{
+          style: {
+            background: '#151515',
+            color: '#FFFFFF',
+            border: '1px solid #3D3215',
+            fontSize: '13px',
+            fontWeight: '600',
+            borderRadius: '16px',
+            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.7), 0 8px 10px -6px rgba(0, 0, 0, 0.7)',
+          },
+          success: {
+            iconTheme: {
+              primary: '#FACC15',
+              secondary: '#090909',
+            },
+          },
+          error: {
+            iconTheme: {
+              primary: '#F43F5E',
+              secondary: '#090909',
+            },
+          },
+        }}
+      />
       <BrowserRouter>
         <ScrollToTop />
           <Routes>

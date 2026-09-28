@@ -177,7 +177,7 @@ export function Spin() {
   const totalSlices = rewards.length;
   const sliceDegree = 360 / totalSlices;
 
-  const colors = ['#f43f5e', '#ec4899', '#d946ef', '#a855f7', '#8b5cf6', '#6366f1', '#3b82f6', '#0ea5e9', '#06b6d4', '#14b8a6', '#10b981', '#22c55e', '#84cc16'];
+  const colors = ['#D4A017', '#1C1C1C', '#EAB308', '#252525', '#FACC15', '#151515', '#8A6508', '#332910'];
   const gradientStops = rewards.map((_, i) => `${colors[i % colors.length]} ${i * sliceDegree}deg ${(i + 1) * sliceDegree}deg`).join(', ');
 
   const spinWheel = async () => {
@@ -284,12 +284,12 @@ export function Spin() {
   };
 
   return (
-    <div className="pt-6 px-4 pb-20 text-center relative max-w-md mx-auto overflow-hidden">
-      <h2 className="text-2xl font-black mb-2 text-slate-800 dark:text-white tracking-tight">Lucky Spin</h2>
-      <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-4">Spin the wheel to earn daily bonus!</p>
+    <div className="pt-6 px-4 pb-20 text-center relative max-w-md mx-auto overflow-hidden bg-[#090909] min-h-screen text-white">
+      <h2 className="text-2xl font-black mb-2 bg-gradient-to-r from-[#D4A017] via-[#FACC15] to-[#FFE082] bg-clip-text text-transparent tracking-tight">Lucky Spin</h2>
+      <p className="text-sm font-medium text-[#A3A3A3] mb-4">Spin the wheel to earn daily bonus!</p>
       
       {!hasMetRequirements() && (
-        <div className="mx-auto w-11/12 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-3 rounded-xl ring-1 ring-red-100 dark:ring-red-900/50 text-sm text-center font-bold mb-4">
+        <div className="mx-auto w-11/12 bg-red-950/40 text-red-400 p-3 rounded-xl ring-1 ring-red-900/50 text-sm text-center font-bold mb-4 border border-red-800/30">
           You need at least {spinReq.taskReq} tasks completed and {spinReq.referReq} referrals to unlock spinning.
         </div>
       )}
@@ -298,28 +298,28 @@ export function Spin() {
         {winningIndex !== null && rewards[winningIndex] > 0 && <Confetti />}
         
         {/* Pointer */}
-        <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-6 z-20 drop-shadow-[0_4px_6px_rgba(0,0,0,0.4)]">
+        <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-6 z-20 drop-shadow-[0_4px_6px_rgba(0,0,0,0.6)]">
           <motion.div animate={isSpinning ? { rotate: [-10, 15, -10] } : { rotate: 0 }} transition={{ repeat: isSpinning ? Infinity : 0, duration: 0.15 }} className="origin-top" >
              <svg width="36" height="44" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-               <path d="M12 22L4 6C4 6 7 2 12 2C17 2 20 6 20 6L12 22Z" fill="#F59E0B" stroke="#B45309" strokeWidth="2" strokeLinejoin="round"/>
-               <circle cx="12" cy="7" r="2.5" fill="#B45309" />
+               <path d="M12 22L4 6C4 6 7 2 12 2C17 2 20 6 20 6L12 22Z" fill="#FACC15" stroke="#8A6508" strokeWidth="2" strokeLinejoin="round"/>
+               <circle cx="12" cy="7" r="2.5" fill="#8A6508" />
              </svg>
           </motion.div>
         </div>
         
         {/* Wheel */}
-        <div className="w-full h-full p-2 bg-gradient-to-br from-indigo-200 to-indigo-100 dark:from-indigo-900/50 dark:to-slate-800 rounded-full shadow-2xl relative ring-1 ring-indigo-500/20">
+        <div className="w-full h-full p-2 bg-gradient-to-br from-[#1C1C1C] via-[#151515] to-[#101010] rounded-full shadow-2xl relative ring-2 ring-[#3D3215] border border-[#3D3215]">
            {winningIndex !== null && rewards[winningIndex] > 0 && (
              <motion.div 
                initial={{ opacity: 0, scale: 0.9 }}
                animate={{ opacity: 1, scale: 1.15 }}
                exit={{ opacity: 0 }}
                transition={{ duration: 0.5, repeat: 3, repeatType: 'reverse' }}
-               className="absolute inset-0 bg-indigo-500 blur-xl rounded-full -z-10 opacity-30"
+               className="absolute inset-0 bg-[#FACC15] blur-xl rounded-full -z-10 opacity-30"
              />
            )}
           <motion.div 
-            className={`w-full h-full rounded-full border-4 flex items-center justify-center ${winningIndex !== null && rewards[winningIndex] > 0 ? 'border-amber-400 shadow-[0_0_30px_rgba(251,191,36,0.6)]' : 'border-white dark:border-slate-800'} shadow-inner relative overflow-hidden transition-all duration-300`}
+            className={`w-full h-full rounded-full border-4 flex items-center justify-center ${winningIndex !== null && rewards[winningIndex] > 0 ? 'border-[#FACC15] shadow-[0_0_30px_rgba(250,204,21,0.6)]' : 'border-[#3D3215]'} shadow-inner relative overflow-hidden transition-all duration-300`}
             style={{ background: `conic-gradient(${gradientStops})` }}
             animate={{ rotate: rotation }}
             transition={{ duration: 4, ease: [0.17, 0.67, 0.12, 0.99] }}
@@ -335,7 +335,7 @@ export function Spin() {
                   style={{ transform: `rotate(${textAngle}deg)` }}
                 >
                   <motion.span 
-                    animate={isWinner ? { scale: [1, 1.5, 1.2], textShadow: "0px 0px 12px rgb(255,255,255,0.8)" } : {}}
+                    animate={isWinner ? { scale: [1, 1.5, 1.2], textShadow: "0px 0px 12px rgba(250,204,21,0.9)" } : {}}
                     transition={{ duration: 0.5 }}
                     className="flex gap-1 justify-center origin-center relative"
                   >
@@ -346,11 +346,11 @@ export function Spin() {
             })}
             
             {/* Center dot */}
-            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-16 h-16 bg-white dark:bg-slate-800 rounded-full shadow-2xl border-[6px] border-amber-400 dark:border-amber-500 z-10 flex items-center justify-center ring-4 ring-amber-500/20 overflow-hidden">
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-16 h-16 bg-[#151515] rounded-full shadow-2xl border-[4px] border-[#D4A017] z-10 flex items-center justify-center ring-2 ring-[#3D3215] overflow-hidden">
               {siteSettings?.logoUrl ? (
                 <img src={siteSettings.logoUrl} alt="Logo" className="w-8 h-8 object-contain" />
               ) : (
-                <span className="font-black text-[11px] tracking-widest text-amber-500 dark:text-amber-400 drop-shadow-sm">SPIN</span>
+                <span className="font-black text-[11px] tracking-widest text-[#FACC15] drop-shadow-sm">SPIN</span>
               )}
             </div>
           </motion.div>
@@ -360,13 +360,13 @@ export function Spin() {
       <button 
         onClick={spinWheel}
         disabled={isSpinning || spinsLeft <= 0}
-        className="w-full max-w-[200px] mx-auto bg-gradient-to-r from-indigo-600 to-indigo-800 hover:from-indigo-700 hover:to-indigo-900 text-white font-black tracking-widest text-lg px-8 py-4 rounded-2xl shadow-xl active:scale-[0.98] transition-all disabled:opacity-50 relative overflow-hidden group"
+        className="w-full max-w-[200px] mx-auto bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] hover:opacity-95 text-[#090909] font-black tracking-widest text-lg px-8 py-4 rounded-2xl shadow-xl shadow-[#D4A017]/20 active:scale-[0.98] transition-all disabled:opacity-50 relative overflow-hidden group cursor-pointer"
       >
         <span className="relative z-10">{isSpinning ? 'SPINNING...' : 'SPIN NOW'}</span>
         <div className="absolute inset-0 bg-white/20 transform -skew-x-12 -translate-x-full group-hover:animate-shimmer z-0" />
       </button>
-      <p className="mt-6 text-sm font-semibold text-slate-600 dark:text-slate-300">
-        Available Spins: <span className="text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-2 py-0.5 rounded ml-1">{spinsLeft}</span> 
+      <p className="mt-6 text-sm font-semibold text-[#A3A3A3]">
+        Available Spins: <span className="text-[#FACC15] bg-[#1C1C1C] border border-[#3D3215] px-2 py-0.5 rounded ml-1 font-bold">{spinsLeft}</span> 
       </p>
     </div>
   );

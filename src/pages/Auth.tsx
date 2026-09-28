@@ -205,21 +205,23 @@ export function Auth() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col justify-center px-6 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-white relative overflow-hidden" style={{ paddingBottom: 0 }}>
+    <div className="min-h-screen flex flex-col justify-center px-6 bg-[#090909] text-white relative overflow-hidden" style={{ paddingBottom: 0 }}>
       {/* Background Orbs */}
-      <div className="absolute top-[-10%] left-[-10%] w-64 h-64 bg-indigo-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 dark:opacity-30 pointer-events-none"></div>
-      <div className="absolute bottom-[-10%] right-[-10%] w-64 h-64 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 dark:opacity-30 pointer-events-none"></div>
+      <div className="absolute top-[-10%] left-[-10%] w-64 h-64 bg-[#D4A017] rounded-full filter blur-3xl opacity-15 pointer-events-none"></div>
+      <div className="absolute bottom-[-10%] right-[-10%] w-64 h-64 bg-[#8A6508] rounded-full filter blur-3xl opacity-15 pointer-events-none"></div>
       
       <div className="text-center mb-8 flex flex-col items-center relative z-10">
         {siteSettings?.logoUrl && (
-          <img src={siteSettings.logoUrl} alt="Logo" className="w-24 h-24 mb-4 drop-shadow-2xl rounded-3xl bg-white dark:bg-slate-800 border p-2 border-white dark:border-slate-700 object-cover rotate-3 hover:rotate-0 transition-transform duration-300" />
+          <div className="max-w-[240px] max-h-24 mb-4 drop-shadow-2xl rounded-2xl bg-[#151515]/90 border border-[#3D3215] px-4 py-2 flex items-center justify-center overflow-hidden hover:scale-105 transition-transform duration-300">
+            <img src={siteSettings.logoUrl} alt="Logo" className="max-h-20 max-w-full object-contain" />
+          </div>
         )}
-        <h1 className="text-4xl font-black tracking-tight mb-2 text-slate-900 dark:text-white uppercase">HMF <span className="text-indigo-600 dark:text-indigo-400 font-outline-2">INCOME</span></h1>
-        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold tracking-[0.2em] uppercase">Premium Earning Platform</p>
+        <h1 className="text-3xl sm:text-4xl font-black tracking-tight mb-2 text-white uppercase text-center">HMF <span className="bg-gradient-to-r from-[#D4A017] via-[#FACC15] to-[#FFE082] bg-clip-text text-transparent">EARNING ZONE</span></h1>
+        <p className="text-[10px] text-[#A3A3A3] font-bold tracking-[0.2em] uppercase">Premium Earning Platform</p>
       </div>
 
-      <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white dark:border-slate-800 p-6 rounded-3xl shadow-xl dark:shadow-2xl relative z-10">
-        <h2 className="text-2xl font-bold mb-6 text-slate-800 dark:text-white tracking-tight">
+      <div className="bg-[#151515] border border-[#3D3215] p-6 rounded-3xl shadow-2xl relative z-10">
+        <h2 className="text-2xl font-bold mb-6 text-white tracking-tight">
           {resetStep === 1 ? 'Reset Password' : resetStep === 2 ? 'Enter OTP' : isLogin ? 'Welcome Back' : 'Create Account'}
         </h2>
         
@@ -231,7 +233,7 @@ export function Auth() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 text-base text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+              className="w-full bg-[#101010] border border-[#3D3215] rounded-xl px-4 py-3.5 text-base text-white placeholder-[#737373] focus:outline-none focus:border-[#FACC15] focus:ring-2 focus:ring-[#D4A017]/20 transition-all"
             />
           ) : resetStep === 2 ? (
             <>
@@ -241,7 +243,7 @@ export function Auth() {
                 required
                 value={resetOtp}
                 onChange={(e) => setResetOtp(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 text-base text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                className="w-full bg-[#101010] border border-[#3D3215] rounded-xl px-4 py-3.5 text-base text-white placeholder-[#737373] focus:outline-none focus:border-[#FACC15] focus:ring-2 focus:ring-[#D4A017]/20 transition-all"
               />
               <div className="relative mt-3">
                 <input
@@ -250,12 +252,12 @@ export function Auth() {
                   required
                   value={resetNewPassword}
                   onChange={(e) => setResetNewPassword(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 pr-12 text-base text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  className="w-full bg-[#101010] border border-[#3D3215] rounded-xl px-4 py-3.5 pr-12 text-base text-white placeholder-[#737373] focus:outline-none focus:border-[#FACC15] focus:ring-2 focus:ring-[#D4A017]/20 transition-all"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 focus:outline-none"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[#A3A3A3] hover:text-[#FACC15] focus:outline-none"
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
@@ -270,7 +272,7 @@ export function Auth() {
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 text-base text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  className="w-full bg-[#101010] border border-[#3D3215] rounded-xl px-4 py-3.5 text-base text-white placeholder-[#737373] focus:outline-none focus:border-[#FACC15] focus:ring-2 focus:ring-[#D4A017]/20 transition-all"
                 />
               )}
               <input
@@ -279,7 +281,7 @@ export function Auth() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 text-base text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                className="w-full bg-[#101010] border border-[#3D3215] rounded-xl px-4 py-3.5 text-base text-white placeholder-[#737373] focus:outline-none focus:border-[#FACC15] focus:ring-2 focus:ring-[#D4A017]/20 transition-all"
               />
               <div className="relative">
                 <input
@@ -288,12 +290,12 @@ export function Auth() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 pr-12 text-base text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  className="w-full bg-[#101010] border border-[#3D3215] rounded-xl px-4 py-3.5 pr-12 text-base text-white placeholder-[#737373] focus:outline-none focus:border-[#FACC15] focus:ring-2 focus:ring-[#D4A017]/20 transition-all"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 focus:outline-none"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[#A3A3A3] hover:text-[#FACC15] focus:outline-none"
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
@@ -304,7 +306,7 @@ export function Auth() {
                     type="button"
                     onClick={() => setResetStep(1)}
                     disabled={loading}
-                    className="text-xs text-indigo-600 dark:text-indigo-400 font-medium hover:underline focus:outline-none disabled:opacity-50"
+                    className="text-xs text-[#FACC15] font-medium hover:underline focus:outline-none disabled:opacity-50"
                   >
                     Forgot Password?
                   </button>
@@ -318,12 +320,12 @@ export function Auth() {
                     required
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 pr-12 text-base text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                    className="w-full bg-[#101010] border border-[#3D3215] rounded-xl px-4 py-3.5 pr-12 text-base text-white placeholder-[#737373] focus:outline-none focus:border-[#FACC15] focus:ring-2 focus:ring-[#D4A017]/20 transition-all"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 focus:outline-none"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-[#A3A3A3] hover:text-[#FACC15] focus:outline-none"
                   >
                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
@@ -335,7 +337,7 @@ export function Auth() {
                   placeholder="Referral Code (Optional)"
                   value={referCode}
                   onChange={(e) => setReferCode(e.target.value.replace(/[​-‍﻿\s]/g, '').trim())}
-                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 text-base text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  className="w-full bg-[#101010] border border-[#3D3215] rounded-xl px-4 py-3.5 text-base text-white placeholder-[#737373] focus:outline-none focus:border-[#FACC15] focus:ring-2 focus:ring-[#D4A017]/20 transition-all"
                 />
               )}
             </>
@@ -343,35 +345,35 @@ export function Auth() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-indigo-600 text-white font-bold py-3.5 rounded-xl shadow-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+            className="w-full bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] hover:opacity-95 text-[#090909] font-black py-3.5 rounded-xl shadow-lg shadow-[#D4A017]/20 focus:outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-2 cursor-pointer"
           >
             {loading ? 'Processing...' : (resetStep === 1 ? 'Send OTP' : resetStep === 2 ? 'Reset Password' : isLogin ? 'Sign In' : 'Create Account')}
           </button>
         </form>
 
-        <p className="text-center mt-6 text-sm text-slate-500 dark:text-slate-400 font-medium">
+        <p className="text-center mt-6 text-sm text-[#A3A3A3] font-medium">
           {isLogin ? "Don't have an account?" : "Already have an account?"}{' '}
           <button 
             onClick={() => setIsLogin(!isLogin)} 
-            className="text-indigo-600 dark:text-indigo-400 font-bold cursor-pointer hover:underline underline-offset-4 bg-transparent border-none p-0 outline-none transition-colors"
+            className="text-[#FACC15] font-bold cursor-pointer hover:underline underline-offset-4 bg-transparent border-none p-0 outline-none transition-colors"
           >
             {isLogin ? 'Sign Up' : 'Log In'}
           </button>
         </p>
 
         {/* Security Badges */}
-        <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800 flex justify-center gap-6">
-          <div className="flex flex-col items-center gap-1.5 opacity-70 hover:opacity-100 transition-opacity cursor-default">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
-            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">SSL Secure</span>
+        <div className="mt-8 pt-6 border-t border-[#3D3215] flex justify-center gap-6">
+          <div className="flex flex-col items-center gap-1.5 opacity-80 hover:opacity-100 transition-opacity cursor-default">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-[#FACC15]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+            <span className="text-[9px] font-bold text-[#737373] uppercase tracking-widest">SSL Secure</span>
           </div>
-          <div className="flex flex-col items-center gap-1.5 opacity-70 hover:opacity-100 transition-opacity cursor-default">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M12 2v6"/><path d="M12 8c-3.3 0-6 2.7-6 6v3h12v-3c0-3.3-2.7-6-6-6Z"/><path d="M4 17h16"/></svg>
-            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Bot Protected</span>
+          <div className="flex flex-col items-center gap-1.5 opacity-80 hover:opacity-100 transition-opacity cursor-default">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-[#D4A017]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M12 2v6"/><path d="M12 8c-3.3 0-6 2.7-6 6v3h12v-3c0-3.3-2.7-6-6-6Z"/><path d="M4 17h16"/></svg>
+            <span className="text-[9px] font-bold text-[#737373] uppercase tracking-widest">Bot Protected</span>
           </div>
-          <div className="flex flex-col items-center gap-1.5 opacity-70 hover:opacity-100 transition-opacity cursor-default">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-purple-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>
-            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Verified Users</span>
+          <div className="flex flex-col items-center gap-1.5 opacity-80 hover:opacity-100 transition-opacity cursor-default">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-[#FFE082]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>
+            <span className="text-[9px] font-bold text-[#737373] uppercase tracking-widest">Verified Users</span>
           </div>
         </div>
       </div>

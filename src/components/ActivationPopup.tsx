@@ -88,63 +88,63 @@ export function ActivationPopup({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#090909]/85 backdrop-blur-md">
       <motion.div 
         initial={{ opacity: 0, scale: 0.95, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-white dark:bg-slate-900 rounded-[32px] w-full max-w-md shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800/80 relative"
+        className="bg-[#151515] rounded-[32px] w-full max-w-md shadow-2xl overflow-hidden border border-[#3D3215] relative"
       >
         {/* Banner with modern circular meshes */}
-        <div className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-800 p-8 text-center text-white relative overflow-hidden">
-          <div className="absolute -top-12 -right-12 w-40 h-40 bg-white/5 rounded-full blur-xl"></div>
-          <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-indigo-500/10 rounded-full blur-lg"></div>
+        <div className="bg-gradient-to-br from-[#8A6508] via-[#D4A017] to-[#FACC15] p-8 text-center text-[#090909] relative overflow-hidden">
+          <div className="absolute -top-12 -right-12 w-40 h-40 bg-white/10 rounded-full blur-xl"></div>
+          <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-[#8A6508]/20 rounded-full blur-lg"></div>
           
-          <div className="w-16 h-16 bg-white/10 dark:bg-white/5 backdrop-blur-md rounded-2xl flex items-center justify-center mx-auto mb-4 border border-white/20 shadow-inner">
+          <div className="w-16 h-16 bg-[#090909]/10 backdrop-blur-md rounded-2xl flex items-center justify-center mx-auto mb-4 border border-[#090909]/20 shadow-inner">
             {settings.mode === 'paid' ? (
-              <Lock className="w-8 h-8 text-white animate-pulse" />
+              <Lock className="w-8 h-8 text-[#090909] animate-pulse" />
             ) : (
-              <ShieldCheck className="w-8 h-8 text-emerald-300" />
+              <ShieldCheck className="w-8 h-8 text-[#090909]" />
             )}
           </div>
           <h2 className="text-2xl font-display font-black tracking-tight">Account Activation</h2>
-          <p className="text-indigo-200 text-xs font-bold uppercase tracking-widest mt-1">অ্যাকাউন্ট ভেরিফিকেশন ও অ্যাক্টিভেশন</p>
+          <p className="text-[#1A1A1A] text-xs font-bold uppercase tracking-widest mt-1">অ্যাকাউন্ট ভেরিফিকেশন ও অ্যাক্টিভেশন</p>
         </div>
         
         <div className="p-6 space-y-5 text-center">
           {loading ? (
             <div className="py-12 flex flex-col items-center justify-center gap-3">
-              <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
-              <p className="text-slate-450 text-xs font-black uppercase tracking-wider">Checking Requirements...</p>
+              <div className="w-8 h-8 border-4 border-[#3D3215] border-t-[#D4A017] rounded-full animate-spin"></div>
+              <p className="text-[#737373] text-xs font-black uppercase tracking-wider">Checking Requirements...</p>
             </div>
           ) : (
             <>
-              <div className="text-left bg-slate-50 dark:bg-slate-950/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-850/60">
-                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 font-semibold leading-relaxed">
-                  আপনার অ্যাকাউন্টটি বর্তমানে <strong className="text-rose-500 underline">ইন-অ্যাক্টিভ</strong> রয়েছে। কাজ শুরু করতে, টাস্ক সম্পন্ন করতে এবং ডেইলি উইথড্র নিতে অ্যাকাউন্টটি অ্যাক্টিভ করা বাধ্যতামূলক।
+              <div className="text-left bg-[#101010] p-4 rounded-2xl border border-[#3D3215]">
+                <p className="text-xs sm:text-sm text-[#A3A3A3] font-semibold leading-relaxed">
+                  আপনার অ্যাকাউন্টটি বর্তমানে <strong className="text-[#EF4444] underline">ইন-অ্যাক্টিভ</strong> রয়েছে। কাজ শুরু করতে, টাস্ক সম্পন্ন করতে এবং ডেইলি উইথড্র নিতে অ্যাকাউন্টটি অ্যাক্টিভ করা বাধ্যতামূলক।
                 </p>
               </div>
               
               {/* Fee badge */}
-              <div className="bg-gradient-to-tr from-slate-50 to-indigo-50/30 dark:from-slate-955 dark:to-indigo-950/20 p-5 rounded-2xl border border-slate-150/45 dark:border-indigo-900/15 flex justify-between items-center text-left">
+              <div className="bg-[#101010] p-5 rounded-2xl border border-[#3D3215] flex justify-between items-center text-left">
                 <div>
-                  <span className="block text-[10px] font-black text-slate-400 dark:text-slate-555 uppercase tracking-widest">Activation Mode</span>
-                  <span className="text-sm font-bold text-slate-800 dark:text-slate-300">
+                  <span className="block text-[10px] font-black text-[#737373] uppercase tracking-widest">Activation Mode</span>
+                  <span className="text-sm font-bold text-[#FFFFFF]">
                     {settings.mode === 'paid' ? 'Paid Activation (ফি)' : 'Free Activation (ফ্রি)'}
                   </span>
                 </div>
                 <div className="text-right">
-                  <span className="block text-[10px] font-black text-slate-400 dark:text-slate-555 uppercase tracking-widest text-right">Fee (চার্জ)</span>
+                  <span className="block text-[10px] font-black text-[#737373] uppercase tracking-widest text-right">Fee (চার্জ)</span>
                   {settings.mode === 'paid' ? (
-                    <span className="text-2xl font-black text-indigo-600 dark:text-indigo-400">৳{settings.fee}</span>
+                    <span className="text-2xl font-black text-[#FACC15]">৳{settings.fee}</span>
                   ) : (
-                    <span className="text-2xl font-black text-emerald-500">FREE</span>
+                    <span className="text-2xl font-black text-[#22C55E]">FREE</span>
                   )}
                 </div>
               </div>
 
               {settings.mode === 'paid' && (
-                <p className="text-[11px] text-slate-450 dark:text-slate-400 font-bold bg-indigo-50/30 dark:bg-slate-800/40 py-2.5 px-3 rounded-xl border border-indigo-100/10 flex items-center justify-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-indigo-500 animate-ping"></span>
+                <p className="text-[11px] text-[#A3A3A3] font-bold bg-[#1C1C1C] py-2.5 px-3 rounded-xl border border-[#3D3215] flex items-center justify-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-[#FACC15] animate-ping"></span>
                   অ্যাক্টিভেশন ফি বিকাশ, রকেট বা নগদের মাধ্যমে পেমেন্ট করুন।
                 </p>
               )}
@@ -160,15 +160,15 @@ export function ActivationPopup({ onClose }: { onClose: () => void }) {
                     }
                   }}
                   disabled={activating}
-                  className="w-full flex items-center justify-center gap-2 py-4 rounded-[18px] text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-600/10 bg-indigo-600 hover:bg-indigo-550 text-white transition-all active:scale-[0.98] disabled:opacity-75"
+                  className="w-full flex items-center justify-center gap-2 py-4 rounded-[18px] text-xs font-black uppercase tracking-widest shadow-lg shadow-[#D4A017]/20 bg-gradient-to-r from-[#D4A017] to-[#FACC15] text-[#090909] transition-all active:scale-[0.98] disabled:opacity-75"
                 >
-                  {settings.mode === 'paid' ? <><ShieldCheck className="w-4 h-4" /> Act Now / পেমেন্ট করুন</> : <><ShieldCheck className="w-4 h-4" /> Activate for Free</>}
-                  <ChevronRight className="w-4 h-4" />
+                  {settings.mode === 'paid' ? <><ShieldCheck className="w-4 h-4 text-[#090909]" /> Act Now / পেমেন্ট করুন</> : <><ShieldCheck className="w-4 h-4 text-[#090909]" /> Activate for Free</>}
+                  <ChevronRight className="w-4 h-4 text-[#090909]" />
                 </button>
 
                 <button
                   onClick={onClose}
-                  className="w-full text-slate-450 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 text-xs font-black uppercase tracking-wider transition-colors py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/40 rounded-xl"
+                  className="w-full text-[#737373] hover:text-[#FFFFFF] text-xs font-black uppercase tracking-wider transition-colors py-2.5 hover:bg-[#1C1C1C] rounded-xl"
                 >
                   Cancel / পরে করব
                 </button>

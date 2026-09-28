@@ -33,9 +33,9 @@ export function Layout() {
   })?.to || '';
 
   return (
-    <div className="w-full sm:max-w-[480px] mx-auto bg-slate-50 dark:bg-slate-950 min-h-screen relative shadow-none sm:shadow-2xl overflow-x-hidden pb-[90px] transition-colors">
+    <div className="w-full sm:max-w-[480px] mx-auto bg-[#090909] min-h-screen relative shadow-none sm:shadow-2xl overflow-x-hidden pb-[90px] transition-colors">
       {isQuotaExceeded && (
-        <div className="bg-gradient-to-r from-amber-550 to-rose-600 text-white text-[11px] font-bold px-4 py-2.5 text-center flex items-center justify-center gap-2 shadow-lg relative z-[9999] animate-in slide-in-from-top duration-300">
+        <div className="bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] text-[11px] font-bold px-4 py-2.5 text-center flex items-center justify-center gap-2 shadow-lg relative z-[9999] animate-in slide-in-from-top duration-300">
           <span className="animate-bounce text-sm">⚠️</span>
           <p className="leading-snug text-left">
             ফ্রী ফায়ারবেস দৈনিক রিড কোটা শেষ হয়েছে। রিসেন্ট ডাটা ক্যাশ থেকে লোড হচ্ছে। আপনার নিজস্ব হোস্টিং এবং ফায়ারব্যাসে ওল্ড লিমিট এড়াতে বিলিং অন করুন।
@@ -48,10 +48,10 @@ export function Layout() {
         <div className="flex-grow">
           {currentOutlet}
         </div>
-        <div className="py-6 text-center text-[10px] text-slate-400 dark:text-slate-500 font-medium tracking-wide flex flex-col gap-1 items-center justify-center pb-8 border-t border-slate-100 dark:border-slate-800/60 mt-10">
-          <p>© 2026 hmf income. All Rights Reserved.</p>
+        <div className="py-6 text-center text-[10px] text-[#737373] font-medium tracking-wide flex flex-col gap-1 items-center justify-center pb-8 border-t border-[#3D3215] mt-10">
+          <p>© 2026 HMF EARNING ZONE. All Rights Reserved.</p>
           <p>
-            Developed by: <a href="https://www.facebook.com/profile.php?id=61589359523258" target="_blank" rel="noopener noreferrer" className="text-sky-500 font-bold hover:underline">Hmf Ekram</a>
+            Developed by: <a href="https://www.facebook.com/profile.php?id=61589359523258" target="_blank" rel="noopener noreferrer" className="text-[#FACC15] font-bold hover:underline">Hmf Ekram</a>
           </p>
         </div>
       </div>
@@ -63,10 +63,10 @@ export function Layout() {
           <div className="fixed bottom-[90px] right-5 z-50 sm:right-[calc(50%-220px)] pointer-events-auto flex flex-col gap-3">
             <button
               onClick={() => navigate('/support')}
-              className="w-14 h-14 bg-gradient-to-tr from-rose-500 to-pink-500 text-white rounded-full flex items-center justify-center shadow-[0_8px_30px_rgba(244,63,94,0.5)] hover:scale-110 hover:-translate-y-1 active:scale-95 transition-all duration-300 ring-4 ring-white/30 dark:ring-slate-800/80"
+              className="w-14 h-14 bg-gradient-to-tr from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] rounded-full flex items-center justify-center shadow-[0_8px_30px_rgba(212,160,23,0.45)] hover:scale-110 hover:-translate-y-1 active:scale-95 transition-all duration-300 ring-4 ring-[#3D3215]"
               aria-label="Support"
             >
-              <HelpCircle className="w-6 h-6" />
+              <HelpCircle className="w-6 h-6 text-[#090909]" />
             </button>
             
           </div>
@@ -75,7 +75,7 @@ export function Layout() {
             onValueChange={(val) => {
               if (val) navigate(val);
             }} 
-            className="fixed bottom-0 left-0 right-0 mx-auto w-full sm:max-w-[480px] bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl rounded-t-[28px] z-50 shadow-[0_-12px_44px_rgba(0,0,0,0.05)] dark:shadow-[0_-12px_44px_rgba(0,0,0,0.3)] border-t border-slate-150/45 dark:border-slate-800/40 transition-colors select-none"
+            className="fixed bottom-0 left-0 right-0 mx-auto w-full sm:max-w-[480px] bg-[#151515]/95 backdrop-blur-2xl rounded-t-[28px] z-50 shadow-[0_-12px_44px_rgba(0,0,0,0.6)] border-t border-[#3D3215] transition-colors select-none"
           >
             <Tabs.List className="flex justify-between items-center px-4 py-2" aria-label="Main navigation tabs">
               {navItems.map((item) => {
@@ -87,14 +87,14 @@ export function Layout() {
                     className={cn(
                       "flex flex-1 flex-col items-center justify-center cursor-pointer transition-all duration-300 relative focus:outline-none rounded-xl h-16",
                       isActive 
-                        ? "text-white" 
-                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                        ? "text-[#FFFFFF]" 
+                        : "text-[#737373] hover:text-[#A3A3A3]"
                     )}
                   >
                     {isActive && (
                       <motion.div
                         layoutId="activeTabBackground"
-                        className="absolute -top-[20px] w-[56px] h-[56px] bg-[#00AEEF] rounded-full shadow-[0_4px_16px_rgba(0,174,239,0.4)] border-[6px] border-white dark:border-slate-900 z-0"
+                        className="absolute -top-[20px] w-[56px] h-[56px] bg-gradient-to-tr from-[#8A6508] via-[#D4A017] to-[#FACC15] rounded-full shadow-[0_4px_20px_rgba(212,160,23,0.5)] border-[6px] border-[#090909] z-0"
                         transition={{ type: "spring", stiffness: 400, damping: 25 }}
                       />
                     )}
@@ -102,14 +102,14 @@ export function Layout() {
                     {isActive ? (
                       <div className="relative z-10 flex flex-col items-center w-full h-full pb-1">
                         <div className="absolute top-[-4px]">
-                          <item.icon className="w-6 h-6 text-white" strokeWidth={2.5} />
+                          <item.icon className="w-6 h-6 text-[#090909]" strokeWidth={2.5} />
                         </div>
-                        <span className="text-[11px] font-bold tracking-wide leading-none text-[#00AEEF] dark:text-[#39abef] absolute bottom-1.5">{item.label}</span>
+                        <span className="text-[11px] font-bold tracking-wide leading-none text-[#FACC15] absolute bottom-1.5">{item.label}</span>
                       </div>
                     ) : (
                       <div className="relative z-10 flex flex-col items-center justify-end h-full pb-0.5">
-                        <item.icon className="w-6 h-6 mb-1.5 opacity-60" strokeWidth={2.2} />
-                        <span className="text-[11px] font-medium tracking-wide leading-none text-slate-500 dark:text-slate-400">{item.label}</span>
+                        <item.icon className="w-6 h-6 mb-1.5 opacity-60 text-[#737373]" strokeWidth={2.2} />
+                        <span className="text-[11px] font-medium tracking-wide leading-none text-[#737373]">{item.label}</span>
                       </div>
                     )}
                   </Tabs.Trigger>

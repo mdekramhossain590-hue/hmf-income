@@ -72,19 +72,19 @@ export function Reviews() {
 
   if (siteSettings?.reviewsEnabled === false) {
     return (
-      <div className="pt-10 px-4 pb-20 max-w-md mx-auto text-center font-sans">
-        <div className="bg-white dark:bg-slate-800 p-8 rounded-[32px] shadow-sm ring-1 ring-slate-100 dark:ring-slate-700/50 flex flex-col items-center">
-          <div className="w-16 h-16 rounded-3xl bg-amber-50 dark:bg-amber-950/20 flex items-center justify-center text-amber-500 mb-4 ring-1 ring-amber-100 dark:ring-amber-900/30 font-sans">
+      <div className="pt-10 px-4 pb-20 max-w-md mx-auto text-center font-sans text-white">
+        <div className="bg-[#151515] p-8 rounded-[32px] shadow-sm border border-[#3D3215] flex flex-col items-center">
+          <div className="w-16 h-16 rounded-3xl bg-[#101010] border border-[#3D3215] flex items-center justify-center text-[#FACC15] mb-4 font-sans">
             <Star className="w-8 h-8 opacity-75 animate-bounce" />
           </div>
-          <h2 className="text-xl font-display font-black mb-2 tracking-tight text-slate-800 dark:text-white">রিভিউ জবস বন্ধ আছে</h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 font-bold leading-relaxed mb-6">
+          <h2 className="text-xl font-display font-black mb-2 tracking-tight text-white">রিভিউ জবস বন্ধ আছে</h2>
+          <p className="text-xs text-[#A3A3A3] font-bold leading-relaxed mb-6">
             দুঃখিত! এডমিন আপাতত রিভিউ জব অপশনটি বন্ধ রেখেছেন। অনুগ্রহ করে পরবর্তীতে আবার চেষ্টা করুন।
           </p>
           <button 
             type="button"
             onClick={() => navigate('/')}
-            className="w-full bg-slate-900 dark:bg-indigo-600 hover:bg-slate-800 dark:hover:bg-indigo-500 text-white font-bold py-3 px-6 rounded-2xl text-xs transition duration-200 uppercase tracking-widest active:scale-95 cursor-pointer"
+            className="w-full bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] font-black py-3 px-6 rounded-2xl text-xs transition duration-200 uppercase tracking-widest active:scale-95 cursor-pointer shadow-md"
           >
             Dashboard এ ফিরে যান
           </button>
@@ -94,26 +94,26 @@ export function Reviews() {
   }
 
   return (
-    <div className="pt-6 px-4 pb-20">
-      <h2 className="text-2xl font-display font-black mb-4 tracking-tight text-slate-800 dark:text-white text-center">My Reviews</h2>
+    <div className="pt-6 px-4 pb-20 text-white">
+      <h2 className="text-2xl font-display font-black mb-4 tracking-tight text-white text-center">My Reviews</h2>
 
       {/* Trust Banner Banner */}
-      <div className="bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30 rounded-[20px] p-3 mb-6 flex items-center justify-center gap-2 cursor-default">
-        <Shield className="w-4 h-4 text-blue-500" />
-        <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-widest">Verified Authentic Reviews</span>
+      <div className="bg-[#151515] border border-[#3D3215] rounded-[20px] p-3 mb-6 flex items-center justify-center gap-2 cursor-default">
+        <Shield className="w-4 h-4 text-[#FACC15]" />
+        <span className="text-[11px] font-bold text-[#A3A3A3] uppercase tracking-widest">Verified Authentic Reviews</span>
       </div>
 
       {/* Tabs */}
-      <div className="flex bg-slate-100 dark:bg-slate-900/50 p-1 rounded-xl mb-6 ring-1 ring-slate-200 dark:ring-slate-800">
+      <div className="flex bg-[#101010] p-1 rounded-xl mb-6 border border-[#3D3215]">
         <button 
           onClick={() => setActiveTab('jobs')}
-          className={`flex-1 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all duration-200 ${activeTab === 'jobs' ? 'bg-white shadow-sm text-indigo-600 dark:bg-slate-800 dark:text-indigo-400' : 'bg-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
+          className={`flex-1 py-2.5 rounded-lg text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer ${activeTab === 'jobs' ? 'bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] shadow-md' : 'bg-transparent text-[#A3A3A3] hover:text-white'}`}
         >
           <List className="w-4 h-4" /> Available Reviews
         </button>
         <button 
           onClick={() => setActiveTab('history')}
-          className={`flex-1 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all duration-200 ${activeTab === 'history' ? 'bg-white shadow-sm text-indigo-600 dark:bg-slate-800 dark:text-indigo-400' : 'bg-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
+          className={`flex-1 py-2.5 rounded-lg text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer ${activeTab === 'history' ? 'bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] shadow-md' : 'bg-transparent text-[#A3A3A3] hover:text-white'}`}
         >
           <History className="w-4 h-4" /> History
         </button>
@@ -130,21 +130,21 @@ export function Reviews() {
         >
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {jobs.length === 0 ? (
-              <div className="col-span-full text-center py-10 text-slate-400 dark:text-slate-500 font-medium">No review tasks available right now.</div>
+              <div className="col-span-full text-center py-10 text-[#737373] font-medium">No review tasks available right now.</div>
             ) : (
               jobs.map((job) => {
                 return (
-                  <div key={job.id} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm hover:shadow-md ring-1 ring-slate-100 dark:ring-slate-700/50 flex flex-col items-center text-center transition-all">
-                    <div className="w-12 h-12 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-100 dark:border-indigo-700/50 flex items-center justify-center mb-3 text-indigo-500">
+                  <div key={job.id} className="bg-[#151515] p-4 rounded-2xl shadow-sm hover:shadow-md border border-[#3D3215] hover:border-[#D4A017] flex flex-col items-center text-center transition-all">
+                    <div className="w-12 h-12 rounded-xl bg-[#101010] border border-[#3D3215] flex items-center justify-center mb-3 text-[#FACC15]">
                       <Star className="w-6 h-6" />
                     </div>
-                    <h4 className="font-display font-bold text-[12px] leading-tight mb-1 text-slate-800 dark:text-slate-200 flex items-center justify-center gap-1 w-full truncate">
+                    <h4 className="font-display font-bold text-[12px] leading-tight mb-1 text-white flex items-center justify-center gap-1 w-full truncate">
                       <span className="truncate">{job.title}</span>
                     </h4>
-                    <span className="text-emerald-600 dark:text-emerald-400 text-[10px] uppercase font-black tracking-widest bg-emerald-50 dark:bg-emerald-900/30 px-2.5 py-1 rounded-full mb-3 border border-emerald-100 dark:border-emerald-800/50">৳ {job.reward}</span>
+                    <span className="text-[#FACC15] text-[15px] font-display font-bold mb-3 tracking-tight">৳ {job.reward}</span>
                     <button 
                       onClick={() => startTask(job.id)}
-                      className="w-full bg-slate-900 dark:bg-indigo-600 hover:bg-slate-800 dark:hover:bg-indigo-500 text-white py-2 rounded-xl text-xs font-bold transition-all active:scale-95"
+                      className="w-full bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] py-2 rounded-xl text-xs font-bold transition-all active:scale-95 shadow-md shadow-[#D4A017]/20 cursor-pointer"
                     >
                       {t('start')}
                     </button>
@@ -166,32 +166,32 @@ export function Reviews() {
           className="space-y-3"
         >
           {/* Date Filter */}
-          <div className="flex gap-3 mb-6 bg-white dark:bg-slate-800 p-3 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/50">
+          <div className="flex gap-3 mb-6 bg-[#151515] p-3 rounded-2xl shadow-sm border border-[#3D3215]">
             <div className="flex-1">
-              <label className="block text-[10px] uppercase font-black tracking-widest text-slate-500 mb-1 ml-1">Start Date</label>
+              <label className="block text-[10px] uppercase font-black tracking-widest text-[#A3A3A3] mb-1 ml-1">Start Date</label>
               <input 
                 type="date"
                 value={filterStartDate}
                 onChange={(e) => setFilterStartDate(e.target.value)}
-                className="w-full text-xs font-bold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-xl p-2.5 text-slate-800 dark:text-white outline-none focus:border-indigo-500 dark:focus:border-indigo-500 transition-colors"
+                className="w-full text-xs font-bold border border-[#3D3215] bg-[#101010] rounded-xl p-2.5 text-white outline-none focus:border-[#D4A017] transition-colors"
                 max={filterEndDate || undefined}
               />
             </div>
             <div className="flex-1">
-              <label className="block text-[10px] uppercase font-black tracking-widest text-slate-500 mb-1 ml-1">End Date</label>
+              <label className="block text-[10px] uppercase font-black tracking-widest text-[#A3A3A3] mb-1 ml-1">End Date</label>
               <input 
                 type="date"
                 value={filterEndDate}
                 onChange={(e) => setFilterEndDate(e.target.value)}
-                className="w-full text-xs font-bold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-xl p-2.5 text-slate-800 dark:text-white outline-none focus:border-indigo-500 dark:focus:border-indigo-500 transition-colors"
+                className="w-full text-xs font-bold border border-[#3D3215] bg-[#101010] rounded-xl p-2.5 text-white outline-none focus:border-[#D4A017] transition-colors"
                 min={filterStartDate || undefined}
               />
             </div>
           </div>
 
           {filteredHistory.length === 0 ? (
-            <div className="text-center py-10 text-gray-400">
-              <History className="w-12 h-12 mx-auto mb-3 opacity-20" />
+            <div className="text-center py-10 text-[#737373]">
+              <History className="w-12 h-12 mx-auto mb-3 opacity-20 text-[#D4A017]" />
               <p className="text-sm">{taskHistory.length > 0 ? 'No reviews found in this date range.' : 'No review history yet.'}</p>
             </div>
           ) : (
@@ -211,19 +211,19 @@ export function Reviews() {
                     show: { opacity: 1, y: 0 }
                   }}
                   key={historyItem.id} 
-                  className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 flex justify-between items-center"
+                  className="bg-[#151515] p-4 rounded-xl shadow-sm border border-[#3D3215] flex justify-between items-center"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 text-green-600 flex items-center justify-center rounded-full">
+                    <div className="w-10 h-10 bg-[#D4A017]/10 border border-[#3D3215] text-[#FACC15] flex items-center justify-center rounded-full">
                       <Star className="w-5 h-5" />
                     </div>
                     <div>
-                      <h4 className="text-[15px] font-display font-bold text-gray-800 dark:text-white">{historyItem.title}</h4>
-                      <p className="text-xs text-gray-500">{historyItem.completedAt?.toDate().toLocaleString() || 'Just now'}</p>
+                      <h4 className="text-[15px] font-display font-bold text-white">{historyItem.title}</h4>
+                      <p className="text-xs text-[#737373]">{historyItem.completedAt?.toDate().toLocaleString() || 'Just now'}</p>
                     </div>
                   </div>
                   <div className="text-right flex items-center justify-end">
-                    <p className="text-[9px] font-display font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest bg-emerald-50 dark:bg-emerald-900/30 px-2 py-1 rounded-lg border border-emerald-100 dark:border-emerald-800/50 mt-1">৳ {historyItem.reward || 0}</p>
+                    <p className="text-sm font-display font-black text-[#FACC15]">+৳ {historyItem.reward || 0}</p>
                   </div>
                 </motion.div>
               ))}

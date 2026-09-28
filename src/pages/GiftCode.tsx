@@ -114,19 +114,19 @@ export function GiftCode() {
   return (
     <div className="pt-6 px-4 pb-24">
       <Celebration isVisible={showCelebration} onComplete={() => setShowCelebration(false)} />
-      <h2 className="text-2xl font-display font-black mb-6 tracking-tight text-slate-800 dark:text-white text-center">Gift Code</h2>
+      <h2 className="text-2xl font-display font-black mb-6 tracking-tight text-white text-center">Gift Code</h2>
       
       <motion.div 
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 max-w-md mx-auto"
+        className="bg-[#151515] rounded-3xl p-6 shadow-xl border border-[#3D3215] max-w-md mx-auto"
       >
         <div className="flex flex-col items-center text-center mb-6">
-          <div className="w-16 h-16 bg-gradient-to-tr from-purple-500 to-indigo-500 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/30 mb-4 transform -rotate-6">
-            <Gift className="w-8 h-8 text-white transform rotate-6" />
+          <div className="w-16 h-16 bg-gradient-to-tr from-[#8A6508] to-[#FACC15] rounded-2xl flex items-center justify-center shadow-lg shadow-[#D4A017]/20 mb-4 transform -rotate-6">
+            <Gift className="w-8 h-8 text-[#090909] transform rotate-6" />
           </div>
-          <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">Claim Your Reward</h3>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Enter a valid gift code below to claim your surprise reward!</p>
+          <h3 className="text-xl font-bold text-white mb-2">Claim Your Reward</h3>
+          <p className="text-sm text-[#A3A3A3]">Enter a valid gift code below to claim your surprise reward!</p>
         </div>
 
         <form onSubmit={handleClaim} className="space-y-4">
@@ -137,26 +137,26 @@ export function GiftCode() {
                 value={code}
                 onChange={(e) => setCode(e.target.value.toUpperCase())}
                 placeholder="ENTER CODE (5-8 CHARS)"
-                className="w-full bg-slate-50 border-2 border-slate-200 dark:bg-slate-900/50 dark:border-slate-700 dark:text-white rounded-xl px-4 py-4 text-center text-xl font-black tracking-widest focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 transition-all uppercase placeholder:font-normal placeholder:text-sm placeholder:tracking-normal"
+                className="w-full bg-[#101010] border-2 border-[#3D3215] text-white rounded-xl px-4 py-4 text-center text-xl font-black tracking-widest focus:outline-none focus:border-[#FACC15] focus:ring-4 focus:ring-[#D4A017]/20 transition-all uppercase placeholder:font-normal placeholder:text-sm placeholder:tracking-normal placeholder-[#737373]"
                 maxLength={8}
                 disabled={loading}
               />
-              <Sparkles className="absolute right-4 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
+              <Sparkles className="absolute right-4 top-1/2 transform -translate-y-1/2 text-[#FACC15] w-5 h-5" />
             </div>
           </div>
           
           <button
             type="submit"
             disabled={loading || code.trim().length < 5}
-            className="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-indigo-500/30 active:scale-[0.98] transition-all disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-2"
+            className="w-full bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] font-black py-4 rounded-xl shadow-lg shadow-[#D4A017]/20 active:scale-[0.98] transition-all disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-2 cursor-pointer"
           >
             {loading ? 'Processing...' : 'Claim Reward'}
           </button>
         </form>
         
-        <div className="mt-6 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800">
-           <h4 className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-widest mb-2">How it works</h4>
-           <ul className="text-xs text-slate-500 dark:text-slate-400 space-y-2 list-disc pl-4">
+        <div className="mt-6 p-4 bg-[#101010] rounded-2xl border border-[#3D3215]">
+           <h4 className="text-xs font-bold text-[#FACC15] uppercase tracking-widest mb-2">How it works</h4>
+           <ul className="text-xs text-[#A3A3A3] space-y-2 list-disc pl-4">
               <li>Enter a 5-8 character promotional code.</li>
               <li>Rewards can be fixed or random amounts.</li>
               <li>Funds will be added to your Gift Wallet.</li>

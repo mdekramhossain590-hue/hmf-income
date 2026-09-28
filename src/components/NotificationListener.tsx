@@ -196,27 +196,27 @@ function showToast(
   const isDigest = items.length > 1;
 
   createRoot(toastContainer).render(
-    <div className={`bg-slate-900 border ${isDigest ? 'border-blue-500 shadow-blue-500/15' : 'border-slate-700 shadow-2xl'} rounded-2xl p-4 w-72 text-white animate-in slide-in-from-top-2 fade-in duration-300`}>
+    <div className={`bg-[#151515] border ${isDigest ? 'border-[#D4A017] shadow-[#D4A017]/15' : 'border-[#3D3215] shadow-2xl'} rounded-2xl p-4 w-72 text-white animate-in slide-in-from-top-2 fade-in duration-300`}>
       <div className="flex items-start gap-3">
-        <div className={`p-2 rounded-xl shrink-0 ${isDigest ? 'bg-blue-600/30 text-blue-400' : 'bg-slate-800 text-slate-300'}`}>
+        <div className={`p-2 rounded-xl shrink-0 ${isDigest ? 'bg-[#D4A017]/20 text-[#FACC15]' : 'bg-[#1C1C1C] text-[#FACC15]'}`}>
           <Bell className="w-5 h-5" />
         </div>
         <div className="flex-1 min-w-0">
-          <h4 className="font-bold text-sm text-slate-100 truncate">{title}</h4>
+          <h4 className="font-bold text-sm text-[#FFFFFF] truncate">{title}</h4>
           {isDigest ? (
-            <div className="text-[11px] text-slate-400 mt-2.5 space-y-2 max-h-48 overflow-y-auto pr-1">
+            <div className="text-[11px] text-[#A3A3A3] mt-2.5 space-y-2 max-h-48 overflow-y-auto pr-1">
               {items.map((item, idx) => (
-                <div key={item.id || idx} className="border-l-2 border-blue-500/30 pl-2 py-0.5">
-                  <div className="font-semibold text-slate-200 truncate">{item.title}</div>
-                  <div className="text-[10px] text-slate-400 leading-snug mt-0.5">{item.message}</div>
+                <div key={item.id || idx} className="border-l-2 border-[#D4A017]/40 pl-2 py-0.5">
+                  <div className="font-semibold text-[#FFFFFF] truncate">{item.title}</div>
+                  <div className="text-[10px] text-[#A3A3A3] leading-snug mt-0.5">{item.message}</div>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-xs text-slate-400 mt-1 whitespace-pre-line leading-relaxed">{message}</p>
+            <p className="text-xs text-[#A3A3A3] mt-1 whitespace-pre-line leading-relaxed">{message}</p>
           )}
         </div>
-        <button onClick={handleClose} className="text-slate-500 hover:text-white transition p-0.5 shrink-0 text-lg leading-none">
+        <button onClick={handleClose} className="text-[#737373] hover:text-[#FFFFFF] transition p-0.5 shrink-0 text-lg leading-none">
            &times;
         </button>
       </div>

@@ -55,7 +55,7 @@ export function AdminPanel() {
   const [paymentRequests, setPaymentRequests] = useState<any[]>([]);
   const [spinRewards, setSpinRewards] = useState<number[]>([1, 2, 5, 10, 0, 50, 100, 0]);
   const [referralSettings, setReferralSettings] = useState({ fixedBonus: 5, gen2FixedBonus: 3, gen3FixedBonus: 1, gen1Percent: 0, gen2Percent: 0, gen3Percent: 0 });
-  const [bannerSettings, setBannerSettings] = useState({ text: 'Welcome to HMF Income! Complete tasks and earn money daily.', link: '#' });
+  const [bannerSettings, setBannerSettings] = useState({ text: 'Welcome to HMF EARNING ZONE! Complete tasks and earn money daily.', link: '#' });
   const [gameSettings, setGameSettings] = useState({ spinTaskReq: 0, spinReferReq: 0, mathTaskReq: 0, mathReferReq: 0 });
   const [partnerSettings, setPartnerSettings] = useState({ requiredReferrals: 10, dailyBonus: 100, enabled: true, withdrawEnabled: true });
   const [withdrawSettings, setWithdrawSettings] = useState({ mainMin: 50, mainFee: 0, bonusMin: 50, bonusFee: 0, referralMin: 50, referralFee: 0, tasksMin: 50, tasksFee: 0, mainAmounts: "110, 210, 310, 410, 510", bonusAmounts: "110, 210, 310, 410, 510", referralAmounts: "110, 210, 310, 410, 510", tasksAmounts: "110, 210, 310, 410, 510", partnerAmounts: "110, 210, 310, 410, 510", giftAmounts: "110, 210, 310, 410, 510" });
@@ -210,17 +210,17 @@ export function AdminPanel() {
   const userPermissions = profile?.permissions || [];
 
   const ALL_TABS = [
-    { id: 'dashboard', label: 'Dashboard', icon: Calculator, color: 'text-indigo-400' },
-    { id: 'submissions', label: 'Review', icon: CheckCircle, color: 'text-orange-500' },
-    { id: 'requests', label: 'Payments', icon: Wallet, color: 'text-emerald-500' },
-    { id: 'drives', label: 'Drives', icon: Smartphone, color: 'text-sky-500' },
-    { id: 'jobs', label: 'Jobs', icon: ListChecks, color: 'text-blue-500' },
-    { id: 'courses', label: 'Courses', icon: BookOpen, color: 'text-purple-500' },
-    { id: 'users', label: 'Users', icon: Users, color: 'text-indigo-500' },
-    { id: 'faqs', label: 'FAQs', icon: HelpCircle, color: 'text-yellow-500' },
-    { id: 'gifts', label: 'Gifts', icon: Gift, color: 'text-fuchsia-500' },
-    { id: 'settings', label: 'Configs', icon: Settings, color: 'text-rose-500' },
-    { id: 'migrate', label: 'Migration', icon: Database, color: 'text-purple-600' }
+    { id: 'dashboard', label: 'Dashboard', icon: Calculator, color: 'text-[#FACC15]' },
+    { id: 'submissions', label: 'Review', icon: CheckCircle, color: 'text-[#FACC15]' },
+    { id: 'requests', label: 'Payments', icon: Wallet, color: 'text-[#FACC15]' },
+    { id: 'drives', label: 'Drives', icon: Smartphone, color: 'text-[#FACC15]' },
+    { id: 'jobs', label: 'Jobs', icon: ListChecks, color: 'text-[#FACC15]' },
+    { id: 'courses', label: 'Courses', icon: BookOpen, color: 'text-[#FACC15]' },
+    { id: 'users', label: 'Users', icon: Users, color: 'text-[#FACC15]' },
+    { id: 'faqs', label: 'FAQs', icon: HelpCircle, color: 'text-[#FACC15]' },
+    { id: 'gifts', label: 'Gifts', icon: Gift, color: 'text-[#FACC15]' },
+    { id: 'settings', label: 'Configs', icon: Settings, color: 'text-[#FACC15]' },
+    { id: 'migrate', label: 'Migration', icon: Database, color: 'text-[#FACC15]' }
   ];
 
   const allowedTabs = ALL_TABS.filter(tab => isFullAdmin || userPermissions.includes(tab.id));
@@ -1101,14 +1101,23 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
       console.warn("Failed wiping user submissions:", subErr);
     }
 
-    // Reset user doc balance and stats to clean 0
+    // Reset user doc balance and stats to strictly 0 (no merge: true, so no old residual map properties remain)
     await setDoc(doc(db, "users", uid), {
       email: userEmail,
       role: 'admin',
       fullName: profile?.fullName || profile?.name || 'Administrator',
       name: profile?.name || profile?.fullName || 'Administrator',
-      balances: { main: 0, bonus: 0, referral: 0, partner: 0, tasks: 0 },
       balance: 0,
+      balances: {
+        main: 0,
+        bonus: 0,
+        referral: 0,
+        partner: 0,
+        tasks: 0,
+        gift: 0
+      },
+      totalIncome: 0,
+      bonus: 0,
       approvedTasks: 0,
       rejectedTasks: 0,
       totalTasksCompleted: 0,
@@ -1117,189 +1126,36 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
       totalMathsPlayed: 0,
       partnerReferrals: 0,
       isActive: true,
+      phone: profile?.phone || '',
+      deviceId: profile?.deviceId || '',
       updatedAt: serverTimestamp()
-    }, { merge: true });
+    });
 
     await setDoc(doc(db, "leaderboard", uid), {
       fullName: profile?.fullName || profile?.name || 'Administrator',
       totalIncome: 0,
       bonus: 0,
       updatedAt: serverTimestamp()
-    }, { merge: true });
+    });
   };
 
-  const handleResetMyBalanceAndActivity = () => {
+  // Master Factory Reset & Wipe - ALL-IN-ONE: ব্যালেন্স ০, ডাটা ওয়াইপ, সেটিংস ও কনফিগ রিসেট (শুধুমাত্র সুপার অ্যাডমিন)
+  const handleMasterFactoryReset = () => {
+    if (!isFullAdmin) {
+      toast.error("রিসেট করার কোনো অনুমতি আপনার নেই! শুধুমাত্র প্রধান সুপার অ্যাডমিন এটি করতে পারবেন।");
+      return;
+    }
     setConfirmDialog({
       isOpen: true,
-      title: 'ব্যালেন্স ও সাম্প্রতিক কার্যক্রম রিসেট (Reset to 0)',
-      message: 'আপনার অ্যাডমিন অ্যাকাউন্টের সমস্ত ব্যালেন্স (৳ 0.00) এবং রিসেন্ট অ্যাক্টিভিটি হিস্ট্রি (Transactions, Tasks, Referrals) মুছে একদম খালি করতে চান?',
-      isPrompt: false,
-      confirmText: 'Reset to 0',
+      title: 'মাস্টার ফ্যাক্টরি রিসেট ও ফুল ডাটা ওয়াইপ (Master Factory Reset)',
+      message: 'আপনি কি নিশ্চিত যে সম্পূর্ণ সিস্টেম ফ্যাক্টরি রিসেট করতে চান? এতে এক ক্লিকেই:\n১. আপনার অ্যাডমিন ব্যালেন্স ও ইনকাম নিশ্চিতভাবে ৳ 0.00 হবে এবং রিসেন্ট হিস্ট্রি সম্পূর্ণ খালি হবে।\n২. সমস্ত টেস্ট ইউজার, কাজ (Jobs), সাবমিশন, পেমেন্ট রিকোয়েস্ট, ড্রাইভ, কোর্স ও ট্রানজেকশন মুছে যাবে।\n৩. সমস্ত সেটিংস ও কনফিগ (সাইট, বিকাশ/নগদ গেটওয়ে, রেফারেল, স্পিন, উইথড্র নোটিশ ইত্যাদি) ব্র্যান্ড নিউ অফিশিয়াল ডিফল্টে রিসেট হবে।\n৪. ৩টি রিয়েল স্টার্টার মাইক্রোটাস্ক ফ্রেশভাবে তৈরি হবে।',
+      isPrompt: true,
+      promptExpected: 'RESET',
+      confirmText: 'মাস্টার রিসেট করুন',
       isDanger: true,
       onConfirm: async () => {
         try {
-          const currentUid = auth.currentUser?.uid;
-          if (!currentUid) {
-            toast.error("ইউজার পাওয়া যায়নি।");
-            return;
-          }
-          toast.loading("ব্যালেন্স ও অ্যাক্টিভিটি হিস্ট্রি ক্লিয়ার হচ্ছে...", { id: "reset_my_data" });
-          setIsSavingSettings(true);
-
-          await wipeUserSubcollectionsAndResetBalance(currentUid, profile?.email || auth.currentUser?.email || 'mdekramhossain590@gmail.com');
-
-          // Clear local cache & localStorage
-          clearCache();
-          try {
-            localStorage.removeItem(`profile_${currentUid}`);
-            localStorage.removeItem(`dashboard_tx_${currentUid}`);
-            localStorage.removeItem(`dashboard_tasks_${currentUid}`);
-            localStorage.removeItem(`dashboard_ref_${currentUid}`);
-          } catch (e) {}
-
-          toast.success("ব্যালেন্স ৳ 0.00 করা হয়েছে এবং রিসেন্ট অ্যাক্টিভিটি সম্পূর্ণ ক্লিয়ার হয়েছে!", { id: "reset_my_data", duration: 4000 });
-          setTimeout(() => {
-            window.location.reload();
-          }, 1000);
-        } catch (err: any) {
-          console.error("Error resetting my balance/activity:", err);
-          toast.error("ত্রুটি: " + (err?.message || "Unknown error"), { id: "reset_my_data" });
-        } finally {
-          setIsSavingSettings(false);
-        }
-      }
-    });
-  };
-
-  const handleWipeData = () => {
-    setConfirmDialog({
-      isOpen: true,
-      title: 'Wipe Database (ফ্যাক্টরি রিসেট)',
-      message: 'আপনি কি নিশ্চিত যে আপনি সম্পূর্ণ ডাটাবেজ মুছে ফেলতে চান? এতে অ্যাডমিন ছাড়া বাকি সব ইউজার, কাজ, সাবমিশন, পেমেন্ট রিকোয়েস্ট এবং ব্যালেন্স ট্রানজেকশন মুছে যাবে। এটি আর ফিরিয়ে আনা যাবে না।',
-      isPrompt: true,
-      promptExpected: 'WIPE',
-      onConfirm: async () => {
-        try {
-          toast.loading("ডাটাবেজ ওয়াইপ শুরু হচ্ছে...", { id: "wipe_db" });
-          setIsSavingSettings(true);
-
-          const adminEmail = profile?.email || auth.currentUser?.email || 'mdekramhossain590@gmail.com';
-          const currentUid = auth.currentUser?.uid;
-
-          // Helper to delete collection in atomic batches (fast & reliable)
-          const cleanCol = async (collPath: string) => {
-            try {
-              const qs = await getDocs(collection(db, collPath));
-              if (qs.empty) return;
-              let batch = writeBatch(db);
-              let count = 0;
-              for (const docSnap of qs.docs) {
-                batch.delete(docSnap.ref);
-                count++;
-                if (count % 400 === 0) {
-                  await batch.commit();
-                  batch = writeBatch(db);
-                }
-              }
-              if (count % 400 !== 0) {
-                await batch.commit();
-              }
-            } catch (err: any) {
-              console.warn(`Error cleaning collection ${collPath}:`, err?.message || err);
-            }
-          };
-
-          toast.loading("১/৩: জবস, সাবমিশন ও রিকোয়েস্ট ডিলিট হচ্ছে...", { id: "wipe_db" });
-          await cleanCol("jobs");
-          await cleanCol("submissions");
-          await cleanCol("payment_requests");
-          await cleanCol("drive_offers");
-          await cleanCol("courses");
-          await cleanCol("giftCodes");
-          await cleanCol("ad_views");
-          await cleanCol("reports");
-
-          toast.loading("২/৩: সাধারণ ইউজার ও হিস্ট্রি ডিলিট হচ্ছে...", { id: "wipe_db" });
-          const uQs = await getDocs(collection(db, "users"));
-          let userBatch = writeBatch(db);
-          let userBatchCount = 0;
-
-          for (const uDoc of uQs.docs) {
-            const uData = uDoc.data();
-            // Protect admin accounts
-            if (uData.role === 'admin' || uData.email === adminEmail || uDoc.id === currentUid) {
-              continue;
-            }
-
-            const uid = uDoc.id;
-            const userSubs = ["tasks", "mathHistory", "transactions", "referrals", "notifications"];
-            for (const s of userSubs) {
-              try {
-                const subQs = await getDocs(collection(db, `users/${uid}/${s}`));
-                for (const subDoc of subQs.docs) {
-                  userBatch.delete(subDoc.ref);
-                  userBatchCount++;
-                  if (userBatchCount % 400 === 0) {
-                    await userBatch.commit();
-                    userBatch = writeBatch(db);
-                  }
-                }
-              } catch (subErr) {
-                console.warn(`Subcollection delete failed for users/${uid}/${s}:`, subErr);
-              }
-            }
-
-            userBatch.delete(doc(db, "users", uid));
-            userBatch.delete(doc(db, "leaderboard", uid));
-            userBatchCount += 2;
-            if (userBatchCount % 400 === 0) {
-              await userBatch.commit();
-              userBatch = writeBatch(db);
-            }
-          }
-
-          if (userBatchCount % 400 !== 0) {
-            await userBatch.commit();
-          }
-
-          // Clean admin subcollections and reset balance to 0
-          if (currentUid) {
-            await wipeUserSubcollectionsAndResetBalance(currentUid, adminEmail);
-          }
-
-          // Clear local cache & state immediately
-          clearCache();
-          setUserList(prev => prev.filter(u => u.role === 'admin' || u.email === adminEmail || u.id === currentUid));
-          setJobs([]);
-          setSubmissions([]);
-          setPaymentRequests([]);
-          setAdminOffers([]);
-          setAdminCourses([]);
-          setGiftCodes([]);
-
-          toast.success("ডাটাবেজ সফলভাবে ওয়াইপ (Wipe) করা হয়েছে!", { id: "wipe_db" });
-        } catch (err: any) {
-          console.error("Error wiping database:", err);
-          toast.error("ওয়াইপ করতে ত্রুটি: " + (err?.message || "Unknown Error"), { id: "wipe_db" });
-        } finally {
-          setIsSavingSettings(false);
-        }
-      }
-    });
-  };
-
-  const handleFreshSetup = () => {
-    setConfirmDialog({
-      isOpen: true,
-      title: 'সম্পূর্ণ নতুন সাইট সেটআপ (Fresh Factory Launch)',
-      message: 'আপনি কি নিশ্চিত যে সাইটটি একদম প্রথম দিনের মতো ব্র্যান্ড-নিউ করে সেটআপ করতে চান? এতে সব পুরোনো টেস্ট ইউজার, ড্রাফট কাজ ও ট্রানজেকশন মুছে যাবে এবং ব্র্যান্ড নিউ অফিসিয়াল সেটিংস, ৩টি বাস্তব মাইক্রোটাস্ক, ড্রাইভ প্যাক ও কোর্স ফ্রেশভাবে তৈরি হবে।',
-      isPrompt: true,
-      promptExpected: 'RESET',
-      confirmText: 'Fresh Launch',
-      isDanger: false,
-      onConfirm: async () => {
-        try {
-          toast.loading("১/৪: পুরোনো টেস্ট ও ডামি ডাটা মুছে ফেলা হচ্ছে...", { id: "fresh_setup" });
+          toast.loading("১/৪: ডাটাবেজের সমস্ত কাজ, সাবমিশন ও ট্রানজেকশন মুছে ফেলা হচ্ছে...", { id: "master_reset" });
           setIsSavingSettings(true);
 
           const adminEmail = profile?.email || auth.currentUser?.email || 'mdekramhossain590@gmail.com';
@@ -1328,7 +1184,7 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
             }
           };
 
-          // 1. Wipe old transactions, jobs, submissions, etc.
+          // 1. Wipe all operational collections
           await cleanCol("jobs");
           await cleanCol("submissions");
           await cleanCol("payment_requests");
@@ -1337,42 +1193,44 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
           await cleanCol("giftCodes");
           await cleanCol("ad_views");
           await cleanCol("reports");
+          await cleanCol("leaderboard");
+          await cleanCol("notifications");
 
-          // Delete non-admin users and subcollections
+          toast.loading("২/৪: টেস্ট ইউজার ডিলিট এবং ব্যালেন্স ০.০০ করা হচ্ছে...", { id: "master_reset" });
+
+          // 2. Wipe non-admin users and their subcollections
           const uQs = await getDocs(collection(db, "users"));
           let userBatch = writeBatch(db);
           let userBatchCount = 0;
 
           for (const uDoc of uQs.docs) {
             const uData = uDoc.data();
-            if (uData.role === 'admin' || uData.email === adminEmail || uDoc.id === currentUid) {
-              continue;
-            }
-
             const uid = uDoc.id;
-            const userSubs = ["tasks", "mathHistory", "transactions", "referrals", "notifications"];
-            for (const s of userSubs) {
-              try {
-                const subQs = await getDocs(collection(db, `users/${uid}/${s}`));
-                for (const subDoc of subQs.docs) {
-                  userBatch.delete(subDoc.ref);
-                  userBatchCount++;
-                  if (userBatchCount % 400 === 0) {
-                    await userBatch.commit();
-                    userBatch = writeBatch(db);
-                  }
-                }
-              } catch (subErr) {
-                console.warn(`Subcollection delete failed for users/${uid}/${s}:`, subErr);
-              }
-            }
+            const isAdmin = uData.role === 'admin' || uData.email === adminEmail || uid === currentUid;
 
-            userBatch.delete(doc(db, "users", uid));
-            userBatch.delete(doc(db, "leaderboard", uid));
-            userBatchCount += 2;
-            if (userBatchCount % 400 === 0) {
-              await userBatch.commit();
-              userBatch = writeBatch(db);
+            if (!isAdmin) {
+              const userSubs = ["tasks", "mathHistory", "transactions", "referrals", "notifications"];
+              for (const s of userSubs) {
+                try {
+                  const subQs = await getDocs(collection(db, `users/${uid}/${s}`));
+                  for (const subDoc of subQs.docs) {
+                    userBatch.delete(subDoc.ref);
+                    userBatchCount++;
+                    if (userBatchCount % 400 === 0) {
+                      await userBatch.commit();
+                      userBatch = writeBatch(db);
+                    }
+                  }
+                } catch (subErr) {
+                  console.warn(`Subcollection delete failed for users/${uid}/${s}:`, subErr);
+                }
+              }
+              userBatch.delete(doc(db, "users", uid));
+              userBatchCount++;
+              if (userBatchCount % 400 === 0) {
+                await userBatch.commit();
+                userBatch = writeBatch(db);
+              }
             }
           }
 
@@ -1380,16 +1238,24 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
             await userBatch.commit();
           }
 
-          // Clean admin subcollections and reset balance to clean 0
-          if (currentUid) {
+          // 3. For ALL admin accounts (especially currentUid), completely wipe subcollections and reset balance to clean 0
+          for (const uDoc of uQs.docs) {
+            const uData = uDoc.data();
+            const uid = uDoc.id;
+            const isAdmin = uData.role === 'admin' || uData.email === adminEmail || uid === currentUid;
+            if (isAdmin) {
+              await wipeUserSubcollectionsAndResetBalance(uid, uData.email || adminEmail);
+            }
+          }
+          if (currentUid && !uQs.docs.some(d => d.id === currentUid)) {
             await wipeUserSubcollectionsAndResetBalance(currentUid, adminEmail);
           }
 
-          toast.loading("২/৪: ব্র্যান্ড নিউ অফিসিয়াল সেটিংস কনফিগার হচ্ছে...", { id: "fresh_setup" });
+          toast.loading("৩/৪: সমস্ত সেটিংস ও কনফিগ অফিশিয়াল ডিফল্টে রিসেট হচ্ছে...", { id: "master_reset" });
 
-          // Seed default clean settings
+          // Reset ALL settings & configs to brand-new official defaults
           await setDoc(doc(db, "settings", "site"), {
-            siteName: "HMF Income",
+            siteName: "HMF EARNING ZONE",
             logoUrl: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200&auto=format&fit=crop&q=80",
             telegramUrl: "https://t.me/hmfincome",
             dailyTaskLimit: 0,
@@ -1453,8 +1319,20 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
 
           await setDoc(doc(db, "settings", "popup"), {
             enabled: true,
-            title: "HMF Income-এ স্বাগতম!",
+            title: "HMF EARNING ZONE-এ স্বাগতম!",
             message: "দৈনিক মাইক্রো টাস্ক, কুইজ ও স্পিন করে সহজে টাকা আয় করুন এবং বিকাশ/নগদে সরাসরি উইথড্র নিন।"
+          });
+
+          await setDoc(doc(db, "settings", "banner"), {
+            enabled: true,
+            text: "🔥 স্বাগতম HMF EARNING ZONE-এ! প্রতিদিন মাইক্রো টাস্ক ও স্পিন করে আয় করুন।"
+          });
+
+          await setDoc(doc(db, "settings", "support"), {
+            telegramUrl: "https://t.me/hmfincome",
+            whatsappNumber: "01700000000",
+            email: "support@hmfearningzone.com",
+            notice: "যেকোনো সাহায্য বা পেমেন্ট সমস্যার জন্য আমাদের টেলিগ্রাম বা হোয়াটসঅ্যাপে যোগাযোগ করুন।"
           });
 
           await setDoc(doc(db, "settings", "faqs"), {
@@ -1493,8 +1371,9 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
             activeJobs: 3
           });
 
-          toast.loading("৩/৪: আকর্ষণীয় স্টার্টার মাইক্রোটাস্ক তৈরি হচ্ছে...", { id: "fresh_setup" });
+          toast.loading("৪/৪: স্টার্টার মাইক্রোটাস্ক তৈরি এবং লোকাল ক্যাশ ক্লিয়ার হচ্ছে...", { id: "master_reset" });
 
+          // Seed 3 clean starter jobs
           const starterJobs = [
             {
               id: "job_starter_telegram",
@@ -1550,72 +1429,31 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
             await setDoc(doc(db, "jobs", j.id), j);
           }
 
-          const starterDrives = [
-            {
-              id: "drive_gp_40gb",
-              title: "GP 40GB + 800 Min (30 Days)",
-              operator: "Grameenphone",
-              originalPrice: 799,
-              salePrice: 599,
-              validity: "30 Days",
-              category: "Internet & Minute",
-              status: "active",
-              createdAt: serverTimestamp()
-            },
-            {
-              id: "drive_bl_35gb",
-              title: "Banglalink 35GB + 700 Min (30 Days)",
-              operator: "Banglalink",
-              originalPrice: 699,
-              salePrice: 499,
-              validity: "30 Days",
-              category: "Internet & Minute",
-              status: "active",
-              createdAt: serverTimestamp()
-            }
-          ];
-
-          for (const d of starterDrives) {
-            await setDoc(doc(db, "drive_offers", d.id), d);
-          }
-
-          const starterCourse = {
-            id: "course_starter_guide",
-            title: "মাইক্রোটাস্ক ও অনলাইন আর্নিং গাইডলাইন",
-            category: "ফ্রি গাইড",
-            description: "নতুনদের জন্য সহজ উপায়ে ঘরে বসে মোবাইল দিয়ে মাইক্রো-টাস্ক সম্পন্ন করার সম্পূর্ণ নিয়মাবলী ও সিক্রেট টিপস।",
-            thumbnailUrl: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=600&auto=format&fit=crop&q=80",
-            items: [
-              {
-                title: "ক্লাস ১: মাইক্রোটাস্কের সঠিক নিয়ম ও স্ক্রিনশট প্রুফ",
-                description: "কিভাবে কাজ জমা দিলে ১০০% অ্যাপ্রুভ হবে",
-                thumbnailUrl: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=600&auto=format&fit=crop&q=80",
-                videoLink: "https://www.youtube.com"
-              }
-            ],
-            status: "active",
-            createdAt: serverTimestamp()
-          };
-          await setDoc(doc(db, "courses", starterCourse.id), starterCourse);
-
-          toast.loading("৪/৪: লোকাল ক্যাশ ক্লিয়ার ও রিফ্রেশ হচ্ছে...", { id: "fresh_setup" });
+          // Clear local cache & localStorage completely
           clearCache();
-          localStorage.clear();
+          try {
+            localStorage.clear();
+          } catch (e) {}
 
-          toast.success("অভিনন্দন! সাইটটি সম্পূর্ণ নতুন এবং নিখুঁতভাবে সেটআপ সম্পন্ন হয়েছে!", { id: "fresh_setup", duration: 6000 });
+          toast.success("অভিনন্দন! সম্পূর্ণ সিস্টেম সফলভাবে ফ্যাক্টরি রিসেট হয়েছে, ব্যালেন্স ৳ 0.00 করা হয়েছে!", { id: "master_reset", duration: 5000 });
           setTimeout(() => {
             window.location.reload();
-          }, 1200);
+          }, 1000);
 
         } catch (err: any) {
-          console.error("Error setting up fresh database:", err);
-          toast.error("সেটআপ করতে ত্রুটি: " + (err?.message || "Unknown Error"), { id: "fresh_setup" });
+          console.error("Error during master factory reset:", err);
+          toast.error("রিসেট করতে ত্রুটি: " + (err?.message || "Unknown Error"), { id: "master_reset" });
         } finally {
           setIsSavingSettings(false);
         }
       }
     });
   };
+
+  // Backward-compatible aliases pointing to the unified master reset
+  const handleResetMyBalanceAndActivity = handleMasterFactoryReset;
+  const handleWipeData = handleMasterFactoryReset;
+  const handleFreshSetup = handleMasterFactoryReset;
 
   const handleSaveEmployeeConfig = async () => {
     if (!employeeConfigUser) return;
@@ -1643,6 +1481,22 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
     }
   };
 
+  const handleUploadImage = async (e: React.ChangeEvent<HTMLInputElement>, target: 'logo' | string) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      toast.loading("Uploading image...", { id: "upload_img" });
+      const url = await uploadImageOrFallback(file, 400);
+      if (target === 'logo') {
+        setSiteSettings(prev => ({ ...prev, logoUrl: url }));
+      }
+      toast.success("Image uploaded successfully!", { id: "upload_img" });
+    } catch (err: any) {
+      toast.error("Upload failed: " + (err?.message || "Unknown error"), { id: "upload_img" });
+    } finally {
+      e.target.value = '';
+    }
+  };
 
   const handleSaveFaqs = async (updatedFaqs: any[]) => {
     setIsSavingSettings(true);
@@ -1719,6 +1573,10 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
 
 
   const handleResetPartnerReferrals = async () => {
+    if (!isFullAdmin) {
+      toast.error("রিসেট করার কোনো অনুমতি আপনার নেই! শুধুমাত্র প্রধান সুপার অ্যাডমিন এটি করতে পারবেন।");
+      return;
+    }
     if (!window.confirm("Are you sure you want to reset partner referrals for ALL users? This cannot be undone.")) return;
     setIsSavingSettings(true);
     try {
@@ -1747,9 +1605,9 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
   };
 
   return (
-    <div className="pt-6 px-4 pb-20">
+    <div className="pt-6 px-4 pb-20 bg-[#090909] min-h-screen text-white">
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-        <h2 className="text-2xl font-bold text-[#0D47A1] dark:text-blue-400">Admin Panel</h2>
+        <h2 className="text-2xl font-bold bg-gradient-to-r from-[#D4A017] via-[#FACC15] to-[#FFE082] bg-clip-text text-transparent">Admin Panel</h2>
         <button
           onClick={async () => {
             const toastId = toast.loading('Syncing latest admin data...');
@@ -1764,13 +1622,13 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
               toast.error('Failed to sync admin data', { id: toastId });
             }
           }}
-          className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-full font-black text-[10px] uppercase tracking-widest transition-all border border-slate-200 dark:border-slate-700 active:scale-95"
+          className="flex items-center gap-2 px-3 py-1.5 bg-[#1C1C1C] hover:bg-[#3D3215]/40 text-[#FACC15] rounded-full font-black text-[10px] uppercase tracking-widest transition-all border border-[#3D3215] active:scale-95"
         >
           <RefreshCw className="w-3.5 h-3.5" />
           Sync Live Data
         </button>
       </div>
-      <div className="flex bg-slate-100 dark:bg-slate-900/50 p-1.5 rounded-[20px] mb-8 flex-wrap gap-1.5 ring-1 ring-slate-200 dark:ring-slate-800">
+      <div className="flex bg-[#151515] p-1.5 rounded-[20px] mb-8 flex-wrap gap-1.5 ring-1 ring-[#3D3215] border border-[#3D3215]">
         {allowedTabs.map(tab => (
           <button 
             key={tab.id}
@@ -1783,11 +1641,11 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
             }} 
             className={`flex-1 min-w-[80px] py-2.5 px-2 rounded-[14px] text-[11px] font-black uppercase tracking-wider transition-all flex flex-col items-center gap-1 active:scale-95 ${
               activeTab === tab.id 
-                ? 'bg-white dark:bg-slate-800 shadow-md shadow-slate-200 dark:shadow-black/20 text-slate-900 dark:text-white ring-1 ring-slate-200 dark:ring-slate-700' 
-                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                ? 'bg-gradient-to-br from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] shadow-lg shadow-[#D4A017]/20 font-black' 
+                : 'text-[#A3A3A3] hover:text-[#FACC15] hover:bg-[#1C1C1C]'
             }`}
           >
-            <tab.icon className={`w-4 h-4 ${activeTab === tab.id ? tab.color : 'text-slate-400'}`} />
+            <tab.icon className={`w-4 h-4 ${activeTab === tab.id ? 'text-[#090909]' : 'text-[#737373]'}`} />
             {tab.label}
           </button>
         ))}
@@ -1795,141 +1653,94 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
       
       {activeTab === 'dashboard' && (
         <div className="space-y-6">
-          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6 rounded-3xl shadow-xl shadow-blue-500/20 border border-blue-500/30 flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="space-y-1 text-center md:text-left">
-              <h4 className="font-black text-lg tracking-tight uppercase flex items-center justify-center md:justify-start gap-2">
-                <Database className="w-5 h-5 text-indigo-200" /> cPanel Ready Build (.zip)
-              </h4>
-              <p className="text-xs text-blue-100 max-w-xl leading-relaxed">
-                 cPanel -       <b>dist.zip</b>       cPanel- <code className="bg-blue-700/50 px-1.5 py-0.5 rounded text-[11px] font-mono">public_html</code>      
-              </p>
-            </div>
-            <a 
-              href="/api/download-zip" 
-              download="dist.zip"
-              className="bg-white hover:bg-slate-50 text-blue-600 px-6 py-3.5 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all active:scale-95 shrink-0"
-            >
-              <Download className="w-4 h-4" /> Download Build ZIP
-            </a>
-          </div>
-
-          <div className="bg-gradient-to-r from-violet-600 via-indigo-600 to-blue-600 text-white p-5 rounded-3xl shadow-xl shadow-indigo-500/20 border border-indigo-400/30 flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="space-y-1 text-center md:text-left">
-              <div className="flex items-center justify-center md:justify-start gap-2">
-                <Sparkles className="w-5 h-5 text-amber-300" />
-                <h4 className="font-black text-base tracking-tight uppercase">সাইট সম্পূর্ণ নতুন করার কুইক বাটন (Fresh Launch)</h4>
-              </div>
-              <p className="text-xs text-indigo-100 max-w-xl leading-relaxed">
-                এক ক্লিকে সমস্ত পুরোনো টেস্ট ইউজার ও ট্রানজেকশন ডিলিট করে সাইটকে ব্র্যান্ড নিউ অফিসিয়াল সেটিংস ও ৩টি বাস্তব মাইক্রোটাস্ক দিয়ে সাজান।
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-              <button 
-                onClick={handleFreshSetup}
-                disabled={isSavingSettings}
-                className="bg-white hover:bg-amber-50 text-indigo-900 px-4 py-3 rounded-2xl font-black uppercase tracking-wider text-xs flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all active:scale-95 shrink-0 cursor-pointer"
-              >
-                <Sparkles className="w-4 h-4 text-amber-500" /> সাইট একদম নতুন করুন
-              </button>
-              <button 
-                onClick={handleResetMyBalanceAndActivity}
-                disabled={isSavingSettings}
-                className="bg-rose-500 hover:bg-rose-600 text-white px-4 py-3 rounded-2xl font-black uppercase tracking-wider text-xs flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all active:scale-95 shrink-0 cursor-pointer border border-rose-400/30"
-                title="ব্যালেন্স ৳ 0.00 করুন এবং রিসেন্ট হিস্ট্রি ক্লিয়ার করুন"
-              >
-                <RotateCcw className="w-4 h-4 text-white" /> ব্যালেন্স ও হিস্ট্রি ০ করুন
-              </button>
-            </div>
-          </div>
-
           <div className="flex items-center justify-between px-1">
-            <h3 className="font-black dark:text-white uppercase tracking-tight text-sm">Financial Overview</h3>
+            <h3 className="font-black text-white uppercase tracking-tight text-sm">Financial Overview</h3>
           </div>
           
           <div className="grid grid-cols-2 gap-3">
-            <div className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/40 dark:to-teal-900/20 p-5 rounded-3xl border border-emerald-100 dark:border-emerald-800/30">
+            <div className="bg-[#151515] p-5 rounded-3xl border border-[#3D3215]">
               <div className="flex flex-col gap-2">
-                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Total Approved Deposits</span>
-                <span className="text-3xl font-black text-slate-900 dark:text-white">
+                <span className="text-xs font-bold text-emerald-400 uppercase tracking-widest">Total Approved Deposits</span>
+                <span className="text-3xl font-black text-white">
                   {paymentRequests.filter(r => r.type === 'deposit' && r.status === 'approved').reduce((acc, curr) => acc + Number(curr.amount || 0), 0).toLocaleString()}
                 </span>
-                <span className="text-[10px] font-bold text-slate-500 uppercase">
+                <span className="text-[10px] font-bold text-[#737373] uppercase">
                   {paymentRequests.filter(r => r.type === 'deposit' && r.status === 'approved').length} Transactions
                 </span>
               </div>
             </div>
             
-            <div className="bg-gradient-to-br from-rose-50 to-pink-50 dark:from-rose-900/40 dark:to-pink-900/20 p-5 rounded-3xl border border-rose-100 dark:border-rose-800/30">
+            <div className="bg-[#151515] p-5 rounded-3xl border border-[#3D3215]">
               <div className="flex flex-col gap-2">
-                <span className="text-xs font-bold text-rose-600 dark:text-rose-400 uppercase tracking-widest">Total Approved Withdrawals</span>
-                <span className="text-3xl font-black text-slate-900 dark:text-white">
+                <span className="text-xs font-bold text-rose-400 uppercase tracking-widest">Total Approved Withdrawals</span>
+                <span className="text-3xl font-black text-white">
                   {paymentRequests.filter(r => r.type === 'withdraw' && r.status === 'approved').reduce((acc, curr) => acc + Number(curr.amount || 0), 0).toLocaleString()}
                 </span>
-                <span className="text-[10px] font-bold text-slate-500 uppercase">
+                <span className="text-[10px] font-bold text-[#737373] uppercase">
                   {paymentRequests.filter(r => r.type === 'withdraw' && r.status === 'approved').length} Transactions
                 </span>
               </div>
             </div>
             
-            <div className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/40 dark:to-orange-900/20 p-5 rounded-3xl border border-amber-100 dark:border-amber-800/30">
+            <div className="bg-[#151515] p-5 rounded-3xl border border-[#3D3215]">
               <div className="flex flex-col gap-2">
-                <span className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-widest">Pending Deposits</span>
-                <span className="text-3xl font-black text-slate-900 dark:text-white">
+                <span className="text-xs font-bold text-[#FACC15] uppercase tracking-widest">Pending Deposits</span>
+                <span className="text-3xl font-black text-[#FACC15]">
                   {paymentRequests.filter(r => r.type === 'deposit' && r.status === 'pending').reduce((acc, curr) => acc + Number(curr.amount || 0), 0).toLocaleString()}
                 </span>
-                <span className="text-[10px] font-bold text-slate-500 uppercase">
+                <span className="text-[10px] font-bold text-[#737373] uppercase">
                   {paymentRequests.filter(r => r.type === 'deposit' && r.status === 'pending').length} Action Required
                 </span>
               </div>
             </div>
 
-            <div className="bg-gradient-to-br from-blue-50 to-sky-50 dark:from-blue-900/40 dark:to-sky-900/20 p-5 rounded-3xl border border-blue-100 dark:border-blue-800/30">
+            <div className="bg-[#151515] p-5 rounded-3xl border border-[#3D3215]">
               <div className="flex flex-col gap-2">
-                <span className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest">Pending Withdrawals</span>
-                <span className="text-3xl font-black text-slate-900 dark:text-white">
+                <span className="text-xs font-bold text-[#FFE082] uppercase tracking-widest">Pending Withdrawals</span>
+                <span className="text-3xl font-black text-[#FFE082]">
                   {paymentRequests.filter(r => r.type === 'withdraw' && r.status === 'pending').reduce((acc, curr) => acc + Number(curr.amount || 0), 0).toLocaleString()}
                 </span>
-                <span className="text-[10px] font-bold text-slate-500 uppercase">
+                <span className="text-[10px] font-bold text-[#737373] uppercase">
                   {paymentRequests.filter(r => r.type === 'withdraw' && r.status === 'pending').length} Action Required
                 </span>
               </div>
             </div>
           </div>
           
-          <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-100 dark:border-slate-700">
-            <h4 className="font-bold text-slate-900 dark:text-white mb-4">Recent Transactions Flow</h4>
+          <div className="bg-[#151515] p-5 rounded-3xl border border-[#3D3215]">
+            <h4 className="font-bold text-white mb-4">Recent Transactions Flow</h4>
             <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
               {paymentRequests.slice(0, 50).map(req => (
-                <div key={req.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-700/50">
+                <div key={req.id} className="flex items-center justify-between p-3 bg-[#101010] rounded-2xl border border-[#3D3215]">
                   <div className="flex items-center gap-3">
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                      req.type === 'deposit' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' :
-                      req.type === 'withdraw' ? 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400' :
-                      'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400'
+                      req.type === 'deposit' ? 'bg-emerald-900/30 text-emerald-400 border border-emerald-500/20' :
+                      req.type === 'withdraw' ? 'bg-rose-900/30 text-rose-400 border border-rose-500/20' :
+                      'bg-[#1C1C1C] text-[#FACC15] border border-[#3D3215]'
                     }`}>
                       {req.type === 'deposit' ? '+' : req.type === 'withdraw' ? '-' : <Calculator className="w-4 h-4" />}
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <p className="font-bold text-sm text-slate-900 dark:text-white capitalize">{req.type}</p>
+                        <p className="font-bold text-sm text-white capitalize">{req.type}</p>
                         <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-sm ${
-                          req.status === 'approved' ? 'bg-emerald-100 text-emerald-600' :
-                          req.status === 'rejected' ? 'bg-rose-100 text-rose-600' :
-                          'bg-amber-100 text-amber-600'
+                          req.status === 'approved' ? 'bg-emerald-900/40 text-emerald-400 border border-emerald-500/30' :
+                          req.status === 'rejected' ? 'bg-rose-900/40 text-rose-400 border border-rose-500/30' :
+                          'bg-[#3D3215]/50 text-[#FACC15] border border-[#D4A017]/30'
                         }`}>
                           {req.status}
                         </span>
                       </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">{req.method || 'System'}  {new Date(req.createdAt?.toDate()).toLocaleString()}</p>
+                      <p className="text-xs text-[#A3A3A3]">{req.method || 'System'}  {new Date(req.createdAt?.toDate()).toLocaleString()}</p>
                     </div>
                   </div>
-                  <div className={`font-black text-lg ${req.type === 'deposit' ? 'text-emerald-500' : 'text-rose-500'}`}>
+                  <div className={`font-black text-lg ${req.type === 'deposit' ? 'text-emerald-400' : 'text-rose-400'}`}>
                     {req.type === 'deposit' ? '+' : '-'}{req.amount}
                   </div>
                 </div>
               ))}
               {paymentRequests.length === 0 && (
-                <p className="text-center text-slate-500 py-4 text-sm font-medium">No transactions found.</p>
+                <p className="text-center text-[#737373] py-4 text-sm font-medium">No transactions found.</p>
               )}
             </div>
           </div>
@@ -1939,11 +1750,11 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
       {activeTab === 'submissions' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between mb-2 px-1">
-            <h3 className="font-black dark:text-white uppercase tracking-tight text-sm">Pending Reviews ({submissions.filter(s => s.status === 'pending').length})</h3>
+            <h3 className="font-black text-white uppercase tracking-tight text-sm">Pending Reviews ({submissions.filter(s => s.status === 'pending').length})</h3>
             {submissionCategory !== 'All' && (
               <button 
                 onClick={handleDownloadAccounts} 
-                className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-sm"
+                className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-[#D4A017] to-[#FACC15] text-[#090909] rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-sm"
               >
                 <Download className="w-3.5 h-3.5" />
                 Export Accounts
@@ -1952,11 +1763,11 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
           </div>
           
           <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-             <button onClick={() => setSubmissionCategory('All')} className={`shrink-0 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-colors ${submissionCategory === 'All' ? 'bg-indigo-500 text-white shadow-md' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'}`}>All ({submissions.filter(s => s.status === 'pending').length})</button>
+             <button onClick={() => setSubmissionCategory('All')} className={`shrink-0 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-colors ${submissionCategory === 'All' ? 'bg-gradient-to-r from-[#D4A017] to-[#FACC15] text-[#090909] shadow-md' : 'bg-[#151515] border border-[#3D3215] text-[#A3A3A3] hover:text-[#FACC15] hover:bg-[#1C1C1C]'}`}>All ({submissions.filter(s => s.status === 'pending').length})</button>
              {Array.from(new Set(submissions.filter(s => s.status === 'pending').map(s => s.jobType || 'Other'))).map(cat => {
                 const catCount = submissions.filter(s => s.status === 'pending' && (s.jobType || 'Other') === cat).length;
                 return (
-                  <button key={cat} onClick={() => setSubmissionCategory(cat)} className={`shrink-0 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-colors ${submissionCategory === cat ? 'bg-indigo-500 text-white shadow-md' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'}`}>
+                  <button key={cat} onClick={() => setSubmissionCategory(cat)} className={`shrink-0 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-colors ${submissionCategory === cat ? 'bg-gradient-to-r from-[#D4A017] to-[#FACC15] text-[#090909] shadow-md' : 'bg-[#151515] border border-[#3D3215] text-[#A3A3A3] hover:text-[#FACC15] hover:bg-[#1C1C1C]'}`}>
                     {cat} ({catCount})
                   </button>
                 );
@@ -1964,11 +1775,11 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
           </div>
 
           {submissions.filter(s => s.status === 'pending' && (submissionCategory === 'All' || (s.jobType || 'Other') === submissionCategory)).length === 0 && (
-            <div className="text-center py-16 bg-white dark:bg-slate-800/40 rounded-3xl border-2 border-dashed border-slate-100 dark:border-slate-800">
-              <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300 dark:text-slate-600">
+            <div className="text-center py-16 bg-[#151515] rounded-3xl border-2 border-dashed border-[#3D3215]">
+              <div className="w-16 h-16 bg-[#1C1C1C] rounded-full flex items-center justify-center mx-auto mb-4 text-[#FACC15] border border-[#3D3215]">
                 <CheckCircle className="w-8 h-8" />
               </div>
-              <p className="text-sm font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Inbox Zero! No pending reviews</p>
+              <p className="text-sm font-bold text-[#A3A3A3] uppercase tracking-widest">Inbox Zero! No pending reviews</p>
             </div>
           )}
           
@@ -1977,43 +1788,43 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               key={sub.id} 
-              className="bg-white dark:bg-slate-800 p-5 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 relative overflow-hidden"
+              className="bg-[#151515] p-5 rounded-3xl shadow-sm border border-[#3D3215] relative overflow-hidden"
             >
-              <div className="absolute top-0 right-0 w-24 h-24 bg-orange-500/[0.03] blur-2xl rounded-full"></div>
+              <div className="absolute top-0 right-0 w-24 h-24 bg-[#FACC15]/[0.05] blur-2xl rounded-full"></div>
               
               <div className="flex justify-between items-start mb-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-orange-500 bg-orange-100 dark:bg-orange-900/30 px-2 py-0.5 rounded-full border border-orange-200 dark:border-orange-800/30">Action Needed</span>
-                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{new Date(sub.submittedAt?.toDate()).toLocaleDateString()}</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-[#FACC15] bg-[#3D3215]/40 px-2 py-0.5 rounded-full border border-[#D4A017]/40">Action Needed</span>
+                    <span className="text-[10px] font-bold text-[#A3A3A3] uppercase tracking-widest">{new Date(sub.submittedAt?.toDate()).toLocaleDateString()}</span>
                   </div>
-                  <h4 className="font-black text-lg text-slate-900 dark:text-white leading-tight uppercase italic tracking-tighter">{sub.title}</h4>
+                  <h4 className="font-black text-lg text-white leading-tight uppercase italic tracking-tighter">{sub.title}</h4>
                   <div className="flex items-center gap-2 mt-1">
-                    <div className="w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500">
+                    <div className="w-5 h-5 rounded-full bg-[#1C1C1C] border border-[#3D3215] flex items-center justify-center text-[#FACC15]">
                       <User className="w-3 h-3" />
                     </div>
-                    <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 truncate max-w-[150px]">{sub.userEmail}</p>
-                    <div className="w-1 h-1 rounded-full bg-slate-300"></div>
-                    <p className="text-xs font-black text-blue-600 dark:text-blue-400">{sub.reward}</p>
+                    <p className="text-[11px] font-bold text-[#A3A3A3] truncate max-w-[150px]">{sub.userEmail}</p>
+                    <div className="w-1 h-1 rounded-full bg-[#3D3215]"></div>
+                    <p className="text-xs font-black text-[#FACC15]">{sub.reward}</p>
                   </div>
                 </div>
               </div>
               
-              <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-700/50 mb-5">
-                <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 border-b border-slate-200 dark:border-slate-700 pb-2">Proof Submission</p>
+              <div className="bg-[#101010] p-4 rounded-2xl border border-[#3D3215] mb-5">
+                <p className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest mb-2 border-b border-[#3D3215] pb-2">Proof Submission</p>
                 <div className="space-y-2">
                   {sub.proofs.text && (
-                    <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50">
+                    <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-[#1C1C1C] border border-[#3D3215]">
                       <div className="flex-1 min-w-0">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Comment:</span>
-                        <p className="text-sm font-medium dark:text-slate-200 break-all">{sub.proofs.text}</p>
+                        <span className="text-[10px] font-bold text-[#A3A3A3] uppercase block mb-0.5">Comment:</span>
+                        <p className="text-sm font-medium text-white break-all">{sub.proofs.text}</p>
                       </div>
                       <button
                         onClick={() => {
                           navigator.clipboard.writeText(sub.proofs.text);
                           toast.success("Comment copied!");
                         }}
-                        className="p-1 px-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors shrink-0 self-center"
+                        className="p-1 px-1.5 rounded-lg text-[#A3A3A3] hover:text-[#FACC15] hover:bg-[#151515] transition-colors shrink-0 self-center border border-transparent hover:border-[#3D3215]"
                         title="Copy Comment"
                       >
                         <Copy className="w-3.5 h-3.5" />
@@ -2021,17 +1832,17 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                     </div>
                   )}
                   {sub.proofs.username && (
-                    <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50">
+                    <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-[#1C1C1C] border border-[#3D3215]">
                       <div className="flex-1 min-w-0">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Username:</span>
-                        <p className="text-sm font-mono font-bold text-indigo-500 break-all">{sub.proofs.username}</p>
+                        <span className="text-[10px] font-bold text-[#A3A3A3] uppercase block mb-0.5">Username:</span>
+                        <p className="text-sm font-mono font-bold text-[#FACC15] break-all">{sub.proofs.username}</p>
                       </div>
                       <button
                         onClick={() => {
                           navigator.clipboard.writeText(sub.proofs.username);
                           toast.success("Username copied!");
                         }}
-                        className="p-1 px-1.5 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors shrink-0 self-center"
+                        className="p-1 px-1.5 rounded-lg text-[#A3A3A3] hover:text-[#FACC15] hover:bg-[#151515] transition-colors shrink-0 self-center border border-transparent hover:border-[#3D3215]"
                         title="Copy Username"
                       >
                         <Copy className="w-3.5 h-3.5" />
@@ -2039,17 +1850,17 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                     </div>
                   )}
                   {sub.proofs.password && (
-                    <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50">
+                    <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-[#1C1C1C] border border-[#3D3215]">
                       <div className="flex-1 min-w-0">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Password:</span>
-                        <p className="text-sm font-mono font-bold text-rose-500 break-all">{sub.proofs.password}</p>
+                        <span className="text-[10px] font-bold text-[#A3A3A3] uppercase block mb-0.5">Password:</span>
+                        <p className="text-sm font-mono font-bold text-rose-400 break-all">{sub.proofs.password}</p>
                       </div>
                       <button
                         onClick={() => {
                           navigator.clipboard.writeText(sub.proofs.password);
                           toast.success("Password copied!");
                         }}
-                        className="p-1 px-1.5 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors shrink-0 self-center"
+                        className="p-1 px-1.5 rounded-lg text-[#A3A3A3] hover:text-rose-400 hover:bg-[#151515] transition-colors shrink-0 self-center border border-transparent hover:border-[#3D3215]"
                         title="Copy Password"
                       >
                         <Copy className="w-3.5 h-3.5" />
@@ -2057,17 +1868,17 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                     </div>
                   )}
                   {sub.proofs.twoFactorCode && (
-                    <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50">
+                    <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-[#1C1C1C] border border-[#3D3215]">
                       <div className="flex-1 min-w-0">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">2FA / Recovery:</span>
-                        <p className="text-sm font-mono font-bold text-emerald-500 break-all">{sub.proofs.twoFactorCode}</p>
+                        <span className="text-[10px] font-bold text-[#A3A3A3] uppercase block mb-0.5">2FA / Recovery:</span>
+                        <p className="text-sm font-mono font-bold text-emerald-400 break-all">{sub.proofs.twoFactorCode}</p>
                       </div>
                       <button
                         onClick={() => {
                           navigator.clipboard.writeText(sub.proofs.twoFactorCode);
                           toast.success("2FA copied!");
                         }}
-                        className="p-1 px-1.5 rounded-lg text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors shrink-0 self-center"
+                        className="p-1 px-1.5 rounded-lg text-[#A3A3A3] hover:text-emerald-400 hover:bg-[#151515] transition-colors shrink-0 self-center border border-transparent hover:border-[#3D3215]"
                         title="Copy 2FA"
                       >
                         <Copy className="w-3.5 h-3.5" />
@@ -2075,17 +1886,17 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                     </div>
                   )}
                   {sub.proofs.videoUrl && (
-                    <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50">
+                    <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-[#1C1C1C] border border-[#3D3215]">
                       <div className="flex-1 min-w-0">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Video URL:</span>
-                        <a href={sub.proofs.videoUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-blue-500 underline truncate block">{sub.proofs.videoUrl}</a>
+                        <span className="text-[10px] font-bold text-[#A3A3A3] uppercase block mb-0.5">Video URL:</span>
+                        <a href={sub.proofs.videoUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-[#FACC15] underline truncate block">{sub.proofs.videoUrl}</a>
                       </div>
                       <button
                         onClick={() => {
                           navigator.clipboard.writeText(sub.proofs.videoUrl);
                           toast.success("Video URL copied!");
                         }}
-                        className="p-1 px-1.5 rounded-lg text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors shrink-0 self-center"
+                        className="p-1 px-1.5 rounded-lg text-[#A3A3A3] hover:text-[#FACC15] hover:bg-[#151515] transition-colors shrink-0 self-center border border-transparent hover:border-[#3D3215]"
                         title="Copy Video URL"
                       >
                         <Copy className="w-3.5 h-3.5" />
@@ -2096,7 +1907,7 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                     <div className="pt-2">
                       <button 
                         onClick={() => setViewingScreenshot(sub.proofs.screenshot)}
-                        className="flex items-center gap-2 text-xs font-black text-white bg-emerald-600 dark:bg-emerald-500 px-4 py-2 rounded-xl hover:scale-[1.02] active:scale-95 transition-all w-fit shadow-md cursor-pointer"
+                        className="flex items-center gap-2 text-xs font-black text-[#090909] bg-gradient-to-r from-[#D4A017] to-[#FACC15] px-4 py-2 rounded-xl hover:opacity-95 active:scale-95 transition-all w-fit shadow-md cursor-pointer"
                       >
                         <Eye className="w-3.5 h-3.5" /> View Proof Image
                       </button>
@@ -2109,9 +1920,9 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                         href={sub.proofs.fileUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-2 text-xs font-black text-white bg-blue-600 dark:bg-blue-500 px-4 py-2 rounded-xl hover:scale-[1.02] active:scale-95 transition-all w-fit shadow-md cursor-pointer"
+                        className="flex items-center gap-2 text-xs font-black text-white bg-[#1C1C1C] hover:bg-[#3D3215]/40 border border-[#3D3215] px-4 py-2 rounded-xl active:scale-95 transition-all w-fit shadow-md cursor-pointer"
                       >
-                        <FileIcon className="w-3.5 h-3.5" /> View Proof File
+                        <FileIcon className="w-3.5 h-3.5 text-[#FACC15]" /> View Proof File
                       </a>
                     </div>
                   )}
@@ -2122,13 +1933,13 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
               <div className="grid grid-cols-2 gap-3">
                 <button 
                   onClick={() => reviewSubmission(sub.id, sub.userId, sub.reward, sub.title, sub.jobType || 'Other', sub.jobId, 'approved')} 
-                  className="bg-emerald-500 hover:bg-emerald-600 text-white py-3 rounded-2xl font-black uppercase tracking-widest text-[11px] flex justify-center items-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-95 transition-all"
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-2xl font-black uppercase tracking-widest text-[11px] flex justify-center items-center gap-2 shadow-lg shadow-emerald-600/20 active:scale-95 transition-all"
                 >
                   <CheckCircle className="w-4 h-4"/> Approve
                 </button>
                 <button 
                   onClick={() => reviewSubmission(sub.id, sub.userId, sub.reward, sub.title, sub.jobType || 'Other', sub.jobId, 'rejected')} 
-                  className="bg-rose-500 hover:bg-rose-600 text-white py-3 rounded-2xl font-black uppercase tracking-widest text-[11px] flex justify-center items-center gap-2 shadow-lg shadow-rose-500/20 active:scale-95 transition-all"
+                  className="bg-rose-600 hover:bg-rose-500 text-white py-3 rounded-2xl font-black uppercase tracking-widest text-[11px] flex justify-center items-center gap-2 shadow-lg shadow-rose-600/20 active:scale-95 transition-all"
                 >
                   <XCircle className="w-4 h-4" /> Reject
                 </button>
@@ -2137,15 +1948,15 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
           ))}
           
           <div className="pt-6">
-            <h3 className="font-black dark:text-white uppercase tracking-tight text-xs mb-4 opacity-50 px-1">Recently Reviewed</h3>
+            <h3 className="font-black text-white uppercase tracking-tight text-xs mb-4 opacity-50 px-1">Recently Reviewed</h3>
             <div className="grid gap-2">
               {submissions.filter(s => s.status !== 'pending').slice(0, 100).map(sub => (
-                <div key={sub.id} className="bg-white dark:bg-slate-800 p-3 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex justify-between items-center transition-all hover:bg-slate-50 dark:hover:bg-slate-800/60">
+                <div key={sub.id} className="bg-[#151515] p-3 rounded-2xl shadow-sm border border-[#3D3215] flex justify-between items-center transition-all hover:bg-[#1C1C1C]">
                   <div className="flex-1 overflow-hidden pr-4">
-                    <p className="font-bold text-xs text-slate-800 dark:text-slate-200 truncate uppercase tracking-tight italic">{sub.title}</p>
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium truncate">{sub.userEmail}</p>
+                    <p className="font-bold text-xs text-white truncate uppercase tracking-tight italic">{sub.title}</p>
+                    <p className="text-[10px] text-[#A3A3A3] font-medium truncate">{sub.userEmail}</p>
                   </div>
-                  <div className={`text-[9px] px-3 py-1 rounded-full font-black uppercase tracking-widest ${sub.status === 'approved' ? 'bg-emerald-100 text-emerald-600 border border-emerald-200' : 'bg-rose-100 text-rose-600 border border-rose-200'}`}>
+                  <div className={`text-[9px] px-3 py-1 rounded-full font-black uppercase tracking-widest ${sub.status === 'approved' ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-500/30' : 'bg-rose-950/40 text-rose-400 border border-rose-500/30'}`}>
                     {sub.status}
                   </div>
                 </div>
@@ -2157,22 +1968,22 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
 
       {activeTab === 'jobs' && (
         <div className="space-y-6">
-          <form onSubmit={handleCreateJob} className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 space-y-4">
+          <form onSubmit={handleCreateJob} className="bg-[#151515] p-6 rounded-3xl shadow-sm border border-[#3D3215] space-y-4">
             <div className="flex justify-between items-center">
-              <h3 className="font-black text-lg dark:text-white uppercase tracking-tight italic">{editingJobId ? 'Edit Task' : 'Create New Task'}</h3>
+              <h3 className="font-black text-lg text-white uppercase tracking-tight italic">{editingJobId ? 'Edit Task' : 'Create New Task'}</h3>
               {editingJobId && (
-                <button type="button" onClick={handleCancelEditJob} className="text-xs font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">Cancel Edit</button>
+                <button type="button" onClick={handleCancelEditJob} className="text-xs font-bold text-[#A3A3A3] hover:text-[#FACC15]">Cancel Edit</button>
               )}
             </div>
             <div className="grid gap-3">
-              <input type="text" placeholder="Task Title" required value={newJob.title} onChange={e => setNewJob({...newJob, title: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold placeholder:text-slate-400" />
-              <textarea placeholder="Job Description / Instructions" required value={newJob.description} onChange={e => setNewJob({...newJob, description: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold h-24 placeholder:text-slate-400" />
-              <input type="text" placeholder="Action Link (e.g. Telegram Group Link, URL)" value={newJob.link || ''} onChange={e => setNewJob({...newJob, link: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold placeholder:text-slate-400 text-blue-500" />
+              <input type="text" placeholder="Task Title" required value={newJob.title} onChange={e => setNewJob({...newJob, title: e.target.value})} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none" />
+              <textarea placeholder="Job Description / Instructions" required value={newJob.description} onChange={e => setNewJob({...newJob, description: e.target.value})} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white h-24 placeholder:text-[#737373] focus:border-[#D4A017] outline-none" />
+              <input type="text" placeholder="Action Link (e.g. Telegram Group Link, URL)" value={newJob.link || ''} onChange={e => setNewJob({...newJob, link: e.target.value})} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold placeholder:text-[#737373] text-[#FACC15] focus:border-[#D4A017] outline-none" />
             </div>
             
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-1 block">Category</label>
+                <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest px-2 mb-1 block">Category</label>
                 <select 
                   value={newJob.type} 
                   onChange={e => {
@@ -2183,7 +1994,7 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                       updatedJob.description = "      (5 Star)                      ";
                       updatedJob.link = "https://www.google.com/search?shndl=30&shem=rimspwouoe&q=German+Doner+Kebab+(GDK)&kgmid=/g/11wpz8mg0y";
                       updatedJob.icon = 'Star';
-                      updatedJob.color = 'text-amber-500';
+                      updatedJob.color = 'text-[#FACC15]';
                       updatedJob.requiredProofs = ['text', 'screenshot', 'username'];
                       
                       const defaultComments = [
@@ -2222,32 +2033,32 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                     }
                     setNewJob(updatedJob);
                   }} 
-                  className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold"
+                  className="w-full bg-[#101010] border border-[#3D3215] text-white px-4 py-3 rounded-2xl text-sm font-bold focus:border-[#D4A017] outline-none"
                 >
-                  {['Facebook', 'Gmail', 'Instagram', 'Telegram', 'Review', 'Sell Accounts', 'Microjob', 'Typing', 'Watch Ads', 'Other'].map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                  {['Facebook', 'Gmail', 'Instagram', 'Telegram', 'Review', 'Sell Accounts', 'Microjob', 'Typing', 'Watch Ads', 'Other'].map(cat => <option key={cat} value={cat} className="bg-[#151515] text-white">{cat}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-1 block">Reward ()</label>
-                <input type="number" placeholder="0.00" required value={newJob.reward} onChange={e => setNewJob({...newJob, reward: Number(e.target.value)})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-black text-blue-600" />
+                <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest px-2 mb-1 block">Reward ()</label>
+                <input type="number" placeholder="0.00" required value={newJob.reward} onChange={e => setNewJob({...newJob, reward: Number(e.target.value)})} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-black text-[#FACC15] placeholder:text-[#737373] focus:border-[#D4A017] outline-none" />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-1 block">Total Slots (All Users)</label>
-                <input type="number" value={newJob.allowedCompletions} onChange={e => setNewJob({...newJob, allowedCompletions: Number(e.target.value)})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold" placeholder="0 for unlimited" />
+                <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest px-2 mb-1 block">Total Slots (All Users)</label>
+                <input type="number" value={newJob.allowedCompletions} onChange={e => setNewJob({...newJob, allowedCompletions: Number(e.target.value)})} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none" placeholder="0 for unlimited" />
               </div>
               <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-1 block">Max Per User</label>
-                <input type="number" value={newJob.userLimit} onChange={e => setNewJob({...newJob, userLimit: Number(e.target.value)})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold text-orange-500" placeholder="0 for unlimited" />
+                <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest px-2 mb-1 block">Max Per User</label>
+                <input type="number" value={newJob.userLimit} onChange={e => setNewJob({...newJob, userLimit: Number(e.target.value)})} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-[#FACC15] placeholder:text-[#737373] focus:border-[#D4A017] outline-none" placeholder="0 for unlimited" />
               </div>
             </div>
 
-            <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-3xl space-y-3">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 pl-1">Appearance & Requirements</p>
+            <div className="p-4 bg-[#101010] border border-[#3D3215] rounded-3xl space-y-3">
+              <p className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest mb-1 pl-1">Appearance & Requirements</p>
               <div className="grid grid-cols-2 gap-2">
-                <select value={newJob.icon} onChange={e => setNewJob({...newJob, icon: e.target.value})} className="bg-white dark:bg-slate-800 border-none px-3 py-2 rounded-xl text-xs font-bold shadow-sm">
+                <select value={newJob.icon} onChange={e => setNewJob({...newJob, icon: e.target.value})} className="bg-[#1C1C1C] border border-[#3D3215] text-white px-3 py-2 rounded-xl text-xs font-bold shadow-sm focus:border-[#D4A017] outline-none">
                   <option value="Facebook">Facebook Profile</option>
                   <option value="Instagram">Instagram Page</option>
                   <option value="Youtube">Youtube Display</option>
@@ -2265,16 +2076,16 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                   <option value="User">User Account</option>
                   <option value="Globe">Global Link</option>
                 </select>
-                <input type="text" placeholder="Icon Color (e.g. text-blue-500)" value={newJob.color} onChange={e => setNewJob({...newJob, color: e.target.value})} className="bg-white dark:bg-slate-800 border-none px-3 py-2 rounded-xl text-xs font-bold shadow-sm" />
+                <input type="text" placeholder="Icon Color (e.g. text-[#FACC15])" value={newJob.color} onChange={e => setNewJob({...newJob, color: e.target.value})} className="bg-[#1C1C1C] border border-[#3D3215] text-white px-3 py-2 rounded-xl text-xs font-bold shadow-sm focus:border-[#D4A017] outline-none" />
               </div>
             </div>
 
             <div className="grid gap-3">
-              <input type="text" placeholder="Task Redirect Link (Full URL)" required value={newJob.link} onChange={e => setNewJob({...newJob, link: e.target.value})} className="w-full bg-slate-100 dark:bg-slate-900/50 border-none px-4 py-3 rounded-2xl text-xs font-bold italic text-blue-500" />
+              <input type="text" placeholder="Task Redirect Link (Full URL)" required value={newJob.link} onChange={e => setNewJob({...newJob, link: e.target.value})} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-xs font-bold italic text-[#FACC15] focus:border-[#D4A017] outline-none" />
             </div>
             
             <div className="space-y-3">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Required Proofs To Check</p>
+              <p className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1">Required Proofs To Check</p>
               <div className="flex gap-2 flex-wrap">
                 {['text', 'screenshot', 'username', 'password', 'videoUrl', '2facode'].map(p => (
                   <button 
@@ -2283,8 +2094,8 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                     onClick={() => toggleProof(p)} 
                     className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all active:scale-90 ${
                       newJob.requiredProofs.includes(p) 
-                      ? 'bg-slate-900 text-white border-slate-900 shadow-lg shadow-slate-900/20' 
-                      : 'bg-white text-slate-500 border-slate-100 dark:bg-slate-800 dark:border-slate-700'
+                      ? 'bg-gradient-to-r from-[#D4A017] to-[#FACC15] text-[#090909] border-[#FACC15] shadow-lg shadow-[#D4A017]/20 font-black' 
+                      : 'bg-[#101010] text-[#A3A3A3] border-[#3D3215] hover:text-[#FACC15]'
                     }`}
                   >
                     {p === '2facode' ? '2FA Code' : p}
@@ -2294,87 +2105,87 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
             </div>
 
             {newJob.type === "Review" && (
-              <div className="p-4 bg-amber-50 dark:bg-amber-950/20 rounded-3xl space-y-3 border border-amber-100 dark:border-amber-900/30">
+              <div className="p-4 bg-[#1C1C1C] rounded-3xl space-y-3 border border-[#3D3215]">
                 <div className="flex items-center justify-between">
-                  <p className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest pl-1">
-                    Google Review Comments (    )
+                  <p className="text-[10px] font-black text-[#FACC15] uppercase tracking-widest pl-1">
+                    Google Review Comments (English)
                   </p>
-                  <span className="text-[10px] bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 font-bold px-2 py-0.5 rounded-full">
+                  <span className="text-[10px] bg-[#3D3215]/50 text-[#FACC15] font-bold px-2 py-0.5 rounded-full border border-[#D4A017]/30">
                     {Array.isArray(newJob.reviewComments) ? newJob.reviewComments.length : 0} 
                   </span>
                 </div>
                 <textarea
-                  placeholder="       -          ,       (randomly)   "
+                  placeholder="Review comments list (one per line)"
                   value={Array.isArray(newJob.reviewComments) ? newJob.reviewComments.join('\n') : ''}
                   onChange={e => {
                     const commentsArray = e.target.value.split('\n');
                     setNewJob({ ...newJob, reviewComments: commentsArray });
                   }}
-                  className="w-full bg-white dark:bg-slate-800 border-none px-4 py-3 rounded-2xl text-xs font-bold h-36 placeholder:text-slate-400 focus:ring-1 focus:ring-amber-500"
+                  className="w-full bg-[#101010] border border-[#3D3215] text-white px-4 py-3 rounded-2xl text-xs font-bold h-36 placeholder:text-[#737373] focus:border-[#D4A017] outline-none"
                 />
-                <p className="text-[9px] text-amber-600 dark:text-amber-500 font-bold pl-1 leading-relaxed">
-                  *       ,                           
+                <p className="text-[9px] text-[#A3A3A3] font-bold pl-1 leading-relaxed">
+                  * Each submission assigns a random comment to the user to copy.
                 </p>
               </div>
             )}
 
-            <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-3xl space-y-3 border border-red-100 dark:border-red-900/30">
+            <div className="p-4 bg-[#1C1C1C] rounded-3xl space-y-3 border border-[#3D3215]">
               <div className="flex items-center justify-between">
-                <p className="text-[10px] font-black text-red-500 uppercase tracking-widest">Account Selling Config</p>
+                <p className="text-[10px] font-black text-[#FACC15] uppercase tracking-widest">Account Selling Config</p>
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={newJob.isAccountSell} onChange={e => setNewJob({...newJob, isAccountSell: e.target.checked})} className="w-4 h-4 text-red-500 rounded border-red-300 focus:ring-red-500 bg-white" />
-                  <span className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase tracking-wider">Enable Sell UI</span>
+                  <input type="checkbox" checked={newJob.isAccountSell} onChange={e => setNewJob({...newJob, isAccountSell: e.target.checked})} className="w-4 h-4 text-[#FACC15] rounded border-[#3D3215] bg-[#101010] focus:ring-[#D4A017]" />
+                  <span className="text-[10px] font-bold text-[#A3A3A3] uppercase tracking-wider">Enable Sell UI</span>
                 </label>
               </div>
               
               {newJob.isAccountSell && (
                 <div className="grid gap-3 mt-2">
-                  <input type="text" placeholder="Today's Password (e.g. ayan@770)" value={newJob.todaysPassword} onChange={e => setNewJob({...newJob, todaysPassword: e.target.value})} className="w-full bg-white dark:bg-slate-800 border-none px-4 py-3 rounded-2xl text-sm font-bold placeholder:text-slate-400 text-red-600 focus:ring-1 focus:ring-red-500" />
+                  <input type="text" placeholder="Today's Password (e.g. ayan@770)" value={newJob.todaysPassword} onChange={e => setNewJob({...newJob, todaysPassword: e.target.value})} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold placeholder:text-[#737373] text-[#FACC15] focus:border-[#D4A017] outline-none" />
                 </div>
               )}
             </div>
             
-            <button type="submit" className="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black uppercase tracking-[0.2em] py-4 rounded-2xl shadow-xl hover:scale-[1.02] active:scale-95 transition-all text-xs">{editingJobId ? 'Update Job Now' : 'Publish Job Now'}</button>
+            <button type="submit" className="w-full bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] font-black uppercase tracking-[0.2em] py-4 rounded-2xl shadow-xl hover:opacity-95 active:scale-95 transition-all text-xs cursor-pointer">{editingJobId ? 'Update Job Now' : 'Publish Job Now'}</button>
           </form>
 
           <div className="grid gap-3">
             {jobs.filter(job => job.status === 'pending').length > 0 && (
               <div className="space-y-3 mb-6">
-                <h3 className="font-black dark:text-white text-rose-500 uppercase tracking-tight text-xs mb-1 px-1 flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></div>
+                <h3 className="font-black text-[#FACC15] uppercase tracking-tight text-xs mb-1 px-1 flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-[#FACC15] animate-pulse"></div>
                   Pending User Job Requests ({jobs.filter(job => job.status === 'pending').length})
                 </h3>
                 {jobs.filter(job => job.status === 'pending').map(job => (
-                  <div key={job.id} className="bg-amber-50/50 dark:bg-amber-950/10 p-4 rounded-3xl shadow-sm border border-amber-100 dark:border-amber-900/30 space-y-3">
+                  <div key={job.id} className="bg-[#151515] p-4 rounded-3xl shadow-sm border border-[#3D3215] space-y-3">
                     <div className="flex justify-between items-start">
                       <div className="min-w-0 flex-1">
-                        <span className="text-[9px] font-black uppercase tracking-widest text-amber-600 bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 rounded-md">
+                        <span className="text-[9px] font-black uppercase tracking-widest text-[#FACC15] bg-[#3D3215]/50 px-2 py-0.5 rounded-md border border-[#D4A017]/30">
                           {job.type}
                         </span>
-                        <h4 className="font-bold dark:text-white text-sm leading-snug truncate mt-1">{job.title}</h4>
-                        <p className="text-xs text-slate-550 dark:text-slate-400 mt-1 line-clamp-2">{job.description}</p>
-                        <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mt-1">
+                        <h4 className="font-bold text-white text-sm leading-snug truncate mt-1">{job.title}</h4>
+                        <p className="text-xs text-[#A3A3A3] mt-1 line-clamp-2">{job.description}</p>
+                        <p className="text-[10px] font-black text-[#FACC15] uppercase tracking-widest mt-1">
                           Link: <a href={job.link} target="_blank" rel="noopener noreferrer" className="underline">{job.link}</a>
                         </p>
                       </div>
                       <div className="text-right shrink-0 ml-3">
-                        <p className="text-xs font-black text-slate-700 dark:text-slate-300">Rate: {job.reward}</p>
-                        <p className="text-[10px] font-bold text-slate-400">Slots: {job.allowedCompletions}</p>
-                        <p className="text-[10px] font-black text-emerald-600">Total: {job.totalCost}</p>
-                        <p className="text-[8px] font-black text-slate-450 uppercase mt-1">By: {job.postedBy}</p>
+                        <p className="text-xs font-black text-white">Rate: {job.reward}</p>
+                        <p className="text-[10px] font-bold text-[#A3A3A3]">Slots: {job.allowedCompletions}</p>
+                        <p className="text-[10px] font-black text-emerald-400">Total: {job.totalCost}</p>
+                        <p className="text-[8px] font-black text-[#737373] uppercase mt-1">By: {job.postedBy}</p>
                       </div>
                     </div>
                     
-                    <div className="flex gap-2 justify-end pt-2 border-t border-amber-100 dark:border-amber-900/10">
+                    <div className="flex gap-2 justify-end pt-2 border-t border-[#3D3215]">
                       <button 
                         onClick={() => handleRejectJob(job)} 
-                        className="px-4 py-2 text-rose-650 bg-rose-50 dark:bg-rose-950/30 rounded-xl text-xs font-black uppercase tracking-wider hover:scale-105 active:scale-95 transition-all"
+                        className="px-4 py-2 text-rose-400 bg-rose-950/40 border border-rose-600/30 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-rose-900/50 active:scale-95 transition-all"
                       >
                         Reject & Refund
                       </button>
                       <button 
                         onClick={() => handleApproveJob(job.id)} 
-                        className="px-4 py-2 text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl text-xs font-black uppercase tracking-wider hover:scale-105 active:scale-95 transition-all"
+                        className="px-4 py-2 text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl text-xs font-black uppercase tracking-wider active:scale-95 transition-all"
                       >
                         Approve Job
                       </button>
@@ -2384,27 +2195,27 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
               </div>
             )}
 
-            <h3 className="font-black dark:text-white uppercase tracking-tight text-xs mb-1 px-1 opacity-50">
+            <h3 className="font-black text-white uppercase tracking-tight text-xs mb-1 px-1 opacity-50">
               Active/All Tasks ({jobs.filter(job => job.status !== 'pending').length})
             </h3>
             {jobs.filter(job => job.status !== 'pending').map(job => (
-              <div key={job.id} className="bg-white dark:bg-slate-800 p-4 rounded-3xl shadow-sm flex justify-between items-center border border-slate-100 dark:border-slate-700 transition-all hover:border-blue-200">
+              <div key={job.id} className="bg-[#151515] p-4 rounded-3xl shadow-sm flex justify-between items-center border border-[#3D3215] transition-all hover:border-[#D4A017]/40">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    <h4 className="font-bold dark:text-white truncate uppercase tracking-tight text-sm">{job.title}</h4>
+                    <h4 className="font-bold text-white truncate uppercase tracking-tight text-sm">{job.title}</h4>
                     <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded-md ${
-                      job.status === 'active' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/20 dark:text-emerald-400' : 'bg-rose-100 text-rose-850 dark:bg-rose-950/20 dark:text-rose-400'
+                      job.status === 'active' ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-500/30' : 'bg-rose-950/40 text-rose-400 border border-rose-500/30'
                     }`}>
                       {job.status}
                     </span>
                   </div>
-                  <p className="text-[10px] font-black text-blue-500/80 uppercase tracking-widest">{job.reward} &bull; {job.type} &bull; Slots: {job.remainingSlots}/{job.allowedCompletions}</p>
+                  <p className="text-[10px] font-black text-[#FACC15]/80 uppercase tracking-widest">{job.reward} &bull; {job.type} &bull; Slots: {job.remainingSlots}/{job.allowedCompletions}</p>
                 </div>
                 <div className="flex items-center gap-2 ml-4">
-                  <button onClick={() => handleEditJobClick(job)} className="p-3 text-blue-500 bg-blue-50 dark:bg-blue-900/30 rounded-2xl hover:scale-105 active:scale-90 transition-all">
+                  <button onClick={() => handleEditJobClick(job)} className="p-3 text-[#FACC15] bg-[#1C1C1C] border border-[#3D3215] rounded-2xl hover:border-[#D4A017] active:scale-90 transition-all">
                     <Settings className="w-4 h-4" />
                   </button>
-                  <button onClick={() => handleDeleteJob(job.id)} className="p-3 text-rose-500 bg-rose-50 dark:bg-rose-900/30 rounded-2xl hover:scale-105 active:scale-90 transition-all">
+                  <button onClick={() => handleDeleteJob(job.id)} className="p-3 text-rose-400 bg-rose-950/30 border border-rose-800/30 rounded-2xl hover:bg-rose-900/40 active:scale-90 transition-all">
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
@@ -2417,15 +2228,15 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
       {activeTab === 'requests' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between mb-2 px-1">
-            <h3 className="font-black dark:text-white uppercase tracking-tight text-sm">Payment Queue ({paymentRequests.filter(req => req.status === 'pending').length})</h3>
+            <h3 className="font-black text-white uppercase tracking-tight text-sm">Payment Queue ({paymentRequests.filter(req => req.status === 'pending').length})</h3>
           </div>
 
           {paymentRequests.filter(req => req.status === 'pending').length === 0 && (
-            <div className="text-center py-16 bg-white dark:bg-slate-800/40 rounded-3xl border-2 border-dashed border-slate-100 dark:border-slate-800">
-              <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-400">
+            <div className="text-center py-16 bg-[#151515] rounded-3xl border-2 border-dashed border-[#3D3215]">
+              <div className="w-16 h-16 bg-[#1C1C1C] rounded-full flex items-center justify-center mx-auto mb-4 text-[#FACC15] border border-[#3D3215]">
                 <CheckCircle className="w-8 h-8" />
               </div>
-              <p className="text-sm font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">All caught up! No requests</p>
+              <p className="text-sm font-bold text-[#A3A3A3] uppercase tracking-widest">All caught up! No requests</p>
             </div>
           )}
           
@@ -2434,61 +2245,61 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               key={req.id} 
-              className={`bg-white dark:bg-slate-800 p-5 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 relative overflow-hidden ring-1 ${
-                req.type === 'withdraw' ? 'ring-rose-500/10' : 'ring-emerald-500/10'
+              className={`bg-[#151515] p-5 rounded-3xl shadow-sm border border-[#3D3215] relative overflow-hidden ring-1 ${
+                req.type === 'withdraw' ? 'ring-rose-500/20' : 'ring-emerald-500/20'
               }`}
             >
-              <div className="absolute top-0 right-0 w-24 h-24 bg-slate-500/[0.03] blur-3xl rounded-full"></div>
+              <div className="absolute top-0 right-0 w-24 h-24 bg-[#FACC15]/[0.04] blur-3xl rounded-full"></div>
               
               <div className="flex justify-between items-start mb-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border ${
                       req.type === 'withdraw' 
-                      ? 'bg-rose-100 text-rose-600 border-rose-200 dark:bg-rose-900/30 dark:border-rose-800/30' 
-                      : 'bg-emerald-100 text-emerald-600 border-emerald-200 dark:bg-emerald-900/30 dark:border-emerald-800/30'
+                      ? 'bg-rose-950/40 text-rose-400 border-rose-500/30' 
+                      : 'bg-emerald-950/40 text-emerald-400 border border-emerald-500/30'
                     }`}>
                       {req.type}
                     </span>
-                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{new Date(req.createdAt?.toDate()).toLocaleTimeString()}</span>
+                    <span className="text-[10px] font-bold text-[#A3A3A3] uppercase tracking-widest">{new Date(req.createdAt?.toDate()).toLocaleTimeString()}</span>
                   </div>
-                  <h4 className="font-black text-2xl text-slate-900 dark:text-white leading-none mt-2">{req.amount}</h4>
+                  <h4 className="font-black text-2xl text-white leading-none mt-2">{req.amount}</h4>
                   <div className="flex items-center gap-2 mt-2">
-                    <div className="w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500">
+                    <div className="w-5 h-5 rounded-full bg-[#1C1C1C] border border-[#3D3215] flex items-center justify-center text-[#FACC15]">
                       <User className="w-3 h-3" />
                     </div>
-                    <p className="text-[11px] font-bold text-slate-600 dark:text-slate-300 italic truncate max-w-[180px]">{req.userEmail}</p>
+                    <p className="text-[11px] font-bold text-[#A3A3A3] italic truncate max-w-[180px]">{req.userEmail}</p>
                   </div>
                 </div>
                 {req.type === 'deposit' && (
-                  <div className="bg-indigo-50 dark:bg-indigo-900/40 p-2 rounded-xl text-center ring-1 ring-indigo-200 dark:ring-indigo-800">
-                    <p className="text-[8px] font-black uppercase text-indigo-500 tracking-tighter">Gateway</p>
-                    <p className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300">{req.method}</p>
+                  <div className="bg-[#1C1C1C] border border-[#3D3215] p-2 rounded-xl text-center">
+                    <p className="text-[8px] font-black uppercase text-[#FACC15] tracking-tighter">Gateway</p>
+                    <p className="text-[10px] font-bold text-white">{req.method}</p>
                   </div>
                 )}
               </div>
               
-              <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-700/50 mb-5 text-sm">
+              <div className="bg-[#101010] p-4 rounded-2xl border border-[#3D3215] mb-5 text-sm">
                 {req.type === 'withdraw' && (
                   <div className="space-y-1">
-                    <div className="flex justify-between border-b border-slate-200 dark:border-slate-700 pb-1.5 mb-1.5 font-sans">
-                      <span className="text-[10px] font-black text-slate-400 uppercase">Wallet</span>
-                      <span className="font-bold uppercase tracking-widest text-[10px] text-blue-500">{req.wallet} Wallet</span>
+                    <div className="flex justify-between border-b border-[#3D3215] pb-1.5 mb-1.5 font-sans">
+                      <span className="text-[10px] font-black text-[#A3A3A3] uppercase">Wallet</span>
+                      <span className="font-bold uppercase tracking-widest text-[10px] text-[#FACC15]">{req.wallet} Wallet</span>
                     </div>
                     <div className="flex justify-between font-sans">
-                      <span className="text-[10px] font-black text-slate-400 uppercase">Method</span>
-                      <span className="font-bold">{req.method}</span>
+                      <span className="text-[10px] font-black text-[#A3A3A3] uppercase">Method</span>
+                      <span className="font-bold text-white">{req.method}</span>
                     </div>
                     <div className="flex justify-between items-center font-sans">
-                      <span className="text-[10px] font-black text-slate-400 uppercase">Account</span>
+                      <span className="text-[10px] font-black text-[#A3A3A3] uppercase">Account</span>
                       <div className="flex items-center gap-1.5">
-                        <span className="font-mono font-bold text-slate-700 dark:text-slate-200 tracking-wider text-[11px]">{req.account}</span>
+                        <span className="font-mono font-bold text-white tracking-wider text-[11px]">{req.account}</span>
                         <button
                           onClick={() => {
                             navigator.clipboard.writeText(req.account);
                             toast.success('Account copied!');
                           }}
-                          className="hover:text-indigo-500 text-slate-400 transition p-0.5 rounded cursor-pointer active:scale-95"
+                          className="hover:text-[#FACC15] text-[#A3A3A3] transition p-0.5 rounded cursor-pointer active:scale-95"
                           title="Copy Account Number"
                         >
                           <Copy className="w-3 h-3" />
@@ -2502,17 +2313,17 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                 )}
                 {req.type === 'deposit' && (
                   <div className="space-y-1">
-                    <div className="flex justify-between border-b border-slate-200 dark:border-slate-700 pb-1.5 mb-1.5 font-sans">
-                      <span className="text-[10px] font-black text-slate-400 uppercase">Sender Number</span>
+                    <div className="flex justify-between border-b border-[#3D3215] pb-1.5 mb-1.5 font-sans">
+                      <span className="text-[10px] font-black text-[#A3A3A3] uppercase">Sender Number</span>
                       <div className="flex items-center gap-1.5">
-                        <span className="font-mono font-bold text-slate-700 dark:text-slate-200 tracking-wider text-[11px]">{req.account || 'Unknown'}</span>
+                        <span className="font-mono font-bold text-white tracking-wider text-[11px]">{req.account || 'Unknown'}</span>
                         {req.account && (
                           <button
                             onClick={() => {
                               navigator.clipboard.writeText(req.account);
                               toast.success('Sender number copied!');
                             }}
-                            className="hover:text-indigo-500 text-slate-400 transition p-0.5 rounded cursor-pointer active:scale-95"
+                            className="hover:text-[#FACC15] text-[#A3A3A3] transition p-0.5 rounded cursor-pointer active:scale-95"
                             title="Copy Sender Number"
                           >
                             <Copy className="w-3 h-3" />
@@ -2521,40 +2332,40 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                       </div>
                     </div>
                     <div className="flex justify-between items-center font-sans">
-                      <span className="text-[10px] font-black text-slate-400 uppercase">Transaction ID</span>
+                      <span className="text-[10px] font-black text-[#A3A3A3] uppercase">Transaction ID</span>
                       <div className="flex items-center gap-1.5">
-                        <span className="font-mono font-bold text-indigo-600 selection:bg-indigo-100 tracking-wider text-[11px]">{req.trxId}</span>
+                        <span className="font-mono font-bold text-[#FACC15] tracking-wider text-[11px]">{req.trxId}</span>
                         <button
                           onClick={() => {
                             navigator.clipboard.writeText(req.trxId);
                             toast.success('Transaction ID copied!');
                           }}
-                          className="hover:text-indigo-500 text-slate-400 transition p-0.5 rounded cursor-pointer active:scale-95"
+                          className="hover:text-[#FACC15] text-[#A3A3A3] transition p-0.5 rounded cursor-pointer active:scale-95"
                           title="Copy Transaction ID"
                         >
                           <Copy className="w-3 h-3" />
                         </button>
                       </div>
                     </div>
-                    <div className="flex justify-between border-t border-slate-200 dark:border-slate-700 mt-1.5 pt-1.5 font-sans">
-                      <span className="text-[10px] font-black text-slate-400 uppercase">Method</span>
-                      <span className="font-bold text-xs uppercase text-indigo-600 dark:text-indigo-400">{req.method || 'Bkash/Nagad merely indicated'}</span>
+                    <div className="flex justify-between border-t border-[#3D3215] mt-1.5 pt-1.5 font-sans">
+                      <span className="text-[10px] font-black text-[#A3A3A3] uppercase">Method</span>
+                      <span className="font-bold text-xs uppercase text-[#FACC15]">{req.method || 'Bkash/Nagad'}</span>
                     </div>
                   </div>
                 )}
                 {req.type === 'activation' && (
                   <div className="space-y-1">
-                    <div className="flex justify-between border-b border-slate-200 dark:border-slate-700 pb-1.5 mb-1.5 font-sans">
-                      <span className="text-[10px] font-black text-slate-400 uppercase">Sender Number</span>
+                    <div className="flex justify-between border-b border-[#3D3215] pb-1.5 mb-1.5 font-sans">
+                      <span className="text-[10px] font-black text-[#A3A3A3] uppercase">Sender Number</span>
                       <div className="flex items-center gap-1.5">
-                        <span className="font-mono font-bold text-slate-700 dark:text-slate-200 tracking-wider text-[11px]">{req.account || 'Unknown'}</span>
+                        <span className="font-mono font-bold text-white tracking-wider text-[11px]">{req.account || 'Unknown'}</span>
                         {req.account && (
                           <button
                             onClick={() => {
                               navigator.clipboard.writeText(req.account);
                               toast.success('Sender number copied!');
                             }}
-                            className="hover:text-emerald-500 text-slate-400 transition p-0.5 rounded cursor-pointer active:scale-95"
+                            className="hover:text-emerald-400 text-[#A3A3A3] transition p-0.5 rounded cursor-pointer active:scale-95"
                             title="Copy Sender Number"
                           >
                             <Copy className="w-3 h-3" />
@@ -2563,24 +2374,24 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                       </div>
                     </div>
                     <div className="flex justify-between items-center font-sans">
-                      <span className="text-[10px] font-black text-slate-400 uppercase">Transaction ID</span>
+                      <span className="text-[10px] font-black text-[#A3A3A3] uppercase">Transaction ID</span>
                       <div className="flex items-center gap-1.5">
-                        <span className="font-mono font-bold text-emerald-600 tracking-wider text-[11px]">{req.trxId}</span>
+                        <span className="font-mono font-bold text-emerald-400 tracking-wider text-[11px]">{req.trxId}</span>
                         <button
                           onClick={() => {
                             navigator.clipboard.writeText(req.trxId);
                             toast.success('Transaction ID copied!');
                           }}
-                          className="hover:text-emerald-500 text-slate-400 transition p-0.5 rounded cursor-pointer active:scale-95"
+                          className="hover:text-emerald-400 text-[#A3A3A3] transition p-0.5 rounded cursor-pointer active:scale-95"
                           title="Copy Transaction ID"
                         >
                           <Copy className="w-3 h-3" />
                         </button>
                       </div>
                     </div>
-                    <div className="flex justify-between border-t border-slate-200 dark:border-slate-700 mt-1.5 pt-1.5 font-sans">
-                      <span className="text-[10px] font-black text-slate-400 uppercase">Method</span>
-                      <span className="font-bold text-xs uppercase text-emerald-600 dark:text-emerald-400">{req.method || 'Bkash/Nagad'}</span>
+                    <div className="flex justify-between border-t border-[#3D3215] mt-1.5 pt-1.5 font-sans">
+                      <span className="text-[10px] font-black text-[#A3A3A3] uppercase">Method</span>
+                      <span className="font-bold text-xs uppercase text-emerald-400">{req.method || 'Bkash/Nagad'}</span>
                     </div>
                   </div>
                 )}
@@ -2589,13 +2400,13 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
               <div className="grid grid-cols-2 gap-3">
                 <button 
                   onClick={() => handlePaymentRequest(req.id, req.userId, req.amount, req.type, 'approved', req.transactionId, req.wallet)} 
-                  className="bg-emerald-500 hover:bg-emerald-600 text-white py-3 rounded-2xl font-black uppercase tracking-widest text-[11px] shadow-lg shadow-emerald-500/20 active:scale-95 transition-all"
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-2xl font-black uppercase tracking-widest text-[11px] shadow-lg shadow-emerald-600/20 active:scale-95 transition-all"
                 >
                   Pay Now
                 </button>
                 <button 
                   onClick={() => handlePaymentRequest(req.id, req.userId, req.amount, req.type, 'rejected', req.transactionId, req.wallet)} 
-                  className="bg-rose-500 hover:bg-rose-600 text-white py-3 rounded-2xl font-black uppercase tracking-widest text-[11px] shadow-lg shadow-rose-500/20 active:scale-95 transition-all"
+                  className="bg-rose-600 hover:bg-rose-500 text-white py-3 rounded-2xl font-black uppercase tracking-widest text-[11px] shadow-lg shadow-rose-600/20 active:scale-95 transition-all"
                 >
                   Decline
                 </button>
@@ -2604,18 +2415,18 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
           ))}
           
           <div className="pt-6">
-            <h3 className="font-black dark:text-white uppercase tracking-tight text-xs mb-4 opacity-50 px-1">Payment History</h3>
+            <h3 className="font-black text-white uppercase tracking-tight text-xs mb-4 opacity-50 px-1">Payment History</h3>
             <div className="grid gap-2">
               {paymentRequests.filter(req => req.status !== 'pending').slice(0, 100).map(req => (
-                <div key={req.id} className="bg-white dark:bg-slate-800 p-3 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex justify-between items-center opacity-70">
+                <div key={req.id} className="bg-[#151515] p-3 rounded-2xl shadow-sm border border-[#3D3215] flex justify-between items-center opacity-85">
                   <div className="flex-1 overflow-hidden pr-4">
-                    <p className="font-black text-[13px] text-slate-800 dark:text-slate-200 italic uppercase flex items-center gap-1.5">
+                    <p className="font-black text-[13px] text-white italic uppercase flex items-center gap-1.5">
                       {req.amount} &bull; {req.type}
-                      {req.method && <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 rounded text-[9px] not-italic">{req.method}</span>}
+                      {req.method && <span className="px-1.5 py-0.5 bg-[#1C1C1C] border border-[#3D3215] rounded text-[9px] not-italic text-[#FACC15]">{req.method}</span>}
                     </p>
-                    <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold truncate tracking-widest uppercase">{req.userEmail} {req.account ? ` ${req.account}` : ''}</p>
+                    <p className="text-[9px] text-[#A3A3A3] font-bold truncate tracking-widest uppercase">{req.userEmail} {req.account ? ` ${req.account}` : ''}</p>
                   </div>
-                  <div className={`text-[9px] px-3 py-1 rounded-full font-black uppercase tracking-widest border ${req.status === 'approved' ? 'bg-emerald-100 text-emerald-600 border-emerald-200' : 'bg-rose-100 text-rose-600 border-rose-200'}`}>
+                  <div className={`text-[9px] px-3 py-1 rounded-full font-black uppercase tracking-widest border ${req.status === 'approved' ? 'bg-emerald-950/40 text-emerald-400 border-emerald-500/30' : 'bg-rose-950/40 text-rose-400 border-rose-500/30'}`}>
                     {req.status}
                   </div>
                 </div>
@@ -2627,61 +2438,61 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
 
       {activeTab === 'gifts' && (
         <div className="space-y-6">
-          <form onSubmit={handleCreateGiftCode} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] border border-slate-100 dark:border-slate-700 shadow-sm space-y-4">
-            <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight text-sm">Create Gift Code</h3>
+          <form onSubmit={handleCreateGiftCode} className="bg-[#151515] p-6 rounded-[32px] border border-[#3D3215] shadow-sm space-y-4">
+            <h3 className="font-black text-white uppercase tracking-tight text-sm">Create Gift Code</h3>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Gift Code (5-8 Chars)</label>
-                <input type="text" value={newGiftCode} onChange={(e) => setNewGiftCode(e.target.value.toUpperCase())} maxLength={8} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 uppercase" placeholder="e.g. SUMMER50" required />
+                <label className="text-[10px] font-bold text-[#A3A3A3] uppercase tracking-widest pl-1">Gift Code (5-8 Chars)</label>
+                <input type="text" value={newGiftCode} onChange={(e) => setNewGiftCode(e.target.value.toUpperCase())} maxLength={8} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-[#FACC15] uppercase focus:border-[#D4A017] outline-none" placeholder="e.g. SUMMER50" required />
               </div>
               <div className="space-y-2">
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Reward Type</label>
-                <select value={giftType} onChange={(e) => setGiftType(e.target.value as 'fixed'|'random')} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800">
-                  <option value="fixed">Fixed Amount</option>
-                  <option value="random">Random Amount</option>
+                <label className="text-[10px] font-bold text-[#A3A3A3] uppercase tracking-widest pl-1">Reward Type</label>
+                <select value={giftType} onChange={(e) => setGiftType(e.target.value as 'fixed'|'random')} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white focus:border-[#D4A017] outline-none">
+                  <option value="fixed" className="bg-[#151515] text-white">Fixed Amount</option>
+                  <option value="random" className="bg-[#151515] text-white">Random Amount</option>
                 </select>
               </div>
               
               {giftType === 'fixed' ? (
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Amount ()</label>
-                  <input type="number" min="1" value={giftAmount} onChange={(e) => setGiftAmount(e.target.value === '' ? '' : isNaN(parseFloat(e.target.value)) ? "" : parseFloat(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" required />
+                  <label className="text-[10px] font-bold text-[#A3A3A3] uppercase tracking-widest pl-1">Amount ()</label>
+                  <input type="number" min="1" value={giftAmount} onChange={(e) => setGiftAmount(e.target.value === '' ? '' : isNaN(parseFloat(e.target.value)) ? "" : parseFloat(e.target.value))} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white focus:border-[#D4A017] outline-none" required />
                 </div>
               ) : (
                 <>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Min Amount ()</label>
-                    <input type="number" min="1" value={giftMinAmount} onChange={(e) => setGiftMinAmount(e.target.value === '' ? '' : isNaN(parseFloat(e.target.value)) ? "" : parseFloat(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" required />
+                    <label className="text-[10px] font-bold text-[#A3A3A3] uppercase tracking-widest pl-1">Min Amount ()</label>
+                    <input type="number" min="1" value={giftMinAmount} onChange={(e) => setGiftMinAmount(e.target.value === '' ? '' : isNaN(parseFloat(e.target.value)) ? "" : parseFloat(e.target.value))} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white focus:border-[#D4A017] outline-none" required />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Max Amount ()</label>
-                    <input type="number" min="1" value={giftMaxAmount} onChange={(e) => setGiftMaxAmount(e.target.value === '' ? '' : isNaN(parseFloat(e.target.value)) ? "" : parseFloat(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" required />
+                    <label className="text-[10px] font-bold text-[#A3A3A3] uppercase tracking-widest pl-1">Max Amount ()</label>
+                    <input type="number" min="1" value={giftMaxAmount} onChange={(e) => setGiftMaxAmount(e.target.value === '' ? '' : isNaN(parseFloat(e.target.value)) ? "" : parseFloat(e.target.value))} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white focus:border-[#D4A017] outline-none" required />
                   </div>
                 </>
               )}
               
               <div className="space-y-2">
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Max Uses (0 = unlimited)</label>
-                <input type="number" min="0" value={giftMaxUses} onChange={(e) => setGiftMaxUses(e.target.value === '' ? '' : isNaN(parseInt(e.target.value)) ? "" : parseInt(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" required />
+                <label className="text-[10px] font-bold text-[#A3A3A3] uppercase tracking-widest pl-1">Max Uses (0 = unlimited)</label>
+                <input type="number" min="0" value={giftMaxUses} onChange={(e) => setGiftMaxUses(e.target.value === '' ? '' : isNaN(parseInt(e.target.value)) ? "" : parseInt(e.target.value))} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white focus:border-[#D4A017] outline-none" required />
               </div>
               <div className="space-y-2">
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Expires In (Hours)</label>
-                <input type="number" min="1" value={giftExpiresInHours} onChange={(e) => setGiftExpiresInHours(e.target.value === '' ? '' : isNaN(parseInt(e.target.value)) ? "" : parseInt(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" required />
+                <label className="text-[10px] font-bold text-[#A3A3A3] uppercase tracking-widest pl-1">Expires In (Hours)</label>
+                <input type="number" min="1" value={giftExpiresInHours} onChange={(e) => setGiftExpiresInHours(e.target.value === '' ? '' : isNaN(parseInt(e.target.value)) ? "" : parseInt(e.target.value))} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white focus:border-[#D4A017] outline-none" required />
               </div>
             </div>
 
-            <button type="submit" disabled={isCreatingGift} className="w-full bg-[#0D47A1] hover:bg-blue-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg transition-all text-xs disabled:opacity-50">
+            <button type="submit" disabled={isCreatingGift} className="w-full bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg transition-all text-xs disabled:opacity-50 cursor-pointer">
               {isCreatingGift ? 'Creating...' : 'Create Code'}
             </button>
           </form>
 
           <div className="space-y-3">
-            <h3 className="font-black dark:text-white uppercase tracking-tight text-xs pl-1">Active & Past Codes ({giftCodes.length})</h3>
+            <h3 className="font-black text-white uppercase tracking-tight text-xs pl-1">Active & Past Codes ({giftCodes.length})</h3>
             
             {giftCodes.length === 0 && (
-              <div className="text-center py-12 bg-white dark:bg-slate-800/45 rounded-[32px] border-2 border-dashed border-slate-100 dark:border-slate-800">
-                <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">No gift codes found.</p>
+              <div className="text-center py-12 bg-[#151515] rounded-[32px] border-2 border-dashed border-[#3D3215]">
+                <p className="text-xs font-bold text-[#A3A3A3] uppercase tracking-widest">No gift codes found.</p>
               </div>
             )}
 
@@ -2689,23 +2500,23 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
               {giftCodes.map((code) => {
                 const isExpired = code.expiresAt && code.expiresAt.toDate() < new Date();
                 return (
-                  <div key={code.id} className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-100 dark:border-slate-700 flex flex-col gap-2 shadow-sm">
+                  <div key={code.id} className="bg-[#151515] p-4 rounded-xl border border-[#3D3215] flex flex-col gap-2 shadow-sm">
                     <div className="flex justify-between items-start">
                       <div>
-                        <h4 className="font-black font-mono text-slate-900 dark:text-white text-lg tracking-widest">{code.code}</h4>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                        <h4 className="font-black font-mono text-[#FACC15] text-lg tracking-widest">{code.code}</h4>
+                        <p className="text-xs text-[#A3A3A3] mt-1">
                           {code.type === 'fixed' ? `${code.amount} Fixed` : `${code.minAmount} - ${code.maxAmount} Random`}
-                          <span className="mx-2 text-slate-300"></span>
-                          {code.usedBy?.length || 0} / {code.maxUses || ''} Uses
+                          <span className="mx-2 text-[#737373]">&bull;</span>
+                          {code.usedBy?.length || 0} / {code.maxUses || 'Unlimited'} Uses
                         </p>
                       </div>
                       <div className="flex flex-col items-end gap-2">
                         <span className={`text-[9px] px-2.5 py-1 rounded-full font-black uppercase tracking-widest border ${
-                          code.status === 'active' && !isExpired ? 'bg-emerald-100 text-emerald-600 border-emerald-200' : 'bg-rose-100 text-rose-600 border-rose-200'
+                          code.status === 'active' && !isExpired ? 'bg-emerald-950/40 text-emerald-400 border-emerald-500/30' : 'bg-rose-950/40 text-rose-400 border-rose-500/30'
                         }`}>
                           {isExpired ? 'EXPIRED' : code.status}
                         </span>
-                        <button onClick={() => handleDeleteGiftCode(code.id)} className="p-2 text-rose-500 bg-rose-50 dark:bg-rose-900/30 rounded-lg hover:scale-105 active:scale-90 transition-all">
+                        <button onClick={() => handleDeleteGiftCode(code.id)} className="p-2 text-rose-400 bg-rose-950/30 border border-rose-800/30 rounded-lg hover:bg-rose-900/40 active:scale-90 transition-all">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
@@ -2720,54 +2531,54 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
 
       {activeTab === 'faqs' && (
         <div className="space-y-6">
-          <form onSubmit={handleAddFaq} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] border border-slate-100 dark:border-slate-700 shadow-sm space-y-4">
+          <form onSubmit={handleAddFaq} className="bg-[#151515] p-6 rounded-[32px] border border-[#3D3215] shadow-sm space-y-4">
             <div className="flex justify-between items-center">
-              <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight text-sm">{editingFaqIndex !== null ? 'Edit FAQ' : 'Add New FAQ'}</h3>
+              <h3 className="font-black text-white uppercase tracking-tight text-sm">{editingFaqIndex !== null ? 'Edit FAQ' : 'Add New FAQ'}</h3>
               {editingFaqIndex !== null && (
-                <button type="button" onClick={handleCancelEditFaq} className="text-xs font-bold text-slate-500 hover:text-slate-700">Cancel</button>
+                <button type="button" onClick={handleCancelEditFaq} className="text-xs font-bold text-[#A3A3A3] hover:text-[#FACC15]">Cancel</button>
               )}
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <input type="text" placeholder="Question (English)" value={newFaq.question_en} onChange={(e) => setNewFaq({...newFaq, question_en: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" required />
-                <textarea placeholder="Answer (English)" value={newFaq.answer_en} onChange={(e) => setNewFaq({...newFaq, answer_en: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 h-24" required />
+                <input type="text" placeholder="Question (English)" value={newFaq.question_en} onChange={(e) => setNewFaq({...newFaq, question_en: e.target.value})} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none" required />
+                <textarea placeholder="Answer (English)" value={newFaq.answer_en} onChange={(e) => setNewFaq({...newFaq, answer_en: e.target.value})} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none h-24" required />
               </div>
               <div className="space-y-2">
-                <input type="text" placeholder="Question (Bengali)" value={newFaq.question_bn} onChange={(e) => setNewFaq({...newFaq, question_bn: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800" required />
-                <textarea placeholder="Answer (Bengali)" value={newFaq.answer_bn} onChange={(e) => setNewFaq({...newFaq, answer_bn: e.target.value})} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 h-24" required />
+                <input type="text" placeholder="Question (Bengali)" value={newFaq.question_bn} onChange={(e) => setNewFaq({...newFaq, question_bn: e.target.value})} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none" required />
+                <textarea placeholder="Answer (Bengali)" value={newFaq.answer_bn} onChange={(e) => setNewFaq({...newFaq, answer_bn: e.target.value})} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none h-24" required />
               </div>
             </div>
 
-            <button type="submit" disabled={isSavingSettings} className="w-full bg-[#0D47A1] hover:bg-blue-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg transition-all text-xs disabled:opacity-50">
+            <button type="submit" disabled={isSavingSettings} className="w-full bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg transition-all text-xs disabled:opacity-50 cursor-pointer">
               {editingFaqIndex !== null ? 'Update FAQ' : 'Create FAQ'}
             </button>
           </form>
 
           <div className="space-y-3">
-            <h3 className="font-black dark:text-white uppercase tracking-tight text-xs pl-1">Live FAQs ({faqsList.length})</h3>
+            <h3 className="font-black text-white uppercase tracking-tight text-xs pl-1">Live FAQs ({faqsList.length})</h3>
             
             {faqsList.length === 0 && (
-              <div className="text-center py-12 bg-white dark:bg-slate-800/45 rounded-[32px] border-2 border-dashed border-slate-100 dark:border-slate-800">
-                <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">No FAQs registered yet.</p>
+              <div className="text-center py-12 bg-[#151515] rounded-[32px] border-2 border-dashed border-[#3D3215]">
+                <p className="text-xs font-bold text-[#A3A3A3] uppercase tracking-widest">No FAQs registered yet.</p>
               </div>
             )}
 
             <div className="grid gap-3">
               {faqsList.map((faq, index) => (
-                <div key={index} className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-100 dark:border-slate-700 flex flex-col gap-2 shadow-sm">
+                <div key={index} className="bg-[#151515] p-4 rounded-xl border border-[#3D3215] flex flex-col gap-2 shadow-sm">
                   <div className="flex justify-between items-start">
-                    <h4 className="font-bold text-slate-900 dark:text-white text-sm">{faq.question_en}</h4>
+                    <h4 className="font-bold text-white text-sm">{faq.question_en}</h4>
                     <div className="flex gap-2">
-                      <button onClick={() => { setEditingFaqIndex(index); setNewFaq(faq); }} className="p-2 text-blue-500 bg-blue-50 dark:bg-blue-900/30 rounded-lg hover:scale-105 active:scale-90 transition-all">
+                      <button onClick={() => { setEditingFaqIndex(index); setNewFaq(faq); }} className="p-2 text-[#FACC15] bg-[#1C1C1C] border border-[#3D3215] rounded-lg hover:border-[#D4A017] active:scale-90 transition-all">
                         <Settings className="w-4 h-4" />
                       </button>
-                      <button onClick={() => handleDeleteFaq(index)} className="p-2 text-rose-500 bg-rose-50 dark:bg-rose-900/30 rounded-lg hover:scale-105 active:scale-90 transition-all">
+                      <button onClick={() => handleDeleteFaq(index)} className="p-2 text-rose-400 bg-rose-950/30 border border-rose-800/30 rounded-lg hover:bg-rose-900/40 active:scale-90 transition-all">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
-                  <p className="text-xs text-slate-500">{faq.answer_en}</p>
+                  <p className="text-xs text-[#A3A3A3]">{faq.answer_en}</p>
                 </div>
               ))}
             </div>
@@ -2778,8 +2589,8 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
       {activeTab === 'drives' && (
         <div className="space-y-6">
           {/* Create Drive Offer Form */}
-          <div className="bg-white dark:bg-slate-800 p-6 rounded-[32px] border border-slate-100 dark:border-slate-700 shadow-sm">
-            <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight text-sm mb-4">Create New Drive Offer</h3>
+          <div className="bg-[#151515] p-6 rounded-[32px] border border-[#3D3215] shadow-sm">
+            <h3 className="font-black text-white uppercase tracking-tight text-sm mb-4">Create New Drive Offer</h3>
             <form 
               onSubmit={async (e) => {
                 e.preventDefault();
@@ -2819,37 +2630,37 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
             >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Package Title ( )</label>
-                  <input type="text" placeholder="e.g. GP 40GB + 800 Min Combo" required value={newDriveTitle} onChange={(e) => setNewDriveTitle(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 focus:ring-2 focus:ring-indigo-500 transition-all text-slate-900 dark:text-white" />
+                  <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">Package Title</label>
+                  <input type="text" placeholder="e.g. GP 40GB + 800 Min Combo" required value={newDriveTitle} onChange={(e) => setNewDriveTitle(e.target.value)} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none transition-all" />
                 </div>
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Mobile Operator</label>
-                  <select value={newDriveOperator} onChange={(e) => setNewDriveOperator(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500">
-                    <option value="Grameenphone">Grameenphone</option>
-                    <option value="Robi">Robi</option>
-                    <option value="Banglalink">Banglalink</option>
-                    <option value="Airtel">Airtel</option>
-                    <option value="Teletalk">Teletalk</option>
+                  <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">Mobile Operator</label>
+                  <select value={newDriveOperator} onChange={(e) => setNewDriveOperator(e.target.value)} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white focus:border-[#D4A017] outline-none">
+                    <option value="Grameenphone" className="bg-[#151515] text-white">Grameenphone</option>
+                    <option value="Robi" className="bg-[#151515] text-white">Robi</option>
+                    <option value="Banglalink" className="bg-[#151515] text-white">Banglalink</option>
+                    <option value="Airtel" className="bg-[#151515] text-white">Airtel</option>
+                    <option value="Teletalk" className="bg-[#151515] text-white">Teletalk</option>
                   </select>
                 </div>
               </div>
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Validity ()</label>
-                  <input type="text" placeholder="e.g. 30 Days" required value={newDriveValidity} onChange={(e) => setNewDriveValidity(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 text-slate-900 dark:text-white" />
+                  <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">Validity</label>
+                  <input type="text" placeholder="e.g. 30 Days" required value={newDriveValidity} onChange={(e) => setNewDriveValidity(e.target.value)} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none" />
                 </div>
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Original ()</label>
-                  <input type="number" placeholder="e.g. 799" required value={newDriveOriginalPrice} onChange={(e) => setNewDriveOriginalPrice(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 text-slate-900 dark:text-white" />
+                  <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">Original</label>
+                  <input type="number" placeholder="e.g. 799" required value={newDriveOriginalPrice} onChange={(e) => setNewDriveOriginalPrice(e.target.value)} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none" />
                 </div>
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Sale ()</label>
-                  <input type="number" placeholder="e.g. 580" required value={newDriveSalePrice} onChange={(e) => setNewDriveSalePrice(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 text-slate-900 dark:text-white" />
+                  <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">Sale</label>
+                  <input type="number" placeholder="e.g. 580" required value={newDriveSalePrice} onChange={(e) => setNewDriveSalePrice(e.target.value)} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-[#FACC15] placeholder:text-[#737373] focus:border-[#D4A017] outline-none" />
                 </div>
               </div>
 
-              <button type="submit" className="w-full bg-[#0D47A1] hover:bg-blue-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg transition-all text-xs">
+              <button type="submit" className="w-full bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg transition-all text-xs cursor-pointer">
                 Create Drive Pack
               </button>
             </form>
@@ -2857,34 +2668,34 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
 
           {/* Drive Packs List */}
           <div className="space-y-3">
-            <h3 className="font-black dark:text-white uppercase tracking-tight text-xs pl-1">Live Drive Packs ({adminOffers.length})</h3>
+            <h3 className="font-black text-white uppercase tracking-tight text-xs pl-1">Live Drive Packs ({adminOffers.length})</h3>
             
             {adminOffers.length === 0 && (
-              <div className="text-center py-12 bg-white dark:bg-slate-800/45 rounded-[32px] border-2 border-dashed border-slate-100 dark:border-slate-800">
-                <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">No active drive packs registered yet.</p>
+              <div className="text-center py-12 bg-[#151515] rounded-[32px] border-2 border-dashed border-[#3D3215]">
+                <p className="text-xs font-bold text-[#A3A3A3] uppercase tracking-widest">No active drive packs registered yet.</p>
               </div>
             )}
 
             <div className="grid gap-3">
               {adminOffers.map(of => {
                 const operatorTags: Record<string, string> = {
-                  Grameenphone: 'text-sky-600 bg-sky-50 dark:bg-sky-950/20 border-sky-200 dark:border-sky-800/30',
-                  Robi: 'text-red-500 bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800/30',
-                  Banglalink: 'text-amber-500 bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/30',
-                  Airtel: 'text-rose-500 bg-rose-50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800/30',
-                  Teletalk: 'text-emerald-500 bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/30',
+                  Grameenphone: 'text-sky-400 bg-sky-950/30 border-sky-800/40',
+                  Robi: 'text-red-400 bg-red-950/30 border-red-800/40',
+                  Banglalink: 'text-amber-400 bg-amber-950/30 border-amber-800/40',
+                  Airtel: 'text-rose-400 bg-rose-950/30 border-rose-800/40',
+                  Teletalk: 'text-emerald-400 bg-emerald-950/30 border-emerald-800/40',
                 };
                 return (
-                  <div key={of.id} className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-100 dark:border-slate-700 flex items-center justify-between gap-4 shadow-sm">
+                  <div key={of.id} className="bg-[#151515] p-4 rounded-xl border border-[#3D3215] flex items-center justify-between gap-4 shadow-sm">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className={`text-[9px] px-2 py-0.5 font-bold uppercase tracking-wide rounded-full border ${operatorTags[of.operator] || 'text-indigo-600 border-indigo-200 bg-indigo-50'}`}>
+                        <span className={`text-[9px] px-2 py-0.5 font-bold uppercase tracking-wide rounded-full border ${operatorTags[of.operator] || 'text-[#FACC15] border-[#3D3215] bg-[#1C1C1C]'}`}>
                           {of.operator}
                         </span>
-                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">{of.validity}</span>
+                        <span className="text-[10px] text-[#A3A3A3] font-bold uppercase tracking-wide">{of.validity}</span>
                       </div>
-                      <h4 className="font-black text-slate-900 dark:text-white text-sm truncate uppercase">{of.title}</h4>
-                      <p className="text-xs font-bold text-slate-505 mt-1 dark:text-slate-400">Regular: <span className="line-through">{of.originalPrice}</span> &bull; Sale: <span className="text-emerald-550 dark:text-emerald-400">{of.salePrice}</span></p>
+                      <h4 className="font-black text-white text-sm truncate uppercase">{of.title}</h4>
+                      <p className="text-xs font-bold text-[#A3A3A3] mt-1">Regular: <span className="line-through">{of.originalPrice}</span> &bull; Sale: <span className="text-[#FACC15]">{of.salePrice}</span></p>
                     </div>
                     
                     <div className="flex items-center gap-2">
@@ -2900,7 +2711,7 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                             toast.error("Failed to alter status");
                           }
                         }}
-                        className={`text-[10px] font-black uppercase px-2.5 py-1.5 rounded-xl border ${of.status === 'active' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20' : 'bg-slate-50 text-slate-500 dark:bg-slate-900/20'}`}
+                        className={`text-[10px] font-black uppercase px-2.5 py-1.5 rounded-xl border ${of.status === 'active' ? 'bg-emerald-950/40 text-emerald-400 border-emerald-500/30' : 'bg-[#1C1C1C] text-[#A3A3A3] border-[#3D3215]'}`}
                       >
                         {of.status === 'active' ? 'Active' : 'Paused'}
                       </button>
@@ -2917,7 +2728,7 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                             }
                           }
                         }}
-                        className="p-2 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/30 text-rose-500 rounded-xl"
+                        className="p-2 bg-rose-950/30 hover:bg-rose-900/40 border border-rose-800/30 text-rose-400 rounded-xl active:scale-95 transition-all"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -2933,16 +2744,16 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
       {activeTab === 'courses' && (
         <div className="space-y-6">
           {/* Create/Edit Course Form */}
-          <div className="bg-white dark:bg-slate-800 p-6 rounded-[32px] border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden">
-            <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight text-sm mb-4">
-              {editingCourseId ? '    ' : '     '}
+          <div className="bg-[#151515] p-6 rounded-[32px] border border-[#3D3215] shadow-sm relative overflow-hidden">
+            <h3 className="font-black text-white uppercase tracking-tight text-sm mb-4">
+              {editingCourseId ? 'কোর্স এডিট করুন' : 'নতুন কোর্স তৈরি করুন'}
             </h3>
             
             <form 
               onSubmit={async (e) => {
                 e.preventDefault();
                 if (!newCourseTitle || !newCourseDesc || !newCourseThumbnail || !newCourseLink) {
-                  toast.error("    ");
+                  toast.error("সব ফিল্ড পূরণ করুন");
                   return;
                 }
                 
@@ -2959,7 +2770,7 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                     updatedAt: serverTimestamp()
                   }, { merge: true });
                   
-                  toast.success(editingCourseId ? "     !" : "    !");
+                  toast.success(editingCourseId ? "কোর্স আপডেট হয়েছে!" : "কোর্স তৈরি হয়েছে!");
           clearCache();
           await loadData(true);
                   
@@ -2968,11 +2779,11 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                   setNewCourseDesc('');
                   setNewCourseThumbnail('');
                   setNewCourseLink('');
-                  setNewCourseCategory(' ');
+                  setNewCourseCategory('ইউটিউব মার্কেটিং');
                   setCourseItems([]);
                   setEditingCourseId(null);
                 } catch (err) {
-                  toast.error("   ");
+                  toast.error("কোর্স সংরক্ষণ ব্যর্থ হয়েছে");
                   console.error(err?.message || "Unknown Error");
                 }
               }}
@@ -2980,119 +2791,119 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
             >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">  (Title)</label>
+                  <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">কোর্সের নাম (Title)</label>
                   <input 
                     type="text" 
-                    placeholder="     " 
+                    placeholder="যেমন: ইউটিউব মার্কেটিং মাস্টারক্লাস" 
                     required 
                     value={newCourseTitle} 
                     onChange={(e) => setNewCourseTitle(e.target.value)} 
-                    className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 focus:ring-2 focus:ring-purple-555 transition-all text-slate-900 dark:text-white" 
+                    className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none transition-all" 
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">  (Category)</label>
+                  <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">ক্যাটাগরি (Category)</label>
                   <select 
                     value={newCourseCategory} 
                     onChange={(e) => setNewCourseCategory(e.target.value as any)} 
-                    className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-555"
+                    className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white focus:border-[#D4A017] outline-none"
                   >
-                    <option value=" "> </option>
-                    <option value=" "> </option>
-                    <option value=""> </option>
+                    <option value="ইউটিউব মার্কেটিং" className="bg-[#151515] text-white">ইউটিউব মার্কেটিং</option>
+                    <option value="ফেসবুক মার্কেটিং" className="bg-[#151515] text-white">ফেসবুক মার্কেটিং</option>
+                    <option value="অন্যান্য" className="bg-[#151515] text-white">অন্যান্য</option>
                   </select>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">   (Thumbnail URL)</label>
+                  <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">থাম্বনেইল লিংক (Thumbnail URL)</label>
                   <input 
                     type="url" 
                     placeholder="https://images.unsplash.com/..." 
                     required 
                     value={newCourseThumbnail} 
                     onChange={(e) => setNewCourseThumbnail(e.target.value)} 
-                    className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 focus:ring-2 focus:ring-purple-555 transition-all text-slate-900 dark:text-white" 
+                    className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none transition-all" 
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">    (Video/Instruction Link)</label>
+                  <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">ভিডিও লিংক (Video/Instruction Link)</label>
                   <input 
                     type="url" 
                     placeholder="https://youtube.com/watch?v=..." 
                     required 
                     value={newCourseLink} 
                     onChange={(e) => setNewCourseLink(e.target.value)} 
-                    className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 focus:ring-2 focus:ring-purple-555 transition-all text-slate-900 dark:text-white" 
+                    className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none transition-all" 
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">    (Detailed Description)</label>
+                <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">বিস্তারিত বিবরণ (Detailed Description)</label>
                 <textarea 
-                  placeholder="             ..." 
+                  placeholder="এই কোর্সে কি কি শেখানো হবে বিস্তারিত লিখুন..." 
                   required 
                   rows={4} 
                   value={newCourseDesc} 
                   onChange={(e) => setNewCourseDesc(e.target.value)} 
-                  className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold ring-1 ring-slate-100 dark:ring-slate-800 focus:ring-2 focus:ring-purple-555 transition-all text-slate-900 dark:text-white"
+                  className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none transition-all"
                 />
               </div>
 
               {/* Option Creator UI Section */}
-              <div className="bg-slate-50 dark:bg-slate-900/40 p-5 rounded-[24px] border border-slate-100 dark:border-slate-800 space-y-4">
-                <div className="flex items-center gap-1.5 border-b border-slate-100 dark:border-slate-800 pb-2">
-                  <Layers className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+              <div className="bg-[#101010] p-5 rounded-[24px] border border-[#3D3215] space-y-4">
+                <div className="flex items-center gap-1.5 border-b border-[#3D3215] pb-2">
+                  <Layers className="w-4 h-4 text-[#FACC15]" />
                   <div className="flex-1">
-                    <h4 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tight">   /     (Multiple Option Items)</h4>
-                    <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">Add sub-tutorials for How to complete tasks, How to withdraw, etc.</p>
+                    <h4 className="text-xs font-black text-white uppercase tracking-tight">মাল্টিপল অপশন / সাব-টিউটোরিয়াল (Multiple Option Items)</h4>
+                    <p className="text-[9px] text-[#A3A3A3] font-bold uppercase mt-0.5">Add sub-tutorials for How to complete tasks, How to withdraw, etc.</p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">  (Option Title)</label>
+                    <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">অপশন টাইটেল (Option Title)</label>
                     <input 
                       type="text" 
-                      placeholder=" .      " 
+                      placeholder="যেমন: কিভাবে কাজটি সম্পন্ন করবেন" 
                       value={optTitle} 
                       onChange={(e) => setOptTitle(e.target.value)} 
-                      className="w-full bg-white dark:bg-slate-800 border-none px-4 py-2.5 rounded-xl text-xs font-bold ring-1 ring-slate-100 dark:ring-slate-800 focus:ring-2 focus:ring-purple-555 transition-all text-slate-900 dark:text-white" 
+                      className="w-full bg-[#151515] border border-[#3D3215] px-4 py-2.5 rounded-xl text-xs font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none" 
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">   (Option Thumbnail URL)</label>
+                    <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">অপশন থাম্বনেইল (Option Thumbnail URL)</label>
                     <input 
                       type="url" 
                       placeholder="https://images.unsplash.com/..." 
                       value={optThumbnail} 
                       onChange={(e) => setOptThumbnail(e.target.value)} 
-                      className="w-full bg-white dark:bg-slate-800 border-none px-4 py-2.5 rounded-xl text-xs font-bold ring-1 ring-slate-100 dark:ring-slate-800 focus:ring-2 focus:ring-purple-555 transition-all text-slate-900 dark:text-white" 
+                      className="w-full bg-[#151515] border border-[#3D3215] px-4 py-2.5 rounded-xl text-xs font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none" 
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block"> /  (Option Video/Instruction Link)</label>
+                    <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">অপশন ভিডিও লিংক (Option Video/Instruction Link)</label>
                     <input 
                       type="url" 
                       placeholder="https://youtube.com/watch?v=..." 
                       value={optLink} 
                       onChange={(e) => setOptLink(e.target.value)} 
-                      className="w-full bg-white dark:bg-slate-800 border-none px-4 py-2.5 rounded-xl text-xs font-bold ring-1 ring-slate-100 dark:ring-slate-800 focus:ring-2 focus:ring-purple-555 transition-all text-slate-900 dark:text-white" 
+                      className="w-full bg-[#151515] border border-[#3D3215] px-4 py-2.5 rounded-xl text-xs font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none" 
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">   (Option Description)</label>
+                    <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">সংক্ষিপ্ত বিবরণ (Option Description)</label>
                     <input 
                       type="text" 
-                      placeholder="   --    " 
+                      placeholder="ছোট একটি বিবরণ দিন" 
                       value={optDesc} 
                       onChange={(e) => setOptDesc(e.target.value)} 
-                      className="w-full bg-white dark:bg-slate-800 border-none px-4 py-2.5 rounded-xl text-xs font-bold ring-1 ring-slate-100 dark:ring-slate-800 focus:ring-2 focus:ring-purple-555 transition-all text-slate-900 dark:text-white" 
+                      className="w-full bg-[#151515] border border-[#3D3215] px-4 py-2.5 rounded-xl text-xs font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none" 
                     />
                   </div>
                 </div>
@@ -3101,12 +2912,12 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                   type="button"
                   onClick={() => {
                     if (!optTitle || !optLink) {
-                      toast.error("     ");
+                      toast.error("টাইটেল এবং ভিডিও লিংক দিন");
                       return;
                     }
                     const newItem = {
                       title: optTitle,
-                      description: optDesc || '  ',
+                      description: optDesc || 'টিউটোরিয়াল',
                       thumbnailUrl: optThumbnail || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=600&auto=format&fit=crop',
                       videoLink: optLink
                     };
@@ -3116,39 +2927,39 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                     setOptDesc('');
                     setOptThumbnail('');
                     setOptLink('');
-                    toast.success("     !");
+                    toast.success("অপশন যুক্ত হয়েছে!");
                   }}
-                  className="bg-purple-600 hover:bg-purple-550 text-white font-black px-5 py-2.5 rounded-xl text-[10px] uppercase tracking-wider flex items-center gap-1 hover:scale-98 active:scale-95 transition-all"
+                  className="bg-[#1C1C1C] hover:bg-[#252525] border border-[#3D3215] text-[#FACC15] font-black px-5 py-2.5 rounded-xl text-[10px] uppercase tracking-wider flex items-center gap-1 active:scale-95 transition-all cursor-pointer"
                 >
-                       (+ Add Option)
+                  যুক্ত করুন (+ Add Option)
                 </button>
 
                 {/* Render added list items */}
                 {courseItems.length > 0 && (
-                  <div className="space-y-2 pt-3 border-t border-slate-100 dark:border-slate-800/80">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">  ({courseItems.length})</p>
+                  <div className="space-y-2 pt-3 border-t border-[#3D3215]">
+                    <p className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1">যুক্ত অপশনসমূহ ({courseItems.length})</p>
                     <div className="grid gap-2 max-h-[220px] overflow-y-auto pr-1">
                       {courseItems.map((item, index) => (
-                        <div key={index} className="bg-white dark:bg-slate-900/60 p-3 rounded-xl border border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-3">
+                        <div key={index} className="bg-[#151515] p-3 rounded-xl border border-[#3D3215] flex items-center justify-between gap-3">
                           <div className="flex items-center gap-3 min-w-0">
-                            <span className="w-5 h-5 rounded-full bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 text-[9px] font-black flex items-center justify-center shrink-0">
+                            <span className="w-5 h-5 rounded-full bg-[#1C1C1C] border border-[#3D3215] text-[#FACC15] text-[9px] font-black flex items-center justify-center shrink-0">
                               {index + 1}
                             </span>
-                            <img src={item.thumbnailUrl} alt="" className="w-10 h-8 object-cover rounded bg-slate-105 shrink-0 border border-slate-200/40 dark:border-slate-800" />
+                            <img src={item.thumbnailUrl} alt="" className="w-10 h-8 object-cover rounded bg-[#101010] shrink-0 border border-[#3D3215]" />
                             <div className="min-w-0">
-                              <h5 className="text-xs font-black text-slate-800 dark:text-white truncate max-w-[200px] leading-tight">{item.title}</h5>
-                              <p className="text-[9px] text-slate-400 truncate max-w-[200px] leading-tight">{item.videoLink}</p>
+                              <h5 className="text-xs font-black text-white truncate max-w-[200px] leading-tight">{item.title}</h5>
+                              <p className="text-[9px] text-[#A3A3A3] truncate max-w-[200px] leading-tight">{item.videoLink}</p>
                             </div>
                           </div>
                           <button 
                             type="button" 
                             onClick={() => {
                               setCourseItems(prev => prev.filter((_, idx) => idx !== index));
-                              toast.success("   !");
+                              toast.success("অপশন মুছে ফেলা হয়েছে!");
                             }}
-                            className="text-[9px] font-black uppercase text-rose-500 hover:text-rose-600 hover:underline shrink-0"
+                            className="text-[9px] font-black uppercase text-rose-400 hover:text-rose-300 hover:underline shrink-0 cursor-pointer"
                           >
-                             
+                            মুছুন
                           </button>
                         </div>
                       ))}
@@ -3160,9 +2971,9 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
               <div className="flex gap-2.5">
                 <button 
                   type="submit" 
-                  className="flex-1 bg-purple-600 hover:bg-purple-550 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-purple-600/10 transition-all text-xs"
+                  className="flex-1 bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg transition-all text-xs cursor-pointer"
                 >
-                  {editingCourseId ? '   (Save Changes)' : '     (Create)'}
+                  {editingCourseId ? 'আপডেট করুন (Save Changes)' : 'কোর্স তৈরি করুন (Create)'}
                 </button>
                 
                 {editingCourseId && (
@@ -3173,13 +2984,13 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                       setNewCourseDesc('');
                       setNewCourseThumbnail('');
                       setNewCourseLink('');
-                      setNewCourseCategory(' ');
+                      setNewCourseCategory('ইউটিউব মার্কেটিং');
                       setCourseItems([]);
                       setEditingCourseId(null);
                     }}
-                    className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold px-6 py-3.5 rounded-2xl text-xs"
+                    className="bg-[#1C1C1C] border border-[#3D3215] text-[#A3A3A3] hover:text-white font-bold px-6 py-3.5 rounded-2xl text-xs cursor-pointer"
                   >
-                     (Cancel)
+                    বাতিল (Cancel)
                   </button>
                 )}
               </div>
@@ -3189,7 +3000,7 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
           {/* Admin Courses List */}
           <div className="space-y-4">
             <div className="flex items-center justify-between px-1">
-              <h3 className="font-black dark:text-white uppercase tracking-tight text-xs">    ({adminCourses.length})</h3>
+              <h3 className="font-black text-white uppercase tracking-tight text-xs">লাইভ কোর্সসমূহ ({adminCourses.length})</h3>
               
               <button 
                 onClick={async () => {
@@ -3197,27 +3008,27 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                     const batch = writeBatch(db);
                     const DEFAULT_ITEMS = [
                       {
-                        title: "      ",
-                        description: "           ,                       ",
+                        title: "ইউটিউব মার্কেটিং বেসিক",
+                        description: "ভিডিও আপলোড, এসইও এবং চ্যানেল অপটিমাইজেশন শিখুন",
                         thumbnailUrl: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=600&auto=format&fit=crop",
                         videoLink: "https://www.youtube.com",
-                        category: " ",
+                        category: "ইউটিউব মার্কেটিং",
                         status: 'active'
                       },
                       {
-                        title: "        ",
-                        description: ",                              ",
+                        title: "ফেসবুক ভিডিও ক্যাম্পেইন",
+                        description: "ফেসবুক পেজ গ্রোথ ও পেইড অ্যাড ক্যাম্পেইন সেটআপ",
                         thumbnailUrl: "https://images.unsplash.com/photo-1559526324-4b87b5e36e44?q=80&w=600&auto=format&fit=crop",
                         videoLink: "https://www.youtube.com",
-                        category: " ",
+                        category: "ফেসবুক মার্কেটিং",
                         status: 'active'
                       },
                       {
-                        title: "        ",
-                        description: "                     ",
+                        title: "ডিজিটাল প্রোডাক্ট সেলিং",
+                        description: "অনলাইনে পণ্য বিক্রি এবং মার্কেটিং স্ট্র্যাটেজি",
                         thumbnailUrl: "https://images.unsplash.com/photo-1606167668584-78701c57f13d?q=80&w=600&auto=format&fit=crop",
                         videoLink: "https://www.youtube.com",
-                        category: "",
+                        category: "অন্যান্য",
                         status: 'active'
                       }
                     ];
@@ -3226,61 +3037,61 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                       batch.set(doc(db, "courses", id), it);
                     });
                     await batch.commit();
-                    toast.success("      !");
+                    toast.success("ডেমো কোর্সগুলো যুক্ত হয়েছে!");
                   } catch (err) {
-                    toast.error("  ");
+                    toast.error("ব্যর্থ হয়েছে");
                   }
                 }}
-                className="text-[10px] font-black uppercase text-purple-600 hover:text-purple-550 underline"
+                className="text-[10px] font-black uppercase text-[#FACC15] hover:underline cursor-pointer"
               >
-                    
+                + ডেমো কোর্স ইম্পোর্ট করুন
               </button>
             </div>
 
             {adminCourses.length === 0 && (
-              <div className="text-center py-12 bg-white dark:bg-slate-800/40 rounded-[32px] border-2 border-dashed border-slate-100 dark:border-slate-800">
-                <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">       </p>
+              <div className="text-center py-12 bg-[#151515] rounded-[32px] border-2 border-dashed border-[#3D3215]">
+                <p className="text-xs font-bold text-[#A3A3A3] uppercase tracking-widest">কোন কোর্স পাওয়া যায়নি</p>
               </div>
             )}
 
             <div className="grid gap-4">
               {adminCourses.map(course => (
-                <div key={course.id} className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+                <div key={course.id} className="bg-[#151515] p-4 rounded-2xl border border-[#3D3215] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
                   <div className="flex items-center gap-3 w-full sm:w-auto">
                     <img 
                       src={course.thumbnailUrl} 
                       alt="" 
-                      className="w-16 h-12 object-cover rounded-xl bg-slate-50 border border-slate-100/50 shrink-0" 
+                      className="w-16 h-12 object-cover rounded-xl bg-[#101010] border border-[#3D3215] shrink-0" 
                     />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-[9px] px-2 py-0.5 bg-purple-50 dark:bg-purple-950/20 border border-purple-100/20 text-purple-600 dark:text-purple-400 font-bold rounded-lg uppercase">
+                        <span className="text-[9px] px-2 py-0.5 bg-[#1C1C1C] border border-[#3D3215] text-[#FACC15] font-bold rounded-lg uppercase">
                           {course.category}
                         </span>
-                        <span className={`text-[8px] px-1.5 py-0.5 rounded font-black uppercase tracking-wider ${course.status === 'active' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-400'}`}>
+                        <span className={`text-[8px] px-1.5 py-0.5 rounded font-black uppercase tracking-wider border ${course.status === 'active' ? 'bg-emerald-950/40 text-emerald-400 border-emerald-500/30' : 'bg-[#1C1C1C] text-[#A3A3A3] border-[#3D3215]'}`}>
                           {course.status}
                         </span>
                       </div>
-                      <h4 className="font-black text-slate-900 dark:text-white text-xs mt-1 truncate uppercase">{course.title}</h4>
-                      <p className="text-[10px] text-slate-400 font-bold max-w-sm truncate leading-none mt-1">{course.description}</p>
+                      <h4 className="font-black text-white text-xs mt-1 truncate uppercase">{course.title}</h4>
+                      <p className="text-[10px] text-[#A3A3A3] font-bold max-w-sm truncate leading-none mt-1">{course.description}</p>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-end gap-2 w-full sm:w-auto shrink-0 border-t sm:border-y-0 border-slate-50 dark:border-slate-750/30 pt-3 sm:pt-0">
+                  <div className="flex items-center justify-end gap-2 w-full sm:w-auto shrink-0 border-t sm:border-y-0 border-[#3D3215] pt-3 sm:pt-0">
                     <button 
                       onClick={() => {
                         setNewCourseTitle(course.title || '');
                         setNewCourseDesc(course.description || '');
                         setNewCourseThumbnail(course.thumbnailUrl || '');
                         setNewCourseLink(course.videoLink || '');
-                        setNewCourseCategory(course.category || ' ');
+                        setNewCourseCategory(course.category || 'ইউটিউব মার্কেটিং');
                         setCourseItems(course.items || []);
                         setEditingCourseId(course.id);
-                        toast.success("    !");
+                        toast.success("এডিট মোড সক্রিয় করা হয়েছে!");
                       }}
-                      className="text-[10px] font-black uppercase px-2.5 py-1.5 rounded-xl border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:text-slate-350"
+                      className="text-[10px] font-black uppercase px-2.5 py-1.5 rounded-xl border border-[#3D3215] bg-[#1C1C1C] text-[#FACC15] hover:border-[#D4A017] transition-all cursor-pointer"
                     >
-                      
+                      এডিট
                     </button>
                     
                     <button 
@@ -3288,32 +3099,32 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                         try {
                           const toggledStatus = course.status === 'active' ? 'inactive' : 'active';
                           await updateDoc(doc(db, "courses", course.id), { status: toggledStatus });
-                          toast.success(`  ${toggledStatus}  `);
+                          toast.success(`কোর্সটি ${toggledStatus} করা হয়েছে`);
           clearCache();
           await loadData(true);
                         } catch (err) {
-                          toast.error("  ");
+                          toast.error("ব্যর্থ হয়েছে");
                         }
                       }}
-                      className={`text-[10px] font-black uppercase px-2.5 py-1.5 rounded-xl border ${course.status === 'active' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-50 text-slate-400 border-slate-100'}`}
+                      className={`text-[10px] font-black uppercase px-2.5 py-1.5 rounded-xl border cursor-pointer ${course.status === 'active' ? 'bg-emerald-950/40 text-emerald-400 border-emerald-500/30' : 'bg-[#1C1C1C] text-[#A3A3A3] border-[#3D3215]'}`}
                     >
-                      {course.status === 'active' ? '' : ''}
+                      {course.status === 'active' ? 'সক্রিয়' : 'নিষ্ক্রিয়'}
                     </button>
 
                     <button 
                       onClick={async () => {
-                        if (confirm("      ?")) {
+                        if (confirm("আপনি কি নিশ্চিত এই কোর্সটি মুছে ফেলতে চান?")) {
                           try {
                             await deleteDoc(doc(db, "courses", course.id));
-                            toast.success("  !");
+                            toast.success("মুছে ফেলা হয়েছে!");
           clearCache();
           await loadData(true);
                           } catch (err) {
-                            toast.error("!");
+                            toast.error("ব্যর্থ হয়েছে!");
                           }
                         }
                       }}
-                      className="p-2 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/40 text-rose-500 rounded-xl transition-colors"
+                      className="p-2 bg-rose-950/30 hover:bg-rose-900/40 border border-rose-800/30 text-rose-400 rounded-xl transition-colors cursor-pointer active:scale-95"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -3328,42 +3139,43 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
       {activeTab === 'users' && (
         <div className="space-y-4">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 px-1">
-            <h3 className="font-black dark:text-white flex items-center gap-2 uppercase tracking-tight text-sm">
-              <Users className="w-4 h-4 text-indigo-500" /> Database Entities ({userList.length})
+            <h3 className="font-black text-white flex items-center gap-2 uppercase tracking-tight text-sm">
+              <Users className="w-4 h-4 text-[#FACC15]" /> Database Entities ({userList.length})
             </h3>
             
-                        <button
-              type="button"
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteDuplicateAdmins(); }}
-              className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold"
-            >
-              Delete Duplicate Admins
-            </button>
-            <button
-              type="button"
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); fixExploit(); }}
-              className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold ml-2"
-            >
-              Fix Spin/Math Exploit
-            </button>
-            
-            
-            
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault(); e.stopPropagation();
-                setNotifyTarget('all');
-                setNotifyTitle('');
-                setNotifyMessage('');
-                setShowNotifyModal(true);
-              }}
-              className="bg-sky-500 hover:bg-sky-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold ml-2 flex items-center gap-1"
-            >
-              <BellRing className="w-3 h-3" /> Global Notify
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteDuplicateAdmins(); }}
+                className="bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/40 text-rose-300 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              >
+                Delete Duplicate Admins
+              </button>
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); fixExploit(); }}
+                className="bg-amber-950/40 hover:bg-amber-900/60 border border-amber-800/40 text-[#FACC15] px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              >
+                Fix Spin/Math Exploit
+              </button>
+              
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault(); e.stopPropagation();
+                  setNotifyTarget('all');
+                  setNotifyTitle('');
+                  setNotifyMessage('');
+                  setShowNotifyModal(true);
+                }}
+                className="bg-[#1C1C1C] hover:bg-[#252525] border border-[#3D3215] text-[#FACC15] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition-all cursor-pointer"
+              >
+                <BellRing className="w-3 h-3" /> Global Notify
+              </button>
+            </div>
+
             <div className="relative w-full sm:w-72">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#A3A3A3]">
                 <Search className="w-4 h-4" />
               </span>
               <input
@@ -3388,7 +3200,7 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                      setUserList(snap.docs.map(d => ({id: d.id, ...d.data()} as any)));
                   }
                 }}
-                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-4 py-2 text-sm font-bold placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:text-white transition-all"
+                className="w-full bg-[#151515] border border-[#3D3215] rounded-xl pl-9 pr-4 py-2 text-sm font-bold placeholder:text-[#A3A3A3] focus:outline-none focus:border-[#FACC15] text-white transition-all"
               />
             </div>
           </div>
@@ -3403,64 +3215,64 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                 initial={{ opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}
                 key={user.id} 
-                className="bg-white dark:bg-slate-800 p-5 rounded-[28px] shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col md:flex-row md:items-center justify-between gap-4 relative overflow-hidden"
+                className="bg-[#151515] p-5 rounded-[28px] shadow-sm border border-[#3D3215] flex flex-col md:flex-row md:items-center justify-between gap-4 relative overflow-hidden"
               >
-                <div className="absolute top-0 left-0 w-2 h-full bg-slate-100 dark:bg-slate-700"></div>
+                <div className="absolute top-0 left-0 w-1.5 h-full bg-[#FACC15]"></div>
                 
                 <div className="flex-1 pl-2">
                   <div className="flex items-center gap-2 mb-2">
-                    <h4 className="font-black text-slate-900 dark:text-white uppercase tracking-tight text-base italic">{user.fullName || 'Anonymous'}</h4>
+                    <h4 className="font-black text-white uppercase tracking-tight text-base italic">{user.fullName || 'Anonymous'}</h4>
                     <div className="flex gap-1 flex-wrap">
-                      <span className={`text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-widest border ${user.isBlocked ? 'bg-rose-100 text-rose-600 border-rose-200' : 'bg-emerald-100 text-emerald-600 border-emerald-200'}`}>
+                      <span className={`text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-widest border ${user.isBlocked ? 'bg-rose-950/40 text-rose-400 border-rose-800/30' : 'bg-emerald-950/40 text-emerald-400 border-emerald-500/30'}`}>
                         {user.isBlocked ? 'Blocked' : 'Normal Access'}
                       </span>
                       {user.role !== 'admin' && (
-                        <span className={`text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-widest border ${user.isActive ? 'bg-blue-100 text-blue-600 border-blue-200' : 'bg-amber-100 text-amber-600 border-amber-200'}`}>
+                        <span className={`text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-widest border ${user.isActive ? 'bg-blue-950/40 text-blue-400 border-blue-800/30' : 'bg-amber-950/40 text-amber-400 border-amber-800/30'}`}>
                           {user.isActive ? 'Activated' : 'Inactive'}
                         </span>
                       )}
                       {user.role === 'employee' && (
-                        <span className="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-widest bg-teal-100 text-teal-700 border border-teal-200">Employee</span>
+                        <span className="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-widest bg-teal-950/40 text-teal-300 border border-teal-800/40">Employee</span>
                       )}
                       {user.role === 'admin' && (
-                        <span className="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-widest bg-indigo-100 text-indigo-650 border border-indigo-200">System Admin</span>
+                        <span className="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-widest bg-[#1C1C1C] text-[#FACC15] border border-[#3D3215]">System Admin</span>
                       )}
                     </div>
                   </div>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5">
-                    <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
-                      <div className="w-4 h-4 rounded bg-slate-100 dark:bg-slate-700 flex items-center justify-center"><User className="w-2.5 h-2.5" /></div>
+                    <div className="flex items-center gap-2 text-[#A3A3A3]">
+                      <div className="w-5 h-5 rounded bg-[#1C1C1C] border border-[#3D3215] text-[#FACC15] flex items-center justify-center shrink-0"><User className="w-3 h-3" /></div>
                       <p className="text-[11px] font-bold truncate">{user.email}</p>
                     </div>
-                    <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
-                      <div className="w-4 h-4 rounded bg-slate-100 dark:bg-slate-700 flex items-center justify-center"><Calculator className="w-2.5 h-2.5" /></div>
+                    <div className="flex items-center gap-2 text-[#A3A3A3]">
+                      <div className="w-5 h-5 rounded bg-[#1C1C1C] border border-[#3D3215] text-[#FACC15] flex items-center justify-center shrink-0"><Calculator className="w-3 h-3" /></div>
                       <p className="text-[11px] font-mono font-bold tracking-tighter opacity-80">{user.deviceId || 'ID NOT LINKED'}</p>
                     </div>
                   </div>
 
                   <div className="mt-4 flex flex-wrap gap-2">
-                    <div className="bg-slate-50 dark:bg-slate-900/50 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-700">
-                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">Main Balance</p>
-                      <p className="text-xs font-black text-slate-900 dark:text-white leading-tight">{(user.balances?.main || 0).toFixed(2)}</p>
+                    <div className="bg-[#1C1C1C] px-3 py-1.5 rounded-xl border border-[#3D3215]">
+                      <p className="text-[8px] font-black text-[#A3A3A3] uppercase tracking-widest leading-none mb-0.5">Main Balance</p>
+                      <p className="text-xs font-black text-white leading-tight">{(user.balances?.main || 0).toFixed(2)}</p>
                     </div>
-                    <div className="bg-slate-50 dark:bg-slate-900/50 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-700">
-                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">Bonus Earnings</p>
-                      <p className="text-xs font-black text-slate-900 dark:text-white leading-tight">{(user.balances?.bonus || 0).toFixed(2)}</p>
+                    <div className="bg-[#1C1C1C] px-3 py-1.5 rounded-xl border border-[#3D3215]">
+                      <p className="text-[8px] font-black text-[#A3A3A3] uppercase tracking-widest leading-none mb-0.5">Bonus Earnings</p>
+                      <p className="text-xs font-black text-white leading-tight">{(user.balances?.bonus || 0).toFixed(2)}</p>
                     </div>
-                    <div className="bg-slate-50 dark:bg-slate-900/50 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-700">
-                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">Referral Earnings</p>
-                      <p className="text-xs font-black text-slate-900 dark:text-white leading-tight">{(user.balances?.referral || 0).toFixed(2)}</p>
+                    <div className="bg-[#1C1C1C] px-3 py-1.5 rounded-xl border border-[#3D3215]">
+                      <p className="text-[8px] font-black text-[#A3A3A3] uppercase tracking-widest leading-none mb-0.5">Referral Earnings</p>
+                      <p className="text-xs font-black text-white leading-tight">{(user.balances?.referral || 0).toFixed(2)}</p>
                     </div>
-                    <div className="bg-slate-50 dark:bg-slate-900/50 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-700">
-                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">Task Earnings</p>
-                      <p className="text-xs font-black text-slate-900 dark:text-white leading-tight">{(
+                    <div className="bg-[#1C1C1C] px-3 py-1.5 rounded-xl border border-[#3D3215]">
+                      <p className="text-[8px] font-black text-[#A3A3A3] uppercase tracking-widest leading-none mb-0.5">Task Earnings</p>
+                      <p className="text-xs font-black text-white leading-tight">{(
                         Object.values(user.balances?.tasks || {}).reduce((a: any, b: any) => Number(a || 0) + Number(b || 0), 0) as number
                       ).toFixed(2)}</p>
                     </div>
-                    <div className="bg-indigo-50 dark:bg-indigo-900/30 px-3 py-1.5 rounded-xl border border-indigo-100 dark:border-indigo-800/50">
-                      <p className="text-[8px] font-black text-indigo-500 dark:text-indigo-400 uppercase tracking-widest leading-none mb-0.5">Total</p>
-                      <p className="text-xs font-black text-indigo-700 dark:text-indigo-300 leading-tight">{(
+                    <div className="bg-[#1C1C1C] px-3 py-1.5 rounded-xl border border-[#D4A017]/40">
+                      <p className="text-[8px] font-black text-[#FACC15] uppercase tracking-widest leading-none mb-0.5">Total</p>
+                      <p className="text-xs font-black text-[#FACC15] leading-tight">{(
                         Number(user.balances?.main || 0) +
                         Number(user.balances?.bonus || 0) +
                         Number(user.balances?.referral || 0) +
@@ -3478,11 +3290,10 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                       setNotifyMessage('');
                       setShowNotifyModal(true);
                     }}
-                    className="flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-[0.1em] text-[10px] transition-all active:scale-95 bg-sky-100 text-sky-600 shadow-lg shadow-sky-500/10 hover:bg-sky-200"
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-2xl font-black uppercase tracking-[0.1em] text-[10px] transition-all active:scale-95 bg-[#1C1C1C] text-[#FACC15] border border-[#3D3215] hover:border-[#D4A017] cursor-pointer"
                   >
-                    <BellRing className="w-4 h-4" /> Notify
+                    <BellRing className="w-3.5 h-3.5" /> Notify
                   </button>
-
 
                   {isFullAdmin && user.role !== 'admin' && (
                     <button 
@@ -3490,9 +3301,9 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                         setEmployeeConfigUser(user);
                         setEmployeePermissions(user.permissions || []);
                       }}
-                      className="flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-[0.1em] text-[10px] transition-all active:scale-95 bg-purple-100 text-purple-600 shadow-lg shadow-purple-500/10 hover:bg-purple-200"
+                      className="flex items-center gap-2 px-5 py-2.5 rounded-2xl font-black uppercase tracking-[0.1em] text-[10px] transition-all active:scale-95 bg-purple-950/40 text-purple-300 border border-purple-800/40 hover:bg-purple-900/60 cursor-pointer"
                     >
-                      <ShieldCheck className="w-4 h-4" /> Config Employee
+                      <ShieldCheck className="w-3.5 h-3.5" /> Config Employee
                     </button>
                   )}
 
@@ -3508,34 +3319,34 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                         tasks: Number(Object.values(user.balances?.tasks || {}).reduce((a: any, b: any) => Number(a || 0) + Number(b || 0), 0))
                       });
                     }}
-                    className="flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-[0.1em] text-[10px] transition-all active:scale-95 bg-emerald-100 text-emerald-600 shadow-lg shadow-emerald-500/10 hover:bg-emerald-200"
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-2xl font-black uppercase tracking-[0.1em] text-[10px] transition-all active:scale-95 bg-emerald-950/40 text-emerald-400 border border-emerald-800/40 hover:bg-emerald-900/60 cursor-pointer"
                   >
-                    <Settings className="w-4 h-4" /> Edit Balance
+                    <Settings className="w-3.5 h-3.5" /> Edit Balance
                   </button>
                   {isFullAdmin && user.role !== 'admin' && (
                     <button 
                       onClick={() => handleDeleteUser(user.id)}
-                      className="flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-[0.1em] text-[10px] transition-all active:scale-95 bg-rose-100 text-rose-600 hover:bg-rose-200 shadow-lg shadow-rose-500/10"
+                      className="flex items-center gap-2 px-5 py-2.5 rounded-2xl font-black uppercase tracking-[0.1em] text-[10px] transition-all active:scale-95 bg-rose-950/40 text-rose-400 border border-rose-800/40 hover:bg-rose-900/60 cursor-pointer"
                     >
-                      <Trash2 className="w-4 h-4" /> Delete User
+                      <Trash2 className="w-3.5 h-3.5" /> Delete User
                     </button>
                   )}
                   {user.role !== 'admin' && (
                     <button 
                       onClick={() => handleToggleActive(user.id, user.isActive || false)}
-                      className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-[0.1em] text-[10px] transition-all active:scale-95 disabled:opacity-30 ${
+                      className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl font-black uppercase tracking-[0.1em] text-[10px] transition-all active:scale-95 disabled:opacity-30 cursor-pointer ${
                         !user.isActive 
-                          ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/20' 
-                          : 'bg-amber-500 text-white shadow-lg shadow-amber-500/20'
+                          ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-950/40' 
+                          : 'bg-amber-600 hover:bg-amber-500 text-white shadow-lg shadow-amber-950/40'
                       }`}
                     >
                       {!user.isActive ? (
                         <>
-                          <CheckCircle className="w-4 h-4" /> Activate
+                          <CheckCircle className="w-3.5 h-3.5" /> Activate
                         </>
                       ) : (
                         <>
-                          <XCircle className="w-4 h-4" /> Deactivate
+                          <XCircle className="w-3.5 h-3.5" /> Deactivate
                         </>
                       )}
                     </button>
@@ -3543,19 +3354,19 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                   <button 
                     onClick={() => handleToggleBlock(user.id, user.isBlocked)}
                     disabled={user.role === 'admin'}
-                    className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-[0.1em] text-[10px] transition-all active:scale-95 disabled:opacity-30 ${
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl font-black uppercase tracking-[0.1em] text-[10px] transition-all active:scale-95 disabled:opacity-30 cursor-pointer ${
                       user.isBlocked 
-                        ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' 
-                        : 'bg-rose-500 text-white shadow-lg shadow-rose-500/20'
+                        ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-950/40' 
+                        : 'bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-950/40'
                     }`}
                   >
                     {user.isBlocked ? (
                       <>
-                        <ShieldCheck className="w-4 h-4" /> Grant Access
+                        <ShieldCheck className="w-3.5 h-3.5" /> Grant Access
                       </>
                     ) : (
                       <>
-                        <ShieldAlert className="w-4 h-4" /> Restrict User
+                        <ShieldAlert className="w-3.5 h-3.5" /> Restrict User
                       </>
                     )}
                   </button>
@@ -3569,30 +3380,34 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
       {activeTab === 'settings' && (
         <div className="space-y-6">
           {/* Settings Sub Tabs Menu */}
-          <div className="flex bg-slate-100 dark:bg-slate-900/50 p-1.5 rounded-[24px] overflow-x-auto gap-2 no-scrollbar ring-1 ring-slate-200 dark:ring-slate-800/60">
+          <div className="flex bg-[#151515] p-1.5 rounded-[24px] overflow-x-auto gap-2 no-scrollbar ring-1 ring-[#3D3215] border border-[#3D3215]">
             {[
-              { id: 'identity', label: '  ', sub: 'Identity & Info', icon: Globe, color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-950/20' },
-              { id: 'gateways', label: '  ', sub: 'Deposit & Cashout', icon: Wallet, color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-950/20' },
-              { id: 'rewards', label: '  ', sub: 'Referrals & Spins', icon: Coins, color: 'text-orange-500', bg: 'bg-orange-50 dark:bg-orange-950/20' },
-              { id: 'security', label: '  ', sub: 'Gates & Popups', icon: Lock, color: 'text-indigo-500', bg: 'bg-indigo-50 dark:bg-indigo-950/20' },
-              { id: 'danger', label: ' ', sub: 'System Reset', icon: Trash2, color: 'text-rose-500', bg: 'bg-rose-50 dark:bg-rose-950/20' }
+              { id: 'identity', label: 'সাইট আইডেন্টিটি', sub: 'Identity & Info', icon: Globe },
+              { id: 'gateways', label: 'পেমেন্ট গেটওয়ে', sub: 'Deposit & Cashout', icon: Wallet },
+              { id: 'rewards', label: 'রিওয়ার্ড ও রেফারেল', sub: 'Referrals & Spins', icon: Coins },
+              { id: 'security', label: 'সিকিউরিটি ও পপআপ', sub: 'Gates & Popups', icon: Lock },
+              ...(isFullAdmin ? [{ id: 'danger', label: 'সিস্টেম রিসেট', sub: 'System Reset', icon: Trash2 }] : [])
             ].map(st => (
               <button
                 key={st.id}
                 type="button"
                 onClick={() => setSettingsSubTab(st.id as any)}
-                className={`flex-1 min-w-[170px] md:min-w-0 py-3 px-4 rounded-[18px] text-[11px] font-black transition-all duration-200 flex items-center gap-2.5 whitespace-nowrap active:scale-95 ${
+                className={`flex-1 min-w-[170px] md:min-w-0 py-3 px-4 rounded-[18px] text-[11px] font-black transition-all duration-200 flex items-center gap-2.5 whitespace-nowrap active:scale-95 cursor-pointer ${
                   settingsSubTab === st.id
-                    ? 'bg-white dark:bg-slate-800 shadow-md text-slate-900 dark:text-white ring-1 ring-slate-200 dark:ring-slate-700'
-                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                    ? 'bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] shadow-lg shadow-[#D4A017]/20 font-black'
+                    : 'text-[#A3A3A3] hover:text-[#FACC15] hover:bg-[#1C1C1C]'
                 }`}
               >
-                <div className={`w-8 h-8 rounded-xl ${st.bg} flex items-center justify-center ${st.color}`}>
+                <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                  settingsSubTab === st.id ? 'bg-[#090909]/20 text-[#090909]' : 'bg-[#1C1C1C] border border-[#3D3215] text-[#FACC15]'
+                }`}>
                   <st.icon className="w-4 h-4" />
                 </div>
                 <div className="text-left flex flex-col">
                   <span className="font-extrabold text-[12px] tracking-tight">{st.label}</span>
-                  <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider leading-none">{st.sub}</span>
+                  <span className={`text-[9px] font-bold uppercase tracking-wider leading-none ${
+                    settingsSubTab === st.id ? 'text-[#090909]/70' : 'text-[#737373]'
+                  }`}>{st.sub}</span>
                 </div>
               </button>
             ))}
@@ -3601,39 +3416,39 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Popup Settings */}
             {settingsSubTab === 'security' && (
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col">
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-[#151515] p-6 rounded-[32px] shadow-sm border border-[#3D3215] flex flex-col">
                 <div className="flex items-center gap-3 mb-6">
-                  <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-500">
+                  <div className="w-10 h-10 rounded-2xl bg-[#1C1C1C] border border-[#3D3215] flex items-center justify-center text-[#FACC15]">
                     <BellRing className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Popup System</h3>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Global Announcements</p>
+                    <h3 className="font-black text-white uppercase tracking-tight italic">Popup System</h3>
+                    <p className="text-[10px] font-bold text-[#A3A3A3] uppercase tracking-widest leading-none">Global Announcements</p>
                   </div>
                 </div>
                 
                 <div className="space-y-4 flex-1">
                   <div className="group">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-indigo-500 transition-colors">Announcement Title</label>
-                    <input type="text" value={popupSettings.title} onChange={(e) => setPopupSettings(prev => ({ ...prev, title: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold placeholder:text-slate-400 ring-1 ring-slate-100 dark:ring-slate-800 focus:ring-2 focus:ring-indigo-500 transition-all" />
+                    <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-[#FACC15] transition-colors">Announcement Title</label>
+                    <input type="text" value={popupSettings.title} onChange={(e) => setPopupSettings(prev => ({ ...prev, title: e.target.value }))} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#FACC15] focus:outline-none transition-all" />
                   </div>
                   <div className="group">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-indigo-500 transition-colors">Subtitle / Body</label>
-                    <input type="text" value={popupSettings.subtitle} onChange={(e) => setPopupSettings(prev => ({ ...prev, subtitle: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold placeholder:text-slate-400 ring-1 ring-slate-100 dark:ring-slate-800 focus:ring-2 focus:ring-indigo-500 transition-all" />
+                    <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-[#FACC15] transition-colors">Subtitle / Body</label>
+                    <input type="text" value={popupSettings.subtitle} onChange={(e) => setPopupSettings(prev => ({ ...prev, subtitle: e.target.value }))} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#FACC15] focus:outline-none transition-all" />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="group">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Telegram Link</label>
-                      <input type="text" value={popupSettings.telegramLink} onChange={(e) => setPopupSettings(prev => ({ ...prev, telegramLink: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-xs font-bold ring-1 ring-slate-100 dark:ring-slate-800" />
+                      <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">Telegram Link</label>
+                      <input type="text" value={popupSettings.telegramLink} onChange={(e) => setPopupSettings(prev => ({ ...prev, telegramLink: e.target.value }))} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-xs font-bold text-white focus:border-[#FACC15] focus:outline-none" />
                     </div>
                     <div className="group">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Skip Link</label>
-                      <input type="text" value={popupSettings.skipLink} onChange={(e) => setPopupSettings(prev => ({ ...prev, skipLink: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-xs font-bold ring-1 ring-slate-100 dark:ring-slate-800" />
+                      <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">Skip Link</label>
+                      <input type="text" value={popupSettings.skipLink} onChange={(e) => setPopupSettings(prev => ({ ...prev, skipLink: e.target.value }))} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-xs font-bold text-white focus:border-[#FACC15] focus:outline-none" />
                     </div>
                   </div>
                 </div>
                 
-                <button type="button" onClick={handleSavePopupSettings} disabled={isSavingSettings} className="mt-6 w-full bg-indigo-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-indigo-600/20 active:scale-95 transition-all text-xs flex items-center justify-center gap-2">
+                <button type="button" onClick={handleSavePopupSettings} disabled={isSavingSettings} className="mt-6 w-full bg-gradient-to-r from-[#D4A017] to-[#FACC15] text-[#090909] font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg active:scale-95 transition-all text-xs flex items-center justify-center gap-2 cursor-pointer">
                   {isSavingSettings ? <><RefreshCw className="w-4 h-4 animate-spin" /> Updating...</> : 'Save Popup'}
                 </button>
               </motion.div>
@@ -3642,187 +3457,200 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
           {/* Site Identity */}
           {settingsSubTab === 'identity' && (
             <>
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col">
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-[#151515] p-6 rounded-[32px] shadow-sm border border-[#3D3215] flex flex-col">
             <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-500">
+              <div className="w-10 h-10 rounded-2xl bg-[#1C1C1C] border border-[#3D3215] flex items-center justify-center text-[#FACC15]">
                 <Globe className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Identity & Limits</h3>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Branding & Task Controls</p>
+                <h3 className="font-black text-white uppercase tracking-tight italic">Identity & Limits</h3>
+                <p className="text-[10px] font-bold text-[#A3A3A3] uppercase tracking-widest leading-none">Branding & Task Controls</p>
               </div>
             </div>
             
             <div className="space-y-5 flex-1">
               <div className="group">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-emerald-500">Site Name</label>
-                <input type="text" value={siteSettings.siteName} onChange={(e) => setSiteSettings(prev => ({ ...prev, siteName: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-[11px] font-bold ring-1 ring-slate-100 dark:ring-slate-800" />
+                <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-[#FACC15]">Site Name</label>
+                <input type="text" value={siteSettings.siteName} onChange={(e) => setSiteSettings(prev => ({ ...prev, siteName: e.target.value }))} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-[11px] font-bold text-white focus:border-[#FACC15] focus:outline-none" />
               </div>
               <div className="group">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-emerald-500">Logo (Master Asset)</label>
+                <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-[#FACC15]">Logo (Master Asset)</label>
                 <div className="flex gap-2">
-                  <input type="text" value={siteSettings.logoUrl} onChange={(e) => setSiteSettings(prev => ({ ...prev, logoUrl: e.target.value }))} className="flex-1 bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-[11px] font-bold ring-1 ring-slate-100 dark:ring-slate-800" />
-                  <div className="relative overflow-hidden group">
-                    <button type="button" className="bg-slate-100 dark:bg-slate-700 px-4 py-3 rounded-2xl font-black text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-300">Upload</button>
+                  <input type="text" value={siteSettings.logoUrl} onChange={(e) => setSiteSettings(prev => ({ ...prev, logoUrl: e.target.value }))} className="flex-1 bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-[11px] font-bold text-white focus:border-[#FACC15] focus:outline-none" />
+                  <div className="relative overflow-hidden group shrink-0">
+                    <button type="button" className="bg-[#1C1C1C] border border-[#3D3215] px-4 py-3 rounded-2xl font-black text-[10px] uppercase tracking-wider text-[#FACC15] hover:border-[#D4A017] transition-all">Upload</button>
                     <input type="file" accept="image/*" onChange={(e) => handleUploadImage(e, 'logo')} className="absolute inset-0 opacity-0 cursor-pointer" />
                   </div>
                 </div>
-                {siteSettings.logoUrl && <div className="mt-3 p-3 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 inline-block"><img src={siteSettings.logoUrl} alt="Logo Preview" className="h-8 object-contain" /></div>}
+                {siteSettings.logoUrl && (
+                  <div className="mt-3 p-3 bg-[#101010] rounded-2xl border border-[#3D3215] flex items-center gap-3">
+                    <div className="h-12 min-w-[48px] max-w-[160px] bg-black/60 rounded-xl p-1 flex items-center justify-center border border-[#3D3215]/50 overflow-hidden">
+                      <img src={siteSettings.logoUrl} alt="Logo Preview" className="max-h-full max-w-full object-contain" />
+                    </div>
+                    <div>
+                      <span className="text-[11px] text-green-400 font-bold flex items-center gap-1">✓ লোগো সফলভাবে লোড হয়েছে</span>
+                      <p className="text-[9px] text-[#A3A3A3] mt-0.5">সব ডিভাইসে পারফেক্টলি ফিট হবে</p>
+                    </div>
+                  </div>
+                )}
+                <p className="text-[9.5px] text-[#FACC15]/80 pl-1 mt-2 leading-relaxed">
+                  💡 <strong>লোগোর সাইজ ও শেপ নির্দেশিকা:</strong> স্কয়ার (১:১ রেশিও, যেমন 512×512px) অথবা ওয়াইড/ব্যানার (৩:১ রেশিও, যেমন 600×200px) স্বচ্ছ (Transparent PNG) লোগো সেরা। সাইট যেকোনো শেপ স্বয়ংক্রিয়ভাবে পারফেক্ট সাইজে অ্যাডজাস্ট করে নেয়।
+                </p>
               </div>
               <div className="group">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-emerald-500">Floating Telegram URL</label>
-                <input type="text" value={siteSettings.telegramUrl} onChange={(e) => setSiteSettings(prev => ({ ...prev, telegramUrl: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-[11px] font-bold ring-1 ring-slate-100 dark:ring-slate-800" placeholder="https://t.me/yourchannel" />
+                <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-[#FACC15]">Floating Telegram URL</label>
+                <input type="text" value={siteSettings.telegramUrl} onChange={(e) => setSiteSettings(prev => ({ ...prev, telegramUrl: e.target.value }))} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-[11px] font-bold text-white focus:border-[#FACC15] focus:outline-none" placeholder="https://t.me/yourchannel" />
               </div>
               <div className="group mt-3">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-emerald-500">Direct APK Download URL</label>
-                <input type="text" value={siteSettings.apkUrl || ''} onChange={(e) => setSiteSettings(prev => ({ ...prev, apkUrl: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-[11px] font-bold ring-1 ring-slate-100 dark:ring-slate-800" placeholder="https://example.com/app.apk" />
-                <p className="text-[9px] text-slate-500 pl-1 mt-1">If provided, this URL will be used for out-of-store direct APK installs instead of PWA installation.</p>
+                <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-[#FACC15]">Direct APK Download URL</label>
+                <input type="text" value={siteSettings.apkUrl || ''} onChange={(e) => setSiteSettings(prev => ({ ...prev, apkUrl: e.target.value }))} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-[11px] font-bold text-white focus:border-[#FACC15] focus:outline-none" placeholder="https://example.com/app.apk" />
+                <p className="text-[9px] text-[#737373] pl-1 mt-1">If provided, this URL will be used for out-of-store direct APK installs instead of PWA installation.</p>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="group">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-emerald-500">Ads View Button Text</label>
-                  <input type="text" value={siteSettings.adsViewText} onChange={(e) => setSiteSettings(prev => ({ ...prev, adsViewText: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-[11px] font-bold ring-1 ring-slate-100 dark:ring-slate-800" placeholder="Watch Ads" />
+                  <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-[#FACC15]">Ads View Button Text</label>
+                  <input type="text" value={siteSettings.adsViewText} onChange={(e) => setSiteSettings(prev => ({ ...prev, adsViewText: e.target.value }))} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-[11px] font-bold text-white focus:border-[#FACC15] focus:outline-none" placeholder="Watch Ads" />
                 </div>
                 <div className="group">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-emerald-500">Ads View Link</label>
-                  <input type="text" value={siteSettings.adsViewLink} onChange={(e) => setSiteSettings(prev => ({ ...prev, adsViewLink: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-[11px] font-bold ring-1 ring-slate-100 dark:ring-slate-800" placeholder="https://..." />
+                  <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-[#FACC15]">Ads View Link</label>
+                  <input type="text" value={siteSettings.adsViewLink} onChange={(e) => setSiteSettings(prev => ({ ...prev, adsViewLink: e.target.value }))} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-[11px] font-bold text-white focus:border-[#FACC15] focus:outline-none" placeholder="https://..." />
                 </div>
               </div>
               <div className="group">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-emerald-500">Daily Task Limit (Per User)</label>
-                <input type="number" value={siteSettings.dailyTaskLimit} onChange={(e) => setSiteSettings(prev => ({ ...prev, dailyTaskLimit: Number(e.target.value) }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-[11px] font-bold ring-1 ring-slate-100 dark:ring-slate-800" placeholder="0 for unlimited" />
-                <p className="text-[9px] text-slate-400 mt-1 px-1">Maximum tasks a user can submit in 24 hours.</p>
+                <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block group-focus-within:text-[#FACC15]">Daily Task Limit (Per User)</label>
+                <input type="number" value={siteSettings.dailyTaskLimit} onChange={(e) => setSiteSettings(prev => ({ ...prev, dailyTaskLimit: Number(e.target.value) }))} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-[11px] font-bold text-white focus:border-[#FACC15] focus:outline-none" placeholder="0 for unlimited" />
+                <p className="text-[9px] text-[#737373] mt-1 px-1">Maximum tasks a user can submit in 24 hours.</p>
               </div>
-              <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
+              <div className="p-4 bg-[#101010] rounded-2xl border border-[#3D3215] flex items-center justify-between">
                 <div>
-                  <h4 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tight">Drive Offer Option</h4>
-                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Enable/Disable Drive Offer page access</p>
+                  <h4 className="text-xs font-black text-white uppercase tracking-tight">Drive Offer Option</h4>
+                  <p className="text-[9px] text-[#A3A3A3] font-bold uppercase tracking-wider">Enable/Disable Drive Offer page access</p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className={`text-[10px] font-black uppercase tracking-widest ${siteSettings.driveOffersEnabled ? 'text-emerald-500' : 'text-slate-400'}`}>
+                  <span className={`text-[10px] font-black uppercase tracking-widest ${siteSettings.driveOffersEnabled ? 'text-[#FACC15]' : 'text-[#737373]'}`}>
                     {siteSettings.driveOffersEnabled ? 'ON' : 'OFF'}
                   </span>
                   <button
                     type="button"
                     onClick={() => setSiteSettings(prev => ({ ...prev, driveOffersEnabled: !prev.driveOffersEnabled }))}
-                    className={`w-12 h-6 rounded-full transition-colors relative ${siteSettings.driveOffersEnabled ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-705'}`}
+                    className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${siteSettings.driveOffersEnabled ? 'bg-[#FACC15]' : 'bg-[#262626] border border-[#3D3215]'}`}
                   >
-                    <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${siteSettings.driveOffersEnabled ? 'translate-x-6' : ''}`} />
+                    <span className={`absolute top-1 left-1 w-4 h-4 rounded-full transition-transform ${siteSettings.driveOffersEnabled ? 'translate-x-6 bg-[#090909]' : 'bg-[#737373]'}`} />
                   </button>
                 </div>
               </div>
-              <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
+              <div className="p-4 bg-[#101010] rounded-2xl border border-[#3D3215] flex items-center justify-between">
                 <div>
-                  <h4 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tight">Course Feature Option</h4>
-                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Enable/Disable Course action access</p>
+                  <h4 className="text-xs font-black text-white uppercase tracking-tight">Course Feature Option</h4>
+                  <p className="text-[9px] text-[#A3A3A3] font-bold uppercase tracking-wider">Enable/Disable Course action access</p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className={`text-[10px] font-black uppercase tracking-widest ${siteSettings.coursesEnabled !== false ? 'text-emerald-500' : 'text-slate-400'}`}>
+                  <span className={`text-[10px] font-black uppercase tracking-widest ${siteSettings.coursesEnabled !== false ? 'text-[#FACC15]' : 'text-[#737373]'}`}>
                     {siteSettings.coursesEnabled !== false ? 'ON' : 'OFF'}
                   </span>
                   <button
                     type="button"
                     onClick={() => setSiteSettings(prev => ({ ...prev, coursesEnabled: !prev.coursesEnabled }))}
-                    className={`w-12 h-6 rounded-full transition-colors relative ${siteSettings.coursesEnabled !== false ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-705'}`}
+                    className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${siteSettings.coursesEnabled !== false ? 'bg-[#FACC15]' : 'bg-[#262626] border border-[#3D3215]'}`}
                   >
-                    <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${siteSettings.coursesEnabled !== false ? 'translate-x-6' : ''}`} />
+                    <span className={`absolute top-1 left-1 w-4 h-4 rounded-full transition-transform ${siteSettings.coursesEnabled !== false ? 'translate-x-6 bg-[#090909]' : 'bg-[#737373]'}`} />
                   </button>
                 </div>
               </div>
-              <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
+              <div className="p-4 bg-[#101010] rounded-2xl border border-[#3D3215] flex items-center justify-between">
                 <div>
-                  <h4 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tight">Ads View Earnings</h4>
-                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Enable/Disable Ads View action access</p>
+                  <h4 className="text-xs font-black text-white uppercase tracking-tight">Ads View Earnings</h4>
+                  <p className="text-[9px] text-[#A3A3A3] font-bold uppercase tracking-wider">Enable/Disable Ads View action access</p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className={`text-[10px] font-black uppercase tracking-widest ${siteSettings.adsViewEnabled ? 'text-emerald-500' : 'text-slate-400'}`}>
+                  <span className={`text-[10px] font-black uppercase tracking-widest ${siteSettings.adsViewEnabled ? 'text-[#FACC15]' : 'text-[#737373]'}`}>
                     {siteSettings.adsViewEnabled ? 'ON' : 'OFF'}
                   </span>
                   <button
                     type="button"
                     onClick={() => setSiteSettings(prev => ({ ...prev, adsViewEnabled: !prev.adsViewEnabled }))}
-                    className={`w-12 h-6 rounded-full transition-colors relative ${siteSettings.adsViewEnabled ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-705'}`}
+                    className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${siteSettings.adsViewEnabled ? 'bg-[#FACC15]' : 'bg-[#262626] border border-[#3D3215]'}`}
                   >
-                    <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${siteSettings.adsViewEnabled ? 'translate-x-6' : ''}`} />
+                    <span className={`absolute top-1 left-1 w-4 h-4 rounded-full transition-transform ${siteSettings.adsViewEnabled ? 'translate-x-6 bg-[#090909]' : 'bg-[#737373]'}`} />
                   </button>
                 </div>
               </div>
-              <div className="p-4 bg-indigo-50/50 dark:bg-slate-900 rounded-2xl border border-indigo-100/40 dark:border-slate-800/80 flex items-center justify-between">
+              <div className="p-4 bg-[#101010] rounded-2xl border border-[#3D3215] flex items-center justify-between">
                 <div>
-                  <h4 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tight">Review Jobs Option</h4>
-                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Enable/Disable Review Jobs action access</p>
+                  <h4 className="text-xs font-black text-white uppercase tracking-tight">Review Jobs Option</h4>
+                  <p className="text-[9px] text-[#A3A3A3] font-bold uppercase tracking-wider">Enable/Disable Review Jobs action access</p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className={`text-[10px] font-black uppercase tracking-widest ${siteSettings.reviewsEnabled !== false ? 'text-emerald-500' : 'text-slate-400'}`}>
+                  <span className={`text-[10px] font-black uppercase tracking-widest ${siteSettings.reviewsEnabled !== false ? 'text-[#FACC15]' : 'text-[#737373]'}`}>
                     {siteSettings.reviewsEnabled !== false ? 'ON' : 'OFF'}
                   </span>
                   <button
                     type="button"
                     onClick={() => setSiteSettings(prev => ({ ...prev, reviewsEnabled: prev.reviewsEnabled === false ? true : false }))}
-                    className={`w-12 h-6 rounded-full transition-colors relative ${siteSettings.reviewsEnabled !== false ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-705'}`}
+                    className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${siteSettings.reviewsEnabled !== false ? 'bg-[#FACC15]' : 'bg-[#262626] border border-[#3D3215]'}`}
                   >
-                    <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${siteSettings.reviewsEnabled !== false ? 'translate-x-6' : ''}`} />
+                    <span className={`absolute top-1 left-1 w-4 h-4 rounded-full transition-transform ${siteSettings.reviewsEnabled !== false ? 'translate-x-6 bg-[#090909]' : 'bg-[#737373]'}`} />
                   </button>
                 </div>
               </div>
             </div>
             
-            <button onClick={handleSaveSiteSettings} disabled={isSavingSettings} className="mt-6 w-full bg-emerald-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-emerald-600/20 active:scale-95 transition-all text-xs">Update Identity</button>
+            <button onClick={handleSaveSiteSettings} disabled={isSavingSettings} className="mt-6 w-full bg-gradient-to-r from-[#D4A017] to-[#FACC15] text-[#090909] font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg active:scale-95 transition-all text-xs cursor-pointer">Update Identity</button>
           </motion.div>
 
           {/* Support Channels */}
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700">
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-[#151515] p-6 rounded-[32px] shadow-sm border border-[#3D3215]">
             <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-500">
+              <div className="w-10 h-10 rounded-2xl bg-[#1C1C1C] border border-[#3D3215] flex items-center justify-center text-[#FACC15]">
                 <MessageSquare className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Support Grid</h3>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Contact Config</p>
+                <h3 className="font-black text-white uppercase tracking-tight italic">Support Grid</h3>
+                <p className="text-[10px] font-bold text-[#A3A3A3] uppercase tracking-widest leading-none">Contact Config</p>
               </div>
             </div>
             
             <div className="grid gap-4">
-              <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-900 p-3 rounded-[20px] ring-1 ring-slate-100 dark:ring-slate-800">
-                <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 flex items-center justify-center text-slate-400"><Mail className="w-4 h-4" /></div>
-                <input type="email" value={supportSettings.email} onChange={(e) => setSupportSettings(prev => ({ ...prev, email: e.target.value }))} className="bg-transparent border-none p-0 flex-1 text-sm font-bold focus:ring-0" placeholder="Support Email" />
+              <div className="flex items-center gap-3 bg-[#101010] p-3 rounded-[20px] border border-[#3D3215]">
+                <div className="w-8 h-8 rounded-xl bg-[#1C1C1C] border border-[#3D3215] flex items-center justify-center text-[#FACC15]"><Mail className="w-4 h-4" /></div>
+                <input type="email" value={supportSettings.email} onChange={(e) => setSupportSettings(prev => ({ ...prev, email: e.target.value }))} className="bg-transparent border-none p-0 flex-1 text-sm font-bold text-white placeholder:text-[#737373] focus:ring-0" placeholder="Support Email" />
               </div>
-              <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-900 p-3 rounded-[20px] ring-1 ring-slate-100 dark:ring-slate-800">
-                <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 flex items-center justify-center text-emerald-500"><Smartphone className="w-4 h-4" /></div>
-                <input type="text" value={supportSettings.whatsapp} onChange={(e) => setSupportSettings(prev => ({ ...prev, whatsapp: e.target.value }))} className="bg-transparent border-none p-0 flex-1 text-sm font-bold focus:ring-0" placeholder="WhatsApp Link" />
+              <div className="flex items-center gap-3 bg-[#101010] p-3 rounded-[20px] border border-[#3D3215]">
+                <div className="w-8 h-8 rounded-xl bg-[#1C1C1C] border border-[#3D3215] flex items-center justify-center text-emerald-400"><Smartphone className="w-4 h-4" /></div>
+                <input type="text" value={supportSettings.whatsapp} onChange={(e) => setSupportSettings(prev => ({ ...prev, whatsapp: e.target.value }))} className="bg-transparent border-none p-0 flex-1 text-sm font-bold text-white placeholder:text-[#737373] focus:ring-0" placeholder="WhatsApp Link" />
               </div>
-              <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-900 p-3 rounded-[20px] ring-1 ring-slate-100 dark:ring-slate-800">
-                <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 flex items-center justify-center text-indigo-500"><Send className="w-4 h-4" /></div>
-                <input type="text" value={supportSettings.telegram} onChange={(e) => setSupportSettings(prev => ({ ...prev, telegram: e.target.value }))} className="bg-transparent border-none p-0 flex-1 text-sm font-bold focus:ring-0" placeholder="Telegram Link" />
+              <div className="flex items-center gap-3 bg-[#101010] p-3 rounded-[20px] border border-[#3D3215]">
+                <div className="w-8 h-8 rounded-xl bg-[#1C1C1C] border border-[#3D3215] flex items-center justify-center text-[#FACC15]"><Send className="w-4 h-4" /></div>
+                <input type="text" value={supportSettings.telegram} onChange={(e) => setSupportSettings(prev => ({ ...prev, telegram: e.target.value }))} className="bg-transparent border-none p-0 flex-1 text-sm font-bold text-white placeholder:text-[#737373] focus:ring-0" placeholder="Telegram Link" />
               </div>
-              <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-900 p-3 rounded-[20px] ring-1 ring-slate-100 dark:ring-slate-800">
-                <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 flex items-center justify-center text-blue-600"><MessageCircle className="w-4 h-4" /></div>
-                <input type="text" value={supportSettings.facebook} onChange={(e) => setSupportSettings(prev => ({ ...prev, facebook: e.target.value }))} className="bg-transparent border-none p-0 flex-1 text-sm font-bold focus:ring-0" placeholder="Facebook Profile" />
+              <div className="flex items-center gap-3 bg-[#101010] p-3 rounded-[20px] border border-[#3D3215]">
+                <div className="w-8 h-8 rounded-xl bg-[#1C1C1C] border border-[#3D3215] flex items-center justify-center text-sky-400"><MessageCircle className="w-4 h-4" /></div>
+                <input type="text" value={supportSettings.facebook} onChange={(e) => setSupportSettings(prev => ({ ...prev, facebook: e.target.value }))} className="bg-transparent border-none p-0 flex-1 text-sm font-bold text-white placeholder:text-[#737373] focus:ring-0" placeholder="Facebook Profile" />
               </div>
             </div>
             
-            <button onClick={handleSaveSupportSettings} disabled={isSavingSettings} className="mt-6 w-full bg-blue-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-blue-600/20 active:scale-95 transition-all text-xs">Save Channels</button>
+            <button onClick={handleSaveSupportSettings} disabled={isSavingSettings} className="mt-6 w-full bg-gradient-to-r from-[#D4A017] to-[#FACC15] text-[#090909] font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg active:scale-95 transition-all text-xs cursor-pointer">Save Channels</button>
           </motion.div>
           </>)}
 
           {/* Spin Wheel Settings */}
           {settingsSubTab === 'rewards' && (
             <>
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col">
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="bg-[#151515] p-6 rounded-[32px] shadow-sm border border-[#3D3215] flex flex-col">
             <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center text-amber-500">
+              <div className="w-10 h-10 rounded-2xl bg-[#1C1C1C] border border-[#3D3215] flex items-center justify-center text-[#FACC15]">
                 <RefreshCw className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Fortune Wheel</h3>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Reward Probability</p>
+                <h3 className="font-black text-white uppercase tracking-tight italic">Fortune Wheel</h3>
+                <p className="text-[10px] font-bold text-[#A3A3A3] uppercase tracking-widest leading-none">Reward Probability</p>
               </div>
             </div>
             
             <div className="grid grid-cols-4 gap-2 flex-1">
               {spinRewards.map((reward, index) => (
                 <div key={index} className="group">
-                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-tighter pl-1 mb-1 block">Slice {index + 1}</label>
+                  <label className="text-[8px] font-black text-[#A3A3A3] uppercase tracking-tighter pl-1 mb-1 block">Slice {index + 1}</label>
                   <input
                     type="number"
                     value={reward}
@@ -3831,24 +3659,24 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                       newRewards[index] = Number(e.target.value);
                       setSpinRewards(newRewards);
                     }}
-                    className="w-full bg-slate-50 dark:bg-slate-900 border-none px-1 py-2 rounded-xl text-center font-black text-xs ring-1 ring-slate-100 dark:ring-slate-800"
+                    className="w-full bg-[#101010] border border-[#3D3215] px-1 py-2 rounded-xl text-center font-black text-xs text-white focus:border-[#FACC15] focus:outline-none"
                   />
                 </div>
               ))}
             </div>
             
-            <button onClick={handleSaveSpinSettings} disabled={isSavingSettings} className="mt-6 w-full bg-amber-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-amber-600/20 active:scale-95 transition-all text-xs">Sync Rewards</button>
+            <button onClick={handleSaveSpinSettings} disabled={isSavingSettings} className="mt-6 w-full bg-gradient-to-r from-[#D4A017] to-[#FACC15] text-[#090909] font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg active:scale-95 transition-all text-xs cursor-pointer">Sync Rewards</button>
           </motion.div>
 
           {/* Referral Engine */}
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700">
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="bg-[#151515] p-6 rounded-[32px] shadow-sm border border-[#3D3215]">
             <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-2xl bg-orange-50 dark:bg-orange-900/30 flex items-center justify-center text-orange-500">
+              <div className="w-10 h-10 rounded-2xl bg-[#1C1C1C] border border-[#3D3215] flex items-center justify-center text-[#FACC15]">
                 <Coins className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Referral Engine</h3>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Yield Configuration</p>
+                <h3 className="font-black text-white uppercase tracking-tight italic">Referral Engine</h3>
+                <p className="text-[10px] font-bold text-[#A3A3A3] uppercase tracking-widest leading-none">Yield Configuration</p>
               </div>
             </div>
             
@@ -3856,12 +3684,12 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
               <div className="grid grid-cols-3 gap-2">
                 {[1, 2, 3].map(gen => (
                   <div key={gen} className="group">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Gen {gen} ()</label>
+                    <label className="text-[9px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">Gen {gen} (৳)</label>
                     <input 
                       type="number" 
                       value={gen === 1 ? referralSettings.fixedBonus : (gen === 2 ? referralSettings.gen2FixedBonus : referralSettings.gen3FixedBonus)} 
                       onChange={(e) => setReferralSettings(prev => ({ ...prev, [gen === 1 ? 'fixedBonus' : (gen === 2 ? 'gen2FixedBonus' : 'gen3FixedBonus')]: Number(e.target.value) }))} 
-                      className="w-full bg-slate-50 dark:bg-slate-900 border-none px-2 py-2.5 rounded-xl text-center text-sm font-black ring-1 ring-slate-100 dark:ring-slate-800" 
+                      className="w-full bg-[#101010] border border-[#3D3215] px-2 py-2.5 rounded-xl text-center text-sm font-black text-white focus:border-[#FACC15] focus:outline-none" 
                     />
                   </div>
                 ))}
@@ -3869,392 +3697,343 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
               <div className="grid grid-cols-3 gap-2 mt-2">
                 {[1, 2, 3].map(gen => (
                   <div key={gen} className="group">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Yield {gen} (%)</label>
+                    <label className="text-[9px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">Yield {gen} (%)</label>
                     <input 
                       type="number" 
                       value={gen === 1 ? referralSettings.gen1Percent : (gen === 2 ? referralSettings.gen2Percent : referralSettings.gen3Percent)} 
                       onChange={(e) => setReferralSettings(prev => ({ ...prev, [gen === 1 ? 'gen1Percent' : (gen === 2 ? 'gen2Percent' : 'gen3Percent')]: Number(e.target.value) }))} 
-                      className="w-full bg-slate-100 dark:bg-slate-700/50 border-none px-2 py-2.5 rounded-xl text-center text-sm font-black text-orange-500" 
+                      className="w-full bg-[#1C1C1C] border border-[#3D3215] px-2 py-2.5 rounded-xl text-center text-sm font-black text-[#FACC15] focus:border-[#FACC15] focus:outline-none" 
                     />
                   </div>
                 ))}
               </div>
             </div>
             
-            <button onClick={handleSaveReferralSettings} disabled={isSavingSettings} className="mt-6 w-full bg-orange-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-orange-600/20 active:scale-95 transition-all text-xs">Reload Engine</button>
+            <button onClick={handleSaveReferralSettings} disabled={isSavingSettings} className="mt-6 w-full bg-gradient-to-r from-[#D4A017] to-[#FACC15] text-[#090909] font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg active:scale-95 transition-all text-xs cursor-pointer">Reload Engine</button>
           </motion.div>
 
           {/* Partner Engine */}
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700">
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }} className="bg-[#151515] p-6 rounded-[32px] shadow-sm border border-[#3D3215]">
             <div className="flex items-center gap-3 mb-6">
-               <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-500">
+               <div className="w-10 h-10 rounded-2xl bg-[#1C1C1C] border border-[#3D3215] flex items-center justify-center text-[#FACC15]">
                 <Users className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Partner Program</h3>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Daily Yield Rules</p>
+                <h3 className="font-black text-white uppercase tracking-tight italic">Partner Program</h3>
+                <p className="text-[10px] font-bold text-[#A3A3A3] uppercase tracking-widest leading-none">Daily Yield Rules</p>
               </div>
             </div>
             
             <div className="space-y-4">
-              <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-900 p-3 rounded-[20px] ring-1 ring-slate-100 dark:ring-slate-800">
-                <span className="text-xs font-bold text-slate-600 dark:text-slate-300 ml-2">Enable Partner System</span>
+              <div className="flex items-center justify-between bg-[#101010] p-3 rounded-[20px] border border-[#3D3215]">
+                <span className="text-xs font-bold text-white ml-2">Enable Partner System</span>
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input type="checkbox" checked={partnerSettings.enabled} onChange={(e) => setPartnerSettings(prev => ({ ...prev, enabled: e.target.checked }))} className="sr-only peer" />
-                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-indigo-500"></div>
+                  <div className="w-11 h-6 bg-[#262626] peer-focus:outline-none rounded-full peer border border-[#3D3215] peer-checked:after:translate-x-full peer-checked:after:border-[#090909] after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[#737373] after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:bg-[#090909] peer-checked:bg-[#FACC15]"></div>
                 </label>
               </div>
 
-              <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-900 p-3 rounded-[20px] ring-1 ring-slate-100 dark:ring-slate-800">
-                <span className="text-xs font-bold text-slate-600 dark:text-slate-300 ml-2">Enable Partner Withdrawals</span>
+              <div className="flex items-center justify-between bg-[#101010] p-3 rounded-[20px] border border-[#3D3215]">
+                <span className="text-xs font-bold text-white ml-2">Enable Partner Withdrawals</span>
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input type="checkbox" checked={partnerSettings.withdrawEnabled} onChange={(e) => setPartnerSettings(prev => ({ ...prev, withdrawEnabled: e.target.checked }))} className="sr-only peer" />
-                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-indigo-500"></div>
+                  <div className="w-11 h-6 bg-[#262626] peer-focus:outline-none rounded-full peer border border-[#3D3215] peer-checked:after:translate-x-full peer-checked:after:border-[#090909] after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[#737373] after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:bg-[#090909] peer-checked:bg-[#FACC15]"></div>
                 </label>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="group">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Required Referrals</label>
-                  <input type="number" value={partnerSettings.requiredReferrals} onChange={(e) => setPartnerSettings(prev => ({ ...prev, requiredReferrals: Number(e.target.value) }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-black ring-1 ring-slate-100 dark:ring-slate-800" />
+                  <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">Required Referrals</label>
+                  <input type="number" value={partnerSettings.requiredReferrals} onChange={(e) => setPartnerSettings(prev => ({ ...prev, requiredReferrals: Number(e.target.value) }))} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-black text-white focus:border-[#FACC15] focus:outline-none" />
                 </div>
                 <div className="group">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Daily Bonus ()</label>
-                  <input type="number" value={partnerSettings.dailyBonus} onChange={(e) => setPartnerSettings(prev => ({ ...prev, dailyBonus: Number(e.target.value) }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-black text-indigo-500 ring-1 ring-slate-100 dark:ring-slate-800" />
+                  <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">Daily Bonus (৳)</label>
+                  <input type="number" value={partnerSettings.dailyBonus} onChange={(e) => setPartnerSettings(prev => ({ ...prev, dailyBonus: Number(e.target.value) }))} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-black text-[#FACC15] focus:border-[#FACC15] focus:outline-none" />
                 </div>
               </div>
             </div>
             
-            <button onClick={handleSavePartnerSettings} disabled={isSavingSettings} className="mt-6 w-full bg-indigo-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-indigo-600/20 active:scale-95 transition-all text-xs">Save Partner Rules</button>
+            <button onClick={handleSavePartnerSettings} disabled={isSavingSettings} className="mt-6 w-full bg-gradient-to-r from-[#D4A017] to-[#FACC15] text-[#090909] font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg active:scale-95 transition-all text-xs cursor-pointer">Save Partner Rules</button>
           </motion.div>
           </>)}
 
           {/* Announcement Scroller */}
           {settingsSubTab === 'identity' && (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700">
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="bg-[#151515] p-6 rounded-[32px] shadow-sm border border-[#3D3215]">
             <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-2xl bg-purple-50 dark:bg-purple-900/30 flex items-center justify-center text-purple-500">
+              <div className="w-10 h-10 rounded-2xl bg-[#1C1C1C] border border-[#3D3215] flex items-center justify-center text-[#FACC15]">
                 <Megaphone className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Global Banner</h3>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Ticker Configuration</p>
+                <h3 className="font-black text-white uppercase tracking-tight italic">Global Banner</h3>
+                <p className="text-[10px] font-bold text-[#A3A3A3] uppercase tracking-widest leading-none">Ticker Configuration</p>
               </div>
             </div>
             
             <div className="space-y-4">
-              <textarea value={bannerSettings.text} onChange={(e) => setBannerSettings(prev => ({ ...prev, text: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold h-24 ring-1 ring-slate-100 dark:ring-slate-800" placeholder="Marquee News Text..." />
-              <input type="text" value={bannerSettings.link} onChange={(e) => setBannerSettings(prev => ({ ...prev, link: e.target.value }))} className="w-full bg-slate-100 dark:bg-slate-900/50 border-none px-4 py-3 rounded-2xl text-xs font-bold text-purple-500 italic" placeholder="Promo Link URL" />
+              <textarea value={bannerSettings.text} onChange={(e) => setBannerSettings(prev => ({ ...prev, text: e.target.value }))} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white h-24 placeholder:text-[#737373] focus:border-[#FACC15] focus:outline-none" placeholder="Marquee News Text..." />
+              <input type="text" value={bannerSettings.link} onChange={(e) => setBannerSettings(prev => ({ ...prev, link: e.target.value }))} className="w-full bg-[#1C1C1C] border border-[#3D3215] px-4 py-3 rounded-2xl text-xs font-bold text-[#FACC15] italic placeholder:text-[#737373] focus:border-[#FACC15] focus:outline-none" placeholder="Promo Link URL" />
             </div>
             
-            <button onClick={handleSaveBannerSettings} disabled={isSavingSettings} className="mt-6 w-full bg-purple-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-purple-600/20 active:scale-95 transition-all text-xs">Update Marquee</button>
+            <button onClick={handleSaveBannerSettings} disabled={isSavingSettings} className="mt-6 w-full bg-gradient-to-r from-[#D4A017] to-[#FACC15] text-[#090909] font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg active:scale-95 transition-all text-xs cursor-pointer">Update Marquee</button>
           </motion.div>
           )}
 
           {/* Game Gates */}
           {settingsSubTab === 'security' && (
             <>
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700">
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="bg-[#151515] p-6 rounded-[32px] shadow-sm border border-[#3D3215]">
             <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-500">
+              <div className="w-10 h-10 rounded-2xl bg-[#1C1C1C] border border-[#3D3215] flex items-center justify-center text-[#FACC15]">
                 <Gamepad2 className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Game Unlock Logic</h3>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Gatekeeping Rules</p>
+                <h3 className="font-black text-white uppercase tracking-tight italic">Game Unlock Logic</h3>
+                <p className="text-[10px] font-bold text-[#A3A3A3] uppercase tracking-widest leading-none">Gatekeeping Rules</p>
               </div>
             </div>
             
             <div className="grid grid-cols-2 gap-4">
-              <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl ring-1 ring-slate-100 dark:ring-slate-800">
-                <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-3">Spin Requirements</p>
+              <div className="bg-[#101010] p-4 rounded-2xl border border-[#3D3215]">
+                <p className="text-[10px] font-black text-[#FACC15] uppercase tracking-widest mb-3">Spin Requirements</p>
                 <div className="space-y-2">
-                  <div className="flex justify-between items-center bg-white dark:bg-slate-800 px-3 py-2 rounded-xl shadow-sm">
-                    <span className="text-[9px] font-bold text-slate-400">Task Earnings</span>
-                    <input type="number" value={gameSettings.spinTaskReq} onChange={(e) => setGameSettings(prev => ({ ...prev, spinTaskReq: Number(e.target.value) }))} className="w-10 bg-transparent border-none p-0 text-right text-xs font-black" />
+                  <div className="flex justify-between items-center bg-[#1C1C1C] border border-[#3D3215] px-3 py-2 rounded-xl shadow-sm">
+                    <span className="text-[9px] font-bold text-[#A3A3A3]">Task Earnings</span>
+                    <input type="number" value={gameSettings.spinTaskReq} onChange={(e) => setGameSettings(prev => ({ ...prev, spinTaskReq: Number(e.target.value) }))} className="w-10 bg-transparent border-none p-0 text-right text-xs font-black text-white focus:outline-none" />
                   </div>
-                  <div className="flex justify-between items-center bg-white dark:bg-slate-800 px-3 py-2 rounded-xl shadow-sm">
-                    <span className="text-[9px] font-bold text-slate-400">Refers</span>
-                    <input type="number" value={gameSettings.spinReferReq} onChange={(e) => setGameSettings(prev => ({ ...prev, spinReferReq: Number(e.target.value) }))} className="w-10 bg-transparent border-none p-0 text-right text-xs font-black" />
+                  <div className="flex justify-between items-center bg-[#1C1C1C] border border-[#3D3215] px-3 py-2 rounded-xl shadow-sm">
+                    <span className="text-[9px] font-bold text-[#A3A3A3]">Refers</span>
+                    <input type="number" value={gameSettings.spinReferReq} onChange={(e) => setGameSettings(prev => ({ ...prev, spinReferReq: Number(e.target.value) }))} className="w-10 bg-transparent border-none p-0 text-right text-xs font-black text-white focus:outline-none" />
                   </div>
                 </div>
               </div>
-              <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl ring-1 ring-slate-100 dark:ring-slate-800">
-                <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-3">Math Requirements</p>
+              <div className="bg-[#101010] p-4 rounded-2xl border border-[#3D3215]">
+                <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-3">Math Requirements</p>
                 <div className="space-y-2">
-                  <div className="flex justify-between items-center bg-white dark:bg-slate-800 px-3 py-2 rounded-xl shadow-sm">
-                    <span className="text-[9px] font-bold text-slate-400">Task Earnings</span>
-                    <input type="number" value={gameSettings.mathTaskReq} onChange={(e) => setGameSettings(prev => ({ ...prev, mathTaskReq: Number(e.target.value) }))} className="w-10 bg-transparent border-none p-0 text-right text-xs font-black" />
+                  <div className="flex justify-between items-center bg-[#1C1C1C] border border-[#3D3215] px-3 py-2 rounded-xl shadow-sm">
+                    <span className="text-[9px] font-bold text-[#A3A3A3]">Task Earnings</span>
+                    <input type="number" value={gameSettings.mathTaskReq} onChange={(e) => setGameSettings(prev => ({ ...prev, mathTaskReq: Number(e.target.value) }))} className="w-10 bg-transparent border-none p-0 text-right text-xs font-black text-white focus:outline-none" />
                   </div>
-                  <div className="flex justify-between items-center bg-white dark:bg-slate-800 px-3 py-2 rounded-xl shadow-sm">
-                    <span className="text-[9px] font-bold text-slate-400">Refers</span>
-                    <input type="number" value={gameSettings.mathReferReq} onChange={(e) => setGameSettings(prev => ({ ...prev, mathReferReq: Number(e.target.value) }))} className="w-10 bg-transparent border-none p-0 text-right text-xs font-black" />
+                  <div className="flex justify-between items-center bg-[#1C1C1C] border border-[#3D3215] px-3 py-2 rounded-xl shadow-sm">
+                    <span className="text-[9px] font-bold text-[#A3A3A3]">Refers</span>
+                    <input type="number" value={gameSettings.mathReferReq} onChange={(e) => setGameSettings(prev => ({ ...prev, mathReferReq: Number(e.target.value) }))} className="w-10 bg-transparent border-none p-0 text-right text-xs font-black text-white focus:outline-none" />
                   </div>
                 </div>
               </div>
             </div>
             
-            <button onClick={handleSaveGameSettings} disabled={isSavingSettings} className="mt-6 w-full bg-blue-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-blue-600/20 active:scale-95 transition-all text-xs italic">Sync Logic</button>
+            <button onClick={handleSaveGameSettings} disabled={isSavingSettings} className="mt-6 w-full bg-gradient-to-r from-[#D4A017] to-[#FACC15] text-[#090909] font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg active:scale-95 transition-all text-xs cursor-pointer italic">Sync Logic</button>
           </motion.div>
 
           {/* Account Integrity */}
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700">
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }} className="bg-[#151515] p-6 rounded-[32px] shadow-sm border border-[#3D3215]">
             <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-2xl bg-cyan-50 dark:bg-cyan-900/30 flex items-center justify-center text-cyan-500">
+              <div className="w-10 h-10 rounded-2xl bg-[#1C1C1C] border border-[#3D3215] flex items-center justify-center text-[#FACC15]">
                 <Lock className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Account Integrity</h3>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Security Gates</p>
+                <h3 className="font-black text-white uppercase tracking-tight italic">Account Integrity</h3>
+                <p className="text-[10px] font-bold text-[#A3A3A3] uppercase tracking-widest leading-none">Security Gates</p>
               </div>
             </div>
             
-            <div className="bg-slate-50 dark:bg-slate-900/50 p-5 rounded-3xl border border-slate-100 dark:border-slate-800">
+            <div className="bg-[#101010] p-5 rounded-3xl border border-[#3D3215]">
               <div className="flex items-center justify-between mb-4">
-                <span className="text-xs font-black uppercase tracking-wider dark:text-white">Activation Mode</span>
-                <select value={activationSettings.mode} onChange={(e) => setActivationSettings(prev => ({ ...prev, mode: e.target.value as 'free'|'paid' }))} className="bg-white dark:bg-slate-800 border-none rounded-xl text-[10px] font-black uppercase ring-1 ring-slate-100 dark:ring-slate-700 py-1.5 px-3">
+                <span className="text-xs font-black uppercase tracking-wider text-white">Activation Mode</span>
+                <select value={activationSettings.mode} onChange={(e) => setActivationSettings(prev => ({ ...prev, mode: e.target.value as 'free'|'paid' }))} className="bg-[#1C1C1C] text-white border border-[#3D3215] rounded-xl text-[10px] font-black uppercase py-1.5 px-3 focus:outline-none">
                   <option value="free">Permissive (Free)</option>
                   <option value="paid">Restrictive (Paid)</option>
                 </select>
               </div>
               {activationSettings.mode === 'paid' && (
-                <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                  <span className="text-xs font-black uppercase text-slate-400">Mandatory Fee</span>
+                <div className="pt-2 border-t border-[#3D3215] flex items-center justify-between">
+                  <span className="text-xs font-black uppercase text-[#A3A3A3]">Mandatory Fee</span>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-black text-cyan-500"></span>
-                    <input type="number" value={activationSettings.fee} onChange={(e) => setActivationSettings(prev => ({ ...prev, fee: Number(e.target.value) }))} className="w-16 bg-white dark:bg-slate-800 border-none rounded-xl text-center text-sm font-black p-2 ring-1 ring-slate-100 dark:ring-slate-700" />
+                    <span className="text-sm font-black text-[#FACC15]">৳</span>
+                    <input type="number" value={activationSettings.fee} onChange={(e) => setActivationSettings(prev => ({ ...prev, fee: Number(e.target.value) }))} className="w-16 bg-[#1C1C1C] border border-[#3D3215] text-white rounded-xl text-center text-sm font-black p-2 focus:border-[#FACC15] focus:outline-none" />
                   </div>
                 </div>
               )}
             </div>
             
-            <button onClick={handleSaveActivationSettings} disabled={isSavingSettings} className="mt-6 w-full bg-cyan-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-cyan-600/20 active:scale-95 transition-all text-xs">Lock Configuration</button>
+            <button onClick={handleSaveActivationSettings} disabled={isSavingSettings} className="mt-6 w-full bg-gradient-to-r from-[#D4A017] to-[#FACC15] text-[#090909] font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg active:scale-95 transition-all text-xs cursor-pointer">Lock Configuration</button>
           </motion.div>
           </>)}
 
           {/* Withdrawal Protocol */}
           {settingsSubTab === 'gateways' && (
             <>
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700">
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }} className="bg-[#151515] p-6 rounded-[32px] shadow-sm border border-[#3D3215]">
             <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-2xl bg-orange-50 dark:bg-orange-900/30 flex items-center justify-center text-orange-500">
+              <div className="w-10 h-10 rounded-2xl bg-[#1C1C1C] border border-[#3D3215] flex items-center justify-center text-[#FACC15]">
                 <CreditCard className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Payout Protocol</h3>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Financial Limits</p>
+                <h3 className="font-black text-white uppercase tracking-tight italic">Payout Protocol</h3>
+                <p className="text-[10px] font-bold text-[#A3A3A3] uppercase tracking-widest leading-none">Financial Limits</p>
               </div>
             </div>
             
             <div className="space-y-3">
               {[
-                { key: 'Main', min: withdrawSettings.mainMin, fee: withdrawSettings.mainFee, minSetter: 'mainMin', feeSetter: 'mainFee', color: 'text-blue-500' },
-                { key: 'Bonus', min: withdrawSettings.bonusMin, fee: withdrawSettings.bonusFee, minSetter: 'bonusMin', feeSetter: 'bonusFee', color: 'text-indigo-500' },
-                { key: 'Referral', min: withdrawSettings.referralMin, fee: withdrawSettings.referralFee, minSetter: 'referralMin', feeSetter: 'referralFee', color: 'text-orange-500' },
-                { key: 'Tasks', min: withdrawSettings.tasksMin, fee: withdrawSettings.tasksFee, minSetter: 'tasksMin', feeSetter: 'tasksFee', color: 'text-emerald-500' }
+                { key: 'Main', min: withdrawSettings.mainMin, fee: withdrawSettings.mainFee, minSetter: 'mainMin', feeSetter: 'mainFee', color: 'text-[#FACC15]' },
+                { key: 'Bonus', min: withdrawSettings.bonusMin, fee: withdrawSettings.bonusFee, minSetter: 'bonusMin', feeSetter: 'bonusFee', color: 'text-[#FACC15]' },
+                { key: 'Referral', min: withdrawSettings.referralMin, fee: withdrawSettings.referralFee, minSetter: 'referralMin', feeSetter: 'referralFee', color: 'text-[#FACC15]' },
+                { key: 'Tasks', min: withdrawSettings.tasksMin, fee: withdrawSettings.tasksFee, minSetter: 'tasksMin', feeSetter: 'tasksFee', color: 'text-[#FACC15]' }
               ].map(wallet => (
-                <div key={wallet.key} className="bg-slate-50 dark:bg-slate-900/50 p-3 rounded-2xl flex items-center justify-between ring-1 ring-slate-100 dark:ring-slate-800">
+                <div key={wallet.key} className="bg-[#101010] p-3 rounded-2xl flex items-center justify-between border border-[#3D3215]">
                   <span className={`text-[10px] font-black uppercase tracking-widest ${wallet.color} w-16`}>{wallet.key}</span>
                   <div className="flex-1 flex gap-2 justify-end">
                     <div className="flex flex-col items-end">
-                      <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Min </span>
-                      <input type="number" value={wallet.min} onChange={(e) => setWithdrawSettings(prev => ({ ...prev, [wallet.minSetter]: Number(e.target.value) }))} className="w-14 bg-white dark:bg-slate-800 text-[11px] font-black p-1.5 rounded-lg text-center" />
+                      <span className="text-[8px] font-bold text-[#A3A3A3] uppercase tracking-tighter">Min ৳</span>
+                      <input type="number" value={wallet.min} onChange={(e) => setWithdrawSettings(prev => ({ ...prev, [wallet.minSetter]: Number(e.target.value) }))} className="w-14 bg-[#1C1C1C] border border-[#3D3215] text-white text-[11px] font-black p-1.5 rounded-lg text-center focus:border-[#FACC15] focus:outline-none" />
                     </div>
                     <div className="flex flex-col items-end">
-                      <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Fee %</span>
-                      <input type="number" value={wallet.fee} onChange={(e) => setWithdrawSettings(prev => ({ ...prev, [wallet.feeSetter]: Number(e.target.value) }))} className="w-12 bg-white dark:bg-slate-800 text-[11px] font-black p-1.5 rounded-lg text-center text-rose-500" />
+                      <span className="text-[8px] font-bold text-[#A3A3A3] uppercase tracking-tighter">Fee %</span>
+                      <input type="number" value={wallet.fee} onChange={(e) => setWithdrawSettings(prev => ({ ...prev, [wallet.feeSetter]: Number(e.target.value) }))} className="w-12 bg-[#1C1C1C] border border-[#3D3215] text-rose-400 text-[11px] font-black p-1.5 rounded-lg text-center focus:border-[#FACC15] focus:outline-none" />
                     </div>
                   </div>
                 </div>
               ))}
             </div>
 
-            <div className="mt-4 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-3xl space-y-2 ring-1 ring-slate-100 dark:ring-slate-800">
-              <span className="text-[10px] font-black uppercase tracking-widest text-indigo-500 block">Withdraw Option Amounts ()</span>
-              <p className="text-[9px] text-slate-400 font-bold uppercase leading-tight">Comma-separated withdraw options for each wallet</p>
+            <div className="mt-4 bg-[#101010] p-4 rounded-3xl space-y-2 border border-[#3D3215]">
+              <span className="text-[10px] font-black uppercase tracking-widest text-[#FACC15] block">Withdraw Option Amounts (৳)</span>
+              <p className="text-[9px] text-[#A3A3A3] font-bold uppercase leading-tight">Comma-separated withdraw options for each wallet</p>
               
               <div className="space-y-3 mt-3">
                 <div>
-                  <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Main Wallet Amounts</span>
-                  <input type="text" value={withdrawSettings.mainAmounts || ""} onChange={(e) => setWithdrawSettings(prev => ({ ...prev, mainAmounts: e.target.value }))} className="w-full bg-white dark:bg-slate-800 border-none rounded-xl px-3.5 py-2 text-xs font-bold tracking-wider text-slate-700 dark:text-white mt-1" placeholder="110, 210..." />
+                  <span className="text-[10px] font-bold text-[#A3A3A3] uppercase">Main Wallet Amounts</span>
+                  <input type="text" value={withdrawSettings.mainAmounts || ""} onChange={(e) => setWithdrawSettings(prev => ({ ...prev, mainAmounts: e.target.value }))} className="w-full bg-[#1C1C1C] border border-[#3D3215] rounded-xl px-3.5 py-2 text-xs font-bold tracking-wider text-white placeholder:text-[#737373] mt-1 focus:border-[#FACC15] focus:outline-none" placeholder="110, 210..." />
                 </div>
                 <div>
-                  <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Bonus Wallet Amounts</span>
-                  <input type="text" value={withdrawSettings.bonusAmounts || ""} onChange={(e) => setWithdrawSettings(prev => ({ ...prev, bonusAmounts: e.target.value }))} className="w-full bg-white dark:bg-slate-800 border-none rounded-xl px-3.5 py-2 text-xs font-bold tracking-wider text-slate-700 dark:text-white mt-1" placeholder="110, 210..." />
+                  <span className="text-[10px] font-bold text-[#A3A3A3] uppercase">Bonus Wallet Amounts</span>
+                  <input type="text" value={withdrawSettings.bonusAmounts || ""} onChange={(e) => setWithdrawSettings(prev => ({ ...prev, bonusAmounts: e.target.value }))} className="w-full bg-[#1C1C1C] border border-[#3D3215] rounded-xl px-3.5 py-2 text-xs font-bold tracking-wider text-white placeholder:text-[#737373] mt-1 focus:border-[#FACC15] focus:outline-none" placeholder="110, 210..." />
                 </div>
                 <div>
-                  <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Referral Wallet Amounts</span>
-                  <input type="text" value={withdrawSettings.referralAmounts || ""} onChange={(e) => setWithdrawSettings(prev => ({ ...prev, referralAmounts: e.target.value }))} className="w-full bg-white dark:bg-slate-800 border-none rounded-xl px-3.5 py-2 text-xs font-bold tracking-wider text-slate-700 dark:text-white mt-1" placeholder="110, 210..." />
+                  <span className="text-[10px] font-bold text-[#A3A3A3] uppercase">Referral Wallet Amounts</span>
+                  <input type="text" value={withdrawSettings.referralAmounts || ""} onChange={(e) => setWithdrawSettings(prev => ({ ...prev, referralAmounts: e.target.value }))} className="w-full bg-[#1C1C1C] border border-[#3D3215] rounded-xl px-3.5 py-2 text-xs font-bold tracking-wider text-white placeholder:text-[#737373] mt-1 focus:border-[#FACC15] focus:outline-none" placeholder="110, 210..." />
                 </div>
                 <div>
-                  <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Partner Wallet Amounts</span>
-                  <input type="text" value={withdrawSettings.partnerAmounts || ""} onChange={(e) => setWithdrawSettings(prev => ({ ...prev, partnerAmounts: e.target.value }))} className="w-full bg-white dark:bg-slate-800 border-none rounded-xl px-3.5 py-2 text-xs font-bold tracking-wider text-slate-700 dark:text-white mt-1" placeholder="110, 210..." />
+                  <span className="text-[10px] font-bold text-[#A3A3A3] uppercase">Partner Wallet Amounts</span>
+                  <input type="text" value={withdrawSettings.partnerAmounts || ""} onChange={(e) => setWithdrawSettings(prev => ({ ...prev, partnerAmounts: e.target.value }))} className="w-full bg-[#1C1C1C] border border-[#3D3215] rounded-xl px-3.5 py-2 text-xs font-bold tracking-wider text-white placeholder:text-[#737373] mt-1 focus:border-[#FACC15] focus:outline-none" placeholder="110, 210..." />
                 </div>
                 <div>
-                  <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Gift Wallet Amounts</span>
-                  <input type="text" value={withdrawSettings.giftAmounts || ""} onChange={(e) => setWithdrawSettings(prev => ({ ...prev, giftAmounts: e.target.value }))} className="w-full bg-white dark:bg-slate-800 border-none rounded-xl px-3.5 py-2 text-xs font-bold tracking-wider text-slate-700 dark:text-white mt-1" placeholder="110, 210..." />
+                  <span className="text-[10px] font-bold text-[#A3A3A3] uppercase">Gift Wallet Amounts</span>
+                  <input type="text" value={withdrawSettings.giftAmounts || ""} onChange={(e) => setWithdrawSettings(prev => ({ ...prev, giftAmounts: e.target.value }))} className="w-full bg-[#1C1C1C] border border-[#3D3215] rounded-xl px-3.5 py-2 text-xs font-bold tracking-wider text-white placeholder:text-[#737373] mt-1 focus:border-[#FACC15] focus:outline-none" placeholder="110, 210..." />
                 </div>
                 <div>
-                  <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Tasks Wallet Amounts</span>
-                  <input type="text" value={withdrawSettings.tasksAmounts || ""} onChange={(e) => setWithdrawSettings(prev => ({ ...prev, tasksAmounts: e.target.value }))} className="w-full bg-white dark:bg-slate-800 border-none rounded-xl px-3.5 py-2 text-xs font-bold tracking-wider text-slate-700 dark:text-white mt-1" placeholder="110, 210..." />
+                  <span className="text-[10px] font-bold text-[#A3A3A3] uppercase">Tasks Wallet Amounts</span>
+                  <input type="text" value={withdrawSettings.tasksAmounts || ""} onChange={(e) => setWithdrawSettings(prev => ({ ...prev, tasksAmounts: e.target.value }))} className="w-full bg-[#1C1C1C] border border-[#3D3215] rounded-xl px-3.5 py-2 text-xs font-bold tracking-wider text-white placeholder:text-[#737373] mt-1 focus:border-[#FACC15] focus:outline-none" placeholder="110, 210..." />
                 </div>
               </div>
             </div>
             
-            <button onClick={handleSaveWithdrawSettings} disabled={isSavingSettings} className="mt-6 w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-xl active:scale-95 transition-all text-xs">Execute Protocol</button>
+            <button onClick={handleSaveWithdrawSettings} disabled={isSavingSettings} className="mt-6 w-full bg-gradient-to-r from-[#D4A017] to-[#FACC15] text-[#090909] font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-xl active:scale-95 transition-all text-xs cursor-pointer">Execute Protocol</button>
           </motion.div>
 
           {/* Deposit Gateways */}
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8 }} className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700">
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8 }} className="bg-[#151515] p-6 rounded-[32px] shadow-sm border border-[#3D3215]">
             <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-500">
+              <div className="w-10 h-10 rounded-2xl bg-[#1C1C1C] border border-[#3D3215] flex items-center justify-center text-[#FACC15]">
                 <Wallet className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight italic">Funding Gateways</h3>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Inbound Channels</p>
+                <h3 className="font-black text-white uppercase tracking-tight italic">Funding Gateways</h3>
+                <p className="text-[10px] font-bold text-[#A3A3A3] uppercase tracking-widest leading-none">Inbound Channels</p>
               </div>
             </div>
             
             <div className="space-y-4">
-              <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-3xl space-y-4">
+              <div className="bg-[#101010] p-4 rounded-3xl space-y-4 border border-[#3D3215]">
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 rounded-2xl bg-[#e2136e] flex items-center justify-center text-white text-[10px] font-black">BKASH</div>
-                      <input type="text" value={depositSettings.bkashNumber} onChange={(e) => setDepositSettings(prev => ({ ...prev, bkashNumber: e.target.value }))} className="flex-1 bg-white dark:bg-slate-800 border-none rounded-xl px-3 py-2.5 text-sm font-black tracking-widest text-[#e2136e] ring-1 ring-slate-100 dark:ring-slate-700" placeholder="01XXX-XXXXXX" />
+                      <input type="text" value={depositSettings.bkashNumber} onChange={(e) => setDepositSettings(prev => ({ ...prev, bkashNumber: e.target.value }))} className="flex-1 bg-[#1C1C1C] border border-[#3D3215] rounded-xl px-3 py-2.5 text-sm font-black tracking-widest text-[#e2136e] focus:border-[#FACC15] focus:outline-none" placeholder="01XXX-XXXXXX" />
                     </div>
                     <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" checked={!!depositSettings.bkashEnabled} onChange={(e) => setDepositSettings(prev => ({ ...prev, bkashEnabled: e.target.checked }))} className="w-4 h-4 text-emerald-500 rounded focus:ring-emerald-500" />
-                      <span className="text-xs font-bold text-slate-500">Enabled</span>
+                      <input type="checkbox" checked={!!depositSettings.bkashEnabled} onChange={(e) => setDepositSettings(prev => ({ ...prev, bkashEnabled: e.target.checked }))} className="w-4 h-4 text-[#FACC15] bg-[#1C1C1C] border-[#3D3215] rounded focus:ring-0" />
+                      <span className="text-xs font-bold text-[#A3A3A3]">Enabled</span>
                     </label>
                   </div>
                 </div>
 
-                <div className="flex flex-col gap-2 border-t border-slate-200 dark:border-slate-800 pt-4">
+                <div className="flex flex-col gap-2 border-t border-[#3D3215] pt-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 rounded-2xl bg-[#ea232a] flex items-center justify-center text-white text-[10px] font-black">NAGAD</div>
-                      <input type="text" value={depositSettings.nagadNumber} onChange={(e) => setDepositSettings(prev => ({ ...prev, nagadNumber: e.target.value }))} className="flex-1 bg-white dark:bg-slate-800 border-none rounded-xl px-3 py-2.5 text-sm font-black tracking-widest text-[#ea232a] ring-1 ring-slate-100 dark:ring-slate-700" placeholder="01XXX-XXXXXX" />
+                      <input type="text" value={depositSettings.nagadNumber} onChange={(e) => setDepositSettings(prev => ({ ...prev, nagadNumber: e.target.value }))} className="flex-1 bg-[#1C1C1C] border border-[#3D3215] rounded-xl px-3 py-2.5 text-sm font-black tracking-widest text-[#ea232a] focus:border-[#FACC15] focus:outline-none" placeholder="01XXX-XXXXXX" />
                     </div>
                     <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" checked={!!depositSettings.nagadEnabled} onChange={(e) => setDepositSettings(prev => ({ ...prev, nagadEnabled: e.target.checked }))} className="w-4 h-4 text-emerald-500 rounded focus:ring-emerald-500" />
-                      <span className="text-xs font-bold text-slate-500">Enabled</span>
+                      <input type="checkbox" checked={!!depositSettings.nagadEnabled} onChange={(e) => setDepositSettings(prev => ({ ...prev, nagadEnabled: e.target.checked }))} className="w-4 h-4 text-[#FACC15] bg-[#1C1C1C] border-[#3D3215] rounded focus:ring-0" />
+                      <span className="text-xs font-bold text-[#A3A3A3]">Enabled</span>
                     </label>
                   </div>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="group">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Min ()</label>
-                  <input type="number" value={depositSettings.minDeposit} onChange={(e) => setDepositSettings(prev => ({ ...prev, minDeposit: Number(e.target.value) }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-black" />
+                  <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">Min (৳)</label>
+                  <input type="number" value={depositSettings.minDeposit} onChange={(e) => setDepositSettings(prev => ({ ...prev, minDeposit: Number(e.target.value) }))} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-black text-white focus:border-[#FACC15] focus:outline-none" />
                 </div>
                 <div className="group">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-1 block">Max ()</label>
-                  <input type="number" value={depositSettings.maxDeposit} onChange={(e) => setDepositSettings(prev => ({ ...prev, maxDeposit: Number(e.target.value) }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-black opacity-50" />
+                  <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">Max (৳)</label>
+                  <input type="number" value={depositSettings.maxDeposit} onChange={(e) => setDepositSettings(prev => ({ ...prev, maxDeposit: Number(e.target.value) }))} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-black text-white opacity-50 focus:border-[#FACC15] focus:outline-none" />
                 </div>
               </div>
             </div>
             
-            <button onClick={handleSaveDepositSettings} disabled={isSavingSettings} className="mt-6 w-full bg-emerald-600 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-emerald-600/20 active:scale-95 transition-all text-xs">Update Gateways</button>
+            <button onClick={handleSaveDepositSettings} disabled={isSavingSettings} className="mt-6 w-full bg-gradient-to-r from-[#D4A017] to-[#FACC15] text-[#090909] font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg active:scale-95 transition-all text-xs cursor-pointer">Update Gateways</button>
           </motion.div>
           </>)}
 
-          {/* DANGER ZONE: Wipe Data */}
-          
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.85 }} className="bg-orange-50 dark:bg-orange-900/10 p-6 rounded-[32px] shadow-sm border border-orange-200 dark:border-orange-900/30 md:col-span-2 mt-4">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-2xl bg-orange-100 dark:bg-orange-900/50 flex items-center justify-center text-orange-600">
-                <RefreshCw className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-black text-rose-800 dark:text-rose-400 uppercase tracking-tight italic">Partner Program Reset</h3>
-                <p className="text-xs text-orange-600 dark:text-orange-400 font-medium">Reset partner referrals to 0 for all users.</p>
-              </div>
-            </div>
-            <button 
-              onClick={handleResetPartnerReferrals}
-              disabled={isSavingSettings} 
-              className="w-full bg-orange-600 hover:bg-orange-700 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-orange-600/20 active:scale-95 transition-all text-xs"
-            >
-              Reset Partner Progress
-            </button>
-          </motion.div>
-
-          {settingsSubTab === 'danger' && (
+          {isFullAdmin && settingsSubTab === 'danger' && (
             <div className="space-y-6 md:col-span-2 mt-4">
-              {/* Option 1: Fresh Brand New Setup */}
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8 }} className="bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-950/40 dark:to-blue-950/30 p-6 rounded-[32px] shadow-sm border border-indigo-200 dark:border-indigo-800/40">
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8 }} className="bg-[#151515] p-6 rounded-[32px] shadow-sm border border-[#3D3215]">
                 <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-2xl bg-indigo-100 dark:bg-indigo-900/60 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
-                    <Sparkles className="w-5 h-5" />
+                  <div className="w-12 h-12 rounded-2xl bg-[#1C1C1C] border border-[#3D3215] flex items-center justify-center text-[#FACC15]">
+                    <Sparkles className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="font-black text-indigo-900 dark:text-indigo-300 uppercase tracking-tight">সম্পূর্ণ নতুন সাইট সেটআপ (Fresh Factory Launch)</h3>
-                    <p className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest leading-none">Complete Fresh Start & Seed</p>
+                    <h3 className="font-black text-white text-base uppercase tracking-tight">মাস্টার ফ্যাক্টরি রিসেট ও ফুল ডাটা ওয়াইপ (All-in-One Master Reset)</h3>
+                    <p className="text-[11px] font-bold text-[#FACC15] uppercase tracking-widest leading-none">Complete Wipe, Balance 0.00 & Official Settings Reset</p>
                   </div>
                 </div>
-                <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-4 leading-relaxed">
-                  সাইটকে একদম প্রথম দিনের মতো ব্র্যান্ড-নিউ করে তুলুন। এটি সমস্ত পুরোনো টেস্ট ইউজার, ভুয়া সাবমিশন ও ট্রানজেকশন মুছে দেবে এবং নতুন প্রফেশনাল সেটিংস, ৩টি বাস্তব স্টার্টার মাইক্রোটাস্ক, ড্রাইভ প্যাক ও কোর্স দিয়ে পুরো প্ল্যাটফর্মটি সম্পূর্ণ রেডি করে দেবে।
+                <p className="text-sm font-medium text-[#A3A3A3] mb-4 leading-relaxed">
+                  একটি সিঙ্গেল বাটনে সম্পূর্ণ সিস্টেমকে ফ্যাক্টরি ফ্রেশ ও ব্র্যান্ড-নিউ করুন। ব্যালেন্স ০ করা, পুরোনো ডাটা ওয়াইপ করা এবং সেটিংস ও কনফিগারেশন রিসেট করা — সবকিছু এই একটি বাটন দিয়েই সম্পন্ন হবে।
                 </p>
-                <div className="bg-white/80 dark:bg-slate-900/80 rounded-2xl p-4 mb-5 border border-indigo-100 dark:border-indigo-900/50 space-y-2 text-xs text-slate-700 dark:text-slate-300">
-                  <div className="flex items-center gap-2">✅ <b>ক্লিন ইউজার বেস:</b> অ্যাডমিন ছাড়া সব পুরোনো টেস্ট ইউজার ডিলিট হবে।</div>
-                  <div className="flex items-center gap-2">✅ <b>অফিশিয়াল সেটিংস:</b> বিকাশ/নগদ গেটওয়ে, রেফারেল, স্পিন ও উইথড্র নিয়মাবলি ডিফল্ট হবে।</div>
-                  <div className="flex items-center gap-2">✅ <b>৩টি লাইভ মাইক্রো-টাস্ক:</b> টেলিগ্রাম, ইউটিউব ও ফেসবুক টাস্ক স্বয়ংক্রিয়ভাবে তৈরি হবে।</div>
-                  <div className="flex items-center gap-2">✅ <b>ব্যালেন্স ও হিস্ট্রি ফ্রেশ:</b> অ্যাডমিনের ব্যালেন্স ৳ 0.00 এবং রিসেন্ট হিস্ট্রি সম্পূর্ণ খালি হবে।</div>
+                <div className="bg-[#101010] rounded-2xl p-4 mb-5 border border-[#3D3215] space-y-2 text-xs text-white">
+                  <div className="flex items-center gap-2">✅ <b className="text-[#FACC15]">ব্যালেন্স নিশ্চিত ৳ 0.00:</b> সমস্ত একাউন্টের ব্যালেন্স ও ইনকাম ০ হবে এবং ট্রানজেকশন/টাস্ক হিস্ট্রি ক্লিয়ার হবে।</div>
+                  <div className="flex items-center gap-2">✅ <b className="text-[#FACC15]">ডাটা ওয়াইপ:</b> সমস্ত টেস্ট ইউজার, ড্রাফট জবস, সাবমিশন ও পেমেন্ট রিকোয়েস্ট মুছে যাবে।</div>
+                  <div className="flex items-center gap-2">✅ <b className="text-[#FACC15]">সেটিংস ও কনফিগ রিসেট:</b> সাইট সেটিংস, বিকাশ/নগদ/রকেট গেটওয়ে, স্পিন, গেম ও রেফারেল নিয়ম ডিফল্টে ফিরে যাবে।</div>
+                  <div className="flex items-center gap-2">✅ <b className="text-[#FACC15]">৩টি ফ্রেশ মাইক্রোটাস্ক:</b> রিয়েল কাজের জন্য ৩টি স্টার্টার লাইভ মাইক্রোটাস্ক রেডি থাকবে।</div>
                 </div>
                 <button 
-                  onClick={handleFreshSetup} 
+                  onClick={handleMasterFactoryReset} 
                   disabled={isSavingSettings} 
-                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-indigo-600/25 active:scale-95 transition-all text-xs flex items-center justify-center gap-2 cursor-pointer"
+                  className="w-full bg-gradient-to-r from-[#D4A017] via-[#FACC15] to-[#D4A017] text-[#090909] font-black uppercase tracking-[0.2em] py-4 rounded-2xl shadow-xl active:scale-95 transition-all text-xs flex items-center justify-center gap-2 cursor-pointer hover:opacity-95"
                 >
-                  <Sparkles className="w-4 h-4" /> সাইট একদম নতুন করে সাজান (Fresh Launch)
+                  <Sparkles className="w-5 h-5" /> মাস্টার ফ্যাক্টরি রিসেট করুন (Wipe All, Balance 0 & Reset Config)
                 </button>
               </motion.div>
 
-              {/* Option 2: Empty Wipe */}
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.9 }} className="bg-rose-50 dark:bg-rose-900/10 p-6 rounded-[32px] shadow-sm border border-rose-200 dark:border-rose-900/30">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-2xl bg-rose-100 dark:bg-rose-900/50 flex items-center justify-center text-rose-600">
-                    <Trash2 className="w-5 h-5" />
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.85 }} className="bg-[#151515] p-6 rounded-[32px] shadow-sm border border-[#3D3215]">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-2xl bg-[#1C1C1C] border border-[#3D3215] flex items-center justify-center text-amber-400">
+                    <RefreshCw className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="font-black text-rose-700 dark:text-rose-400 uppercase tracking-tight">শুধু ডাটাবেজ খালি করুন (Empty Database Wipe)</h3>
-                    <p className="text-[10px] font-bold text-rose-500/80 uppercase tracking-widest leading-none">Irreversible Empty Wipe</p>
+                    <h3 className="font-black text-white uppercase tracking-tight italic">Partner Program Reset</h3>
+                    <p className="text-xs text-[#A3A3A3] font-medium">Reset partner referrals to 0 for all users.</p>
                   </div>
                 </div>
-                <p className="text-sm font-semibold text-rose-600 dark:text-rose-400 mb-6 leading-relaxed">
-                  এটি ডাটাবেজ থেকে সমস্ত কাজ, ইউজার ও ট্রানজেকশন মুছে সম্পূর্ণ খালি করে রাখবে (কোনো স্টার্টার ডাটা তৈরি করবে না)।
-                </p>
                 <button 
-                  onClick={handleWipeData} 
+                  onClick={handleResetPartnerReferrals} 
                   disabled={isSavingSettings} 
-                  className="w-full bg-rose-600 hover:bg-rose-700 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-rose-600/20 active:scale-95 transition-all text-xs flex items-center justify-center gap-2 cursor-pointer"
+                  className="w-full bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg active:scale-95 transition-all text-xs cursor-pointer"
                 >
-                  <Trash2 className="w-4 h-4" /> ডাটাবেজ পুরোপুরি খালি করুন (Wipe Only)
-                </button>
-              </motion.div>
-
-              {/* Option 3: Reset Admin Balance & History */}
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.0 }} className="bg-amber-50 dark:bg-amber-950/20 p-6 rounded-[32px] shadow-sm border border-amber-200 dark:border-amber-900/40">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-2xl bg-amber-100 dark:bg-amber-900/60 flex items-center justify-center text-amber-600 dark:text-amber-400">
-                    <RotateCcw className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-black text-amber-900 dark:text-amber-300 uppercase tracking-tight">অ্যাডমিন ব্যালেন্স ও রিসেন্ট এক্টিভিটি ০ করুন (Clear Balance & History)</h3>
-                    <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-widest leading-none">Instant Personal Balance & History Reset</p>
-                  </div>
-                </div>
-                <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-6 leading-relaxed">
-                  পুরো ডাটাবেজ ডিলিট না করে শুধুমাত্র আপনার অ্যাডমিন অ্যাকাউন্টের সমস্ত ব্যালেন্স (৳ 0.00) এবং রিসেন্ট অ্যাক্টিভিটি হিস্ট্রি (Transactions, Tasks, Referrals) মুছে একদম খালি করতে এটি ব্যবহার করুন।
-                </p>
-                <button 
-                  onClick={handleResetMyBalanceAndActivity} 
-                  disabled={isSavingSettings} 
-                  className="w-full bg-amber-600 hover:bg-amber-700 text-white font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg shadow-amber-600/25 active:scale-95 transition-all text-xs flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <RotateCcw className="w-4 h-4" /> ব্যালেন্স ও হিস্ট্রি ০ করুন (Reset to 0)
+                  Reset Partner Progress
                 </button>
               </motion.div>
             </div>
@@ -4271,7 +4050,7 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
               initial={{ opacity: 0 }} 
               animate={{ opacity: 1 }} 
               exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" 
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm" 
               onClick={() => setViewingScreenshot(null)}
             ></motion.div>
             <motion.div 
@@ -4279,19 +4058,19 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
               animate={{ opacity: 1, scale: 1, y: 0 }} 
               exit={{ opacity: 0, scale: 0.95, y: 15 }}
               transition={{ type: "spring", damping: 25, stiffness: 350 }}
-              className="relative bg-white dark:bg-slate-900 rounded-[24px] p-5 max-w-md w-full shadow-2xl border border-slate-100 dark:border-slate-800 z-10 flex flex-col max-h-[85vh]"
+              className="relative bg-[#151515] rounded-[24px] p-5 max-w-md w-full shadow-2xl border border-[#3D3215] z-10 flex flex-col max-h-[85vh]"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800/80 mb-3">
-                <span className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Proof Screenshot</span>
+              <div className="flex items-center justify-between pb-3 border-b border-[#3D3215] mb-3">
+                <span className="text-xs font-black uppercase tracking-widest text-[#FACC15]">Proof Screenshot</span>
                 <button
                   onClick={() => setViewingScreenshot(null)}
-                  className="px-3 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/30 hover:text-rose-600 dark:hover:text-rose-400 text-slate-500 dark:text-slate-400 font-extrabold text-[10px] transition-all cursor-pointer"
+                  className="px-3 py-1 rounded-xl bg-[#1C1C1C] hover:bg-rose-950/40 hover:text-rose-400 text-[#A3A3A3] font-extrabold text-[10px] transition-all cursor-pointer border border-[#3D3215]"
                 >
                   Close
                 </button>
               </div>
-              <div className="flex-1 overflow-y-auto rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800/50 flex items-center justify-center p-2.5">
+              <div className="flex-1 overflow-y-auto rounded-2xl bg-[#101010] border border-[#3D3215] flex items-center justify-center p-2.5">
                 <img
                   src={viewingScreenshot}
                   alt="Proof screenshot"
@@ -4301,7 +4080,7 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                 />
               </div>
               <div className="pt-3 text-center">
-                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                <p className="text-[10px] font-black uppercase tracking-wider text-[#A3A3A3]">
                   Tap image to open in full tab
                 </p>
               </div>
@@ -4312,17 +4091,17 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
 
       {/* Custom Confirm Modal */}
       {confirmDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-slate-900/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/70 backdrop-blur-sm">
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-white dark:bg-slate-800 rounded-[32px] p-6 shadow-2xl max-w-sm w-full border border-slate-100 dark:border-slate-700"
+            className="bg-[#151515] rounded-[32px] p-6 shadow-2xl max-w-sm w-full border border-[#3D3215]"
           >
-            <div className={`w-16 h-16 ${confirmDialog.isDanger !== false ? 'bg-rose-100 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400' : 'bg-indigo-100 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-400'} rounded-full flex items-center justify-center mx-auto mb-4`}>
+            <div className={`w-16 h-16 ${confirmDialog.isDanger !== false ? 'bg-rose-950/50 text-rose-400 border border-rose-900/50' : 'bg-[#1C1C1C] text-[#FACC15] border border-[#3D3215]'} rounded-full flex items-center justify-center mx-auto mb-4`}>
               {confirmDialog.isDanger !== false ? <ShieldAlert className="w-8 h-8" /> : <Sparkles className="w-8 h-8" />}
             </div>
-            <h3 className="text-center font-black text-xl mb-2 text-slate-800 dark:text-white uppercase tracking-tight">{confirmDialog.title}</h3>
-            <p className="text-center font-medium text-slate-500 mb-6">{confirmDialog.message}</p>
+            <h3 className="text-center font-black text-xl mb-2 text-white uppercase tracking-tight">{confirmDialog.title}</h3>
+            <p className="text-center font-medium text-[#A3A3A3] mb-6">{confirmDialog.message}</p>
             
             {confirmDialog.isPrompt && (
               <div className="mb-6 space-y-2">
@@ -4331,14 +4110,14 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                   value={promptInput}
                   onChange={(e) => setPromptInput(e.target.value)}
                   placeholder={`টাইপ করুন: ${confirmDialog.promptExpected}`}
-                  className="w-full text-center bg-slate-50 border border-slate-200 dark:bg-slate-900 dark:border-slate-700 rounded-2xl px-4 py-3 font-bold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono uppercase text-sm"
+                  className="w-full text-center bg-[#101010] border border-[#3D3215] rounded-2xl px-4 py-3 font-bold text-white focus:outline-none focus:border-[#FACC15] transition-all font-mono uppercase text-sm"
                 />
                 <div className="flex justify-between items-center px-1">
-                  <span className="text-[11px] font-bold text-slate-400">কনফার্ম করতে <span className="text-indigo-500 font-mono font-black">{confirmDialog.promptExpected}</span> লিখুন</span>
+                  <span className="text-[11px] font-bold text-[#A3A3A3]">কনফার্ম করতে <span className="text-[#FACC15] font-mono font-black">{confirmDialog.promptExpected}</span> লিখুন</span>
                   <button 
                     type="button" 
                     onClick={() => setPromptInput(confirmDialog.promptExpected || '')}
-                    className="text-[11px] font-black uppercase text-indigo-600 dark:text-indigo-400 hover:underline bg-indigo-50 dark:bg-indigo-950/50 px-2 py-0.5 rounded-md"
+                    className="text-[11px] font-black uppercase text-[#FACC15] hover:underline bg-[#1C1C1C] border border-[#3D3215] px-2 py-0.5 rounded-md"
                   >
                     অটো-টাইপ {confirmDialog.promptExpected}
                   </button>
@@ -4349,7 +4128,7 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
             <div className="flex gap-3">
               <button 
                 onClick={() => { setConfirmDialog(null); setPromptInput(''); }}
-                className="flex-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 py-3.5 rounded-2xl font-black uppercase text-xs tracking-widest active:scale-95 transition-all"
+                className="flex-1 bg-[#1C1C1C] hover:bg-[#252525] text-[#A3A3A3] border border-[#3D3215] py-3.5 rounded-2xl font-black uppercase text-xs tracking-widest active:scale-95 transition-all cursor-pointer"
               >
                 বাতিল
               </button>
@@ -4363,12 +4142,12 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                     await onConfirmFn();
                   }
                 }}
-                className={`flex-1 py-3.5 rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg active:scale-95 transition-all ${
+                className={`flex-1 py-3.5 rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg active:scale-95 transition-all cursor-pointer ${
                   (confirmDialog.isPrompt && promptInput.trim().toUpperCase() !== (confirmDialog.promptExpected || '').toUpperCase())
-                    ? 'bg-slate-300 dark:bg-slate-700 text-white/50 cursor-not-allowed shadow-none'
+                    ? 'bg-[#1C1C1C] text-[#A3A3A3]/50 cursor-not-allowed shadow-none border border-[#3D3215]'
                     : (confirmDialog.isDanger !== false 
                         ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-rose-600/20' 
-                        : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/20')
+                        : 'bg-gradient-to-r from-[#D4A017] to-[#FACC15] text-[#090909]')
                 }`}
               >
                 {confirmDialog.confirmText || 'Confirm'}
@@ -4381,15 +4160,15 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
       {/* Employee Admin Config Modal */}
       {employeeConfigUser && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setEmployeeConfigUser(null)}></motion.div>
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="relative bg-white dark:bg-slate-800 rounded-[32px] p-6 max-w-sm w-full shadow-2xl border border-slate-100 dark:border-slate-700">
-            <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tight mb-1 text-center">Employee Admin Control</h3>
-            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest text-center mb-6">Manage roles for {employeeConfigUser.fullName}</p>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setEmployeeConfigUser(null)}></motion.div>
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="relative bg-[#151515] rounded-[32px] p-6 max-w-sm w-full shadow-2xl border border-[#3D3215]">
+            <h3 className="text-lg font-black text-white uppercase tracking-tight mb-1 text-center">Employee Admin Control</h3>
+            <p className="text-[10px] text-[#A3A3A3] font-bold uppercase tracking-widest text-center mb-6">Manage roles for {employeeConfigUser.fullName}</p>
             
             <div className="space-y-2 mb-6">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 mb-2">Allowed Permissions:</p>
+              <p className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-2">Allowed Permissions:</p>
               {ALL_TABS.map(tab => (
-                <label key={tab.id} className="flex items-center gap-3 p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 cursor-pointer">
+                <label key={tab.id} className="flex items-center gap-3 p-3 rounded-2xl bg-[#101010] border border-[#3D3215] cursor-pointer">
                   <input 
                     type="checkbox" 
                     checked={employeePermissions.includes(tab.id)}
@@ -4397,11 +4176,11 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                       if (e.target.checked) setEmployeePermissions(prev => [...prev, tab.id]);
                       else setEmployeePermissions(prev => prev.filter(p => p !== tab.id));
                     }}
-                    className="w-5 h-5 rounded-md border-slate-300 text-purple-600 focus:ring-purple-600"
+                    className="w-5 h-5 rounded-md border-[#3D3215] bg-[#1C1C1C] text-[#FACC15] focus:ring-[#FACC15] accent-[#FACC15]"
                   />
                   <div className="flex items-center gap-2">
-                    <tab.icon className={`w-4 h-4 ${tab.color}`} />
-                    <span className="font-bold text-slate-700 dark:text-slate-200 text-xs">{tab.label} Access</span>
+                    <tab.icon className={`w-4 h-4 text-[#FACC15]`} />
+                    <span className="font-bold text-white text-xs">{tab.label} Access</span>
                   </div>
                 </label>
               ))}
@@ -4410,76 +4189,76 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
             <div className="space-y-3">
               <button 
                 onClick={handleSaveEmployeeConfig}
-                className="w-full bg-purple-600 hover:bg-purple-700 text-white font-black uppercase tracking-[0.15em] py-3.5 rounded-2xl shadow-lg shadow-purple-600/20 active:scale-95 transition-all text-[11px]"
+                className="w-full bg-gradient-to-r from-[#D4A017] to-[#FACC15] text-[#090909] font-black uppercase tracking-[0.15em] py-3.5 rounded-2xl shadow-lg active:scale-95 transition-all text-[11px] cursor-pointer"
               >
                 Save Roles & Permissions
               </button>
               <button 
                 onClick={() => setEmployeeConfigUser(null)}
-                className="w-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-700 dark:text-slate-200 font-black uppercase tracking-[0.15em] py-3.5 rounded-2xl active:scale-95 transition-all text-[11px]"
+                className="w-full bg-[#1C1C1C] hover:bg-[#252525] text-[#A3A3A3] font-black uppercase tracking-[0.15em] py-3.5 rounded-2xl active:scale-95 transition-all text-[11px] border border-[#3D3215] cursor-pointer"
               >
                 Close
               </button>
             </div>
             {employeePermissions.length === 0 && (
-              <p className="text-[10px] text-center text-rose-500 font-bold uppercase mt-4 opacity-80">Saving with no permissions will revoke employee access</p>
+              <p className="text-[10px] text-center text-rose-400 font-bold uppercase mt-4 opacity-80">Saving with no permissions will revoke employee access</p>
             )}
           </motion.div>
         </div>
       )}
 
-
       {/* Edit User Balance Modal */}
       {editingUserBalance && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 w-full max-w-sm shadow-2xl relative animate-in zoom-in-95 duration-200">
-            <h3 className="text-xl font-bold mb-4 dark:text-white">Edit Balance: {editingUserBalance.fullName}</h3>
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-[#151515] rounded-3xl p-6 w-full max-w-sm shadow-2xl relative animate-in zoom-in-95 duration-200 border border-[#3D3215]">
+            <h3 className="text-xl font-bold mb-4 text-white">Edit Balance: {editingUserBalance.fullName}</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Main Balance</label>
-                <input type="number" value={editingUserBalance.main} onChange={(e) => setEditingUserBalance({...editingUserBalance, main: Number(e.target.value)})} className="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-xl px-4 py-3 text-sm font-bold" />
+                <label className="block text-xs font-bold text-[#A3A3A3] mb-1 uppercase">Main Balance</label>
+                <input type="number" value={editingUserBalance.main} onChange={(e) => setEditingUserBalance({...editingUserBalance, main: Number(e.target.value)})} className="w-full bg-[#101010] border border-[#3D3215] rounded-xl px-4 py-3 text-sm font-bold text-white focus:outline-none focus:border-[#FACC15]" />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Bonus Balance</label>
-                <input type="number" value={editingUserBalance.bonus} onChange={(e) => setEditingUserBalance({...editingUserBalance, bonus: Number(e.target.value)})} className="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-xl px-4 py-3 text-sm font-bold" />
+                <label className="block text-xs font-bold text-[#A3A3A3] mb-1 uppercase">Bonus Balance</label>
+                <input type="number" value={editingUserBalance.bonus} onChange={(e) => setEditingUserBalance({...editingUserBalance, bonus: Number(e.target.value)})} className="w-full bg-[#101010] border border-[#3D3215] rounded-xl px-4 py-3 text-sm font-bold text-white focus:outline-none focus:border-[#FACC15]" />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Referral Balance</label>
-                <input type="number" value={editingUserBalance.referral} onChange={(e) => setEditingUserBalance({...editingUserBalance, referral: Number(e.target.value)})} className="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-xl px-4 py-3 text-sm font-bold" />
+                <label className="block text-xs font-bold text-[#A3A3A3] mb-1 uppercase">Referral Balance</label>
+                <input type="number" value={editingUserBalance.referral} onChange={(e) => setEditingUserBalance({...editingUserBalance, referral: Number(e.target.value)})} className="w-full bg-[#101010] border border-[#3D3215] rounded-xl px-4 py-3 text-sm font-bold text-white focus:outline-none focus:border-[#FACC15]" />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Tasks Balance</label>
-                <input type="number" value={editingUserBalance.tasks} onChange={(e) => setEditingUserBalance({...editingUserBalance, tasks: Number(e.target.value)})} className="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-xl px-4 py-3 text-sm font-bold" />
+                <label className="block text-xs font-bold text-[#A3A3A3] mb-1 uppercase">Tasks Balance</label>
+                <input type="number" value={editingUserBalance.tasks} onChange={(e) => setEditingUserBalance({...editingUserBalance, tasks: Number(e.target.value)})} className="w-full bg-[#101010] border border-[#3D3215] rounded-xl px-4 py-3 text-sm font-bold text-white focus:outline-none focus:border-[#FACC15]" />
               </div>
             </div>
             <div className="flex gap-3 mt-6">
-              <button onClick={() => setEditingUserBalance(null)} className="flex-1 py-3 rounded-xl bg-gray-100 dark:bg-slate-700 font-bold transition">Cancel</button>
-              <button onClick={saveUserBalance} className="flex-1 py-3 rounded-xl bg-indigo-600 text-white font-bold transition">Save</button>
+              <button onClick={() => setEditingUserBalance(null)} className="flex-1 py-3 rounded-xl bg-[#1C1C1C] hover:bg-[#252525] text-[#A3A3A3] font-bold transition border border-[#3D3215] cursor-pointer">Cancel</button>
+              <button onClick={saveUserBalance} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-[#D4A017] to-[#FACC15] text-[#090909] font-black uppercase tracking-wider transition cursor-pointer">Save</button>
             </div>
           </div>
         </div>
       )}
 
+      {/* Change Password Modal */}
       {changingPasswordUser && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 w-full max-w-sm shadow-2xl relative animate-in zoom-in-95 duration-200">
-            <h3 className="text-xl font-bold mb-4 dark:text-white">Change Password</h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">Set a new password for <strong>{changingPasswordUser.fullName}</strong> ({changingPasswordUser.email}).</p>
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-[#151515] rounded-3xl p-6 w-full max-w-sm shadow-2xl relative animate-in zoom-in-95 duration-200 border border-[#3D3215]">
+            <h3 className="text-xl font-bold mb-4 text-white">Change Password</h3>
+            <p className="text-sm text-[#A3A3A3] mb-4">Set a new password for <strong className="text-white">{changingPasswordUser.fullName}</strong> ({changingPasswordUser.email}).</p>
             <form onSubmit={handleChangePassword} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">New Password</label>
+                <label className="block text-xs font-bold text-[#A3A3A3] mb-1 uppercase">New Password</label>
                 <input 
                   type="text" 
                   value={newPassword} 
                   onChange={(e) => setNewPassword(e.target.value)} 
                   placeholder="Enter new password"
-                  className="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-xl px-4 py-3 text-sm font-bold" 
+                  className="w-full bg-[#101010] border border-[#3D3215] rounded-xl px-4 py-3 text-sm font-bold text-white focus:outline-none focus:border-[#FACC15]" 
                   autoFocus
                 />
               </div>
               <div className="flex gap-3 mt-6">
-                <button type="button" onClick={() => { setChangingPasswordUser(null); setNewPassword(''); }} className="flex-1 py-3 rounded-xl bg-gray-100 dark:bg-slate-700 font-bold transition">Cancel</button>
-                <button type="submit" disabled={isChangingPassword} className="flex-1 py-3 rounded-xl bg-amber-500 text-white font-bold transition disabled:opacity-50">
+                <button type="button" onClick={() => { setChangingPasswordUser(null); setNewPassword(''); }} className="flex-1 py-3 rounded-xl bg-[#1C1C1C] hover:bg-[#252525] text-[#A3A3A3] font-bold transition border border-[#3D3215] cursor-pointer">Cancel</button>
+                <button type="submit" disabled={isChangingPassword} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-[#D4A017] to-[#FACC15] text-[#090909] font-black uppercase tracking-wider transition disabled:opacity-50 cursor-pointer">
                   {isChangingPassword ? 'Saving...' : 'Update Password'}
                 </button>
               </div>
@@ -4487,40 +4266,42 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
           </div>
         </div>
       )}
+
+      {/* Broadcast Notification Modal */}
       {showNotifyModal && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="bg-white dark:bg-slate-800 rounded-3xl p-6 w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-700"
+            className="bg-[#151515] rounded-3xl p-6 w-full max-w-md shadow-2xl border border-[#3D3215]"
           >
             <div className="flex justify-between items-center mb-4">
-              <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight flex items-center gap-2">
-                <BellRing className="w-5 h-5 text-sky-500" />
+              <h3 className="font-black text-white uppercase tracking-tight flex items-center gap-2">
+                <BellRing className="w-5 h-5 text-[#FACC15]" />
                 {notifyTarget === 'all' ? 'Notify All Users' : 'Send Notification'}
               </h3>
-              <button onClick={() => setShowNotifyModal(false)} className="text-slate-400 hover:text-slate-600">
+              <button onClick={() => setShowNotifyModal(false)} className="text-[#A3A3A3] hover:text-white cursor-pointer">
                 <XCircle className="w-5 h-5" />
               </button>
             </div>
             
             <div className="space-y-4">
               <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Title</label>
+                <label className="text-[10px] font-bold text-[#A3A3A3] uppercase tracking-widest block mb-1">Title</label>
                 <input
                   type="text"
                   value={notifyTitle}
                   onChange={(e) => setNotifyTitle(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm font-bold dark:text-white"
+                  className="w-full bg-[#101010] border border-[#3D3215] rounded-xl px-4 py-3 text-sm font-bold text-white focus:outline-none focus:border-[#FACC15]"
                   placeholder="Notification Title"
                 />
               </div>
               <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Message</label>
+                <label className="text-[10px] font-bold text-[#A3A3A3] uppercase tracking-widest block mb-1">Message</label>
                 <textarea
                   value={notifyMessage}
                   onChange={(e) => setNotifyMessage(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm font-bold dark:text-white min-h-[100px]"
+                  className="w-full bg-[#101010] border border-[#3D3215] rounded-xl px-4 py-3 text-sm font-bold text-white focus:outline-none focus:border-[#FACC15] min-h-[100px]"
                   placeholder="Type your message here..."
                 ></textarea>
               </div>
@@ -4577,7 +4358,7 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                   }
                 }}
                 disabled={isSendingNotification}
-                className="w-full bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white py-3 rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-sky-500/20 active:scale-95 transition-all"
+                className="w-full bg-gradient-to-r from-[#D4A017] to-[#FACC15] text-[#090909] py-3 rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg active:scale-95 transition-all cursor-pointer"
               >
                 {isSendingNotification ? 'Sending...' : 'Send Now'}
               </button>

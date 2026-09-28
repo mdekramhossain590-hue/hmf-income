@@ -1,383 +1,683 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../components/AuthProvider';
 import { useNavigate } from 'react-router-dom';
-import { MonitorPlay, ArrowLeft, CheckCircle, Loader2, PlayCircle, AlertCircle, Coins } from 'lucide-react';
+import { 
+  ArrowLeft, ArrowRight, Play, Wallet, CheckCircle, 
+  Loader2, Clock, AlertCircle, Sparkles, ExternalLink, ShieldCheck, Crown, Coins, X, RotateCcw, Lock
+} from 'lucide-react';
 import { db } from '../lib/firebase';
 import { getCachedDoc } from '../lib/cache';
-import { doc, getDocs, collection, query, where, Timestamp } from 'firebase/firestore';
+import { 
+  doc, getDocs, collection, query, where, Timestamp, 
+  addDoc, updateDoc, increment, serverTimestamp, setDoc 
+} from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'motion/react';
+import { triggerRealisticConfetti } from '../lib/confetti';
+
+export const AD_NETWORK_URL = "https://www.profitableratecpmnetwork.com/w19bpauxe?key=f99a0899146f2941c8a884a6c914d013";
+const COOLDOWN_DURATION_MS = 24 * 60 * 60 * 1000; // 24 Hours in milliseconds
+
+interface AdSlot {
+  id: number;
+  title: string;
+  subtitle: string;
+  slotNumberBn: string;
+}
+
+const SLOTS_LIST: AdSlot[] = [
+  { id: 1, title: "বিজ্ঞাপন দেখুন ১", subtitle: "শর্ট অ্যাড দেখে টাকা নিন", slotNumberBn: "১" },
+  { id: 2, title: "বিজ্ঞাপন দেখুন ২", subtitle: "শর্ট অ্যাড দেখে টাকা নিন", slotNumberBn: "২" },
+  { id: 3, title: "বিজ্ঞাপন দেখুন ৩", subtitle: "শর্ট অ্যাড দেখে টাকা নিন", slotNumberBn: "৩" },
+  { id: 4, title: "বিজ্ঞাপন দেখুন ৪", subtitle: "শর্ট অ্যাড দেখে টাকা নিন", slotNumberBn: "৪" },
+];
+
+function formatCooldownTimer(ms: number) {
+  if (ms <= 0) return '০০:০০:০০';
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+}
+
+function formatCooldownBn(ms: number) {
+  if (ms <= 0) return 'এখনই আনলক হয়েছে';
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) {
+    return `${hours} ঘণ্টা ${minutes} মিনিট ${seconds} সে.`;
+  }
+  return `${minutes} মিনিট ${seconds} সে.`;
+}
 
 export function AdsView() {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   
-  const [adIncomeSettings, setAdIncomeSettings] = useState({ dailyAdLimit: 10, rewardPerAdView: 0.50, adCode: "" });
-  const [claimedAdsCount, setClaimedAdsCount] = useState(0);
+  const [rewardPerAd, setRewardPerAd] = useState<number>(0.50);
+  const [slotCounts, setSlotCounts] = useState<{ [key: number]: number }>({ 1: 0, 2: 0, 3: 0, 4: 0 });
+  const [slotCooldowns, setSlotCooldowns] = useState<{ [key: number]: number }>({});
+  const [currentTime, setCurrentTime] = useState<number>(Date.now());
   
-  const [activeAdId, setActiveAdId] = useState<string | null>(null);
+  const [activeSlot, setActiveSlot] = useState<AdSlot | null>(null);
   const [adModalOpen, setAdModalOpen] = useState(false);
   
   // Modal states
   const [timer, setTimer] = useState(15);
   const [timerRunning, setTimerRunning] = useState(false);
-  const [adLoaded, setAdLoaded] = useState(false);
-  const [adBlocked, setAdBlocked] = useState(false);
-  const [cheatingWarning, setCheatingWarning] = useState(false);
   const [claimLoading, setClaimLoading] = useState(false);
   const [completed, setCompleted] = useState(false);
+  const [adCancelled, setAdCancelled] = useState(false);
+  const [remainingSeconds, setRemainingSeconds] = useState(15);
 
-  const adContainerRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const adStartTimeRef = useRef<number>(0);
+  const hasLeftWindowRef = useRef<boolean>(false);
 
+  // Live 1-second interval ticker for 24h countdown
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Fetch claimed counts & 24-hour cooldowns
   useEffect(() => {
     const fetchData = async () => {
-      if (!profile) return;
+      if (!profile || !user) return;
       try {
         const docSnapshot = await getCachedDoc(doc(db, "settings", "adsIncome"));
-        let limit = 10;
         if (docSnapshot.exists()) {
           const data = docSnapshot.data();
-          limit = data.dailyAdLimit ?? 10;
-          setAdIncomeSettings({
-            dailyAdLimit: limit,
-            rewardPerAdView: data.rewardPerAdView ?? 0.50,
-            adCode: data.adCode ?? ""
-          });
+          if (data.rewardPerAdView) {
+            setRewardPerAd(Number(data.rewardPerAdView));
+          }
         }
 
-        // Get claimed count for today
+        // 1. Load Cooldown timestamps from profile / localStorage
+        const userDoc = await getCachedDoc(doc(db, "users", user.uid));
+        const userData = userDoc.exists() ? userDoc.data() : profile;
+        const savedCooldowns = userData?.adSlotCooldowns || {};
+
+        const parsedCooldowns: { [key: number]: number } = {};
+        [1, 2, 3, 4].forEach(sId => {
+          let timeVal = savedCooldowns[sId];
+          if (!timeVal) {
+            try {
+              const localVal = localStorage.getItem(`ad_slot_cooldown_${user.uid}_${sId}`);
+              if (localVal) timeVal = Number(localVal);
+            } catch (e) {}
+          }
+          if (timeVal) {
+            const timeMs = typeof timeVal === 'number' 
+              ? timeVal 
+              : (timeVal.toMillis ? timeVal.toMillis() : (timeVal.seconds ? timeVal.seconds * 1000 : Number(timeVal)));
+            
+            // Only active if within 24 hours
+            if (timeMs && (Date.now() - timeMs < COOLDOWN_DURATION_MS)) {
+              parsedCooldowns[sId] = timeMs;
+            }
+          }
+        });
+        setSlotCooldowns(parsedCooldowns);
+
+        // 2. Load today's ad views for active slots
         const now = new Date();
         const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         
         const viewsSnap = await getDocs(
           query(
             collection(db, "ad_views"),
-            where("userId", "==", user?.uid),
+            where("userId", "==", user.uid),
             where("viewedAt", ">=", Timestamp.fromDate(startOfDay))
           )
         );
         
-        setClaimedAdsCount(viewsSnap.size);
+        const counts: { [key: number]: number } = { 1: 0, 2: 0, 3: 0, 4: 0 };
+        viewsSnap.forEach(d => {
+          const data = d.data();
+          const sId = data.slotId || (data.adId && Number(String(data.adId).match(/slot_?(\d+)/i)?.[1]));
+          if (sId && counts[sId] !== undefined) {
+            const viewTime = data.viewedAt?.toMillis?.() || (data.viewedAt?.seconds ? data.viewedAt.seconds * 1000 : 0);
+            const lastCd = parsedCooldowns[sId] || 0;
+            // Only count if viewed after last cooldown or if no cooldown
+            if (!lastCd || viewTime > lastCd + COOLDOWN_DURATION_MS) {
+              counts[sId] = Math.min(5, (counts[sId] || 0) + 1);
+            }
+          }
+        });
+
+        // For currently locked slots, ensure count is 5
+        [1, 2, 3, 4].forEach(sId => {
+          if (parsedCooldowns[sId]) {
+            counts[sId] = 5;
+          }
+        });
+
+        setSlotCounts(counts);
       } catch (error: any) {
-        console.error(error);
-        toast.error("Failed to load ads.");
+        console.error("Ads loading error:", error);
       } finally {
         setLoading(false);
       }
     };
     fetchData();
-  }, [profile]);
+  }, [profile, user]);
 
-  // Page visibility API and Intersection Observer for anti-cheat
+  // Anti-cheat window blur and early return detection
   useEffect(() => {
-    if (!adModalOpen || completed || adBlocked || !adLoaded) return;
+    if (!adModalOpen || completed || adCancelled) return;
+
+    const handleBlur = () => {
+      hasLeftWindowRef.current = true;
+    };
 
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        setTimerRunning(false);
-        setCheatingWarning(true);
+        hasLeftWindowRef.current = true;
       } else {
-        setCheatingWarning(false);
-        setTimerRunning(true);
+        checkEarlyReturn();
       }
     };
 
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    const handleFocus = () => {
+      if (hasLeftWindowRef.current) {
+        checkEarlyReturn();
+      }
+    };
 
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (!entry.isIntersecting) {
-          setTimerRunning(false);
-          setCheatingWarning(true);
-        } else {
-          if (!document.hidden) {
-            setCheatingWarning(false);
-            setTimerRunning(true);
-          }
-        }
-      });
-    }, { threshold: 0.1 });
+    const checkEarlyReturn = () => {
+      if (!adStartTimeRef.current || completed || adCancelled) return;
+      const elapsedSeconds = Math.floor((Date.now() - adStartTimeRef.current) / 1000);
+      
+      if (elapsedSeconds < 15) {
+        const remaining = Math.max(1, 15 - elapsedSeconds);
+        setTimerRunning(false);
+        setRemainingSeconds(remaining);
+        setAdCancelled(true);
+      } else {
+        setTimer(0);
+        setTimerRunning(false);
+        setCompleted(true);
+      }
+    };
 
-    if (adContainerRef.current) {
-      observer.observe(adContainerRef.current);
-    }
+    window.addEventListener('blur', handleBlur);
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      observer.disconnect();
+      window.removeEventListener('blur', handleBlur);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [adModalOpen, completed, adBlocked, adLoaded]);
+  }, [adModalOpen, completed, adCancelled]);
 
-  // Timer logic
+  // Timer Countdown logic
   useEffect(() => {
     if (timerRunning && timer > 0) {
       timerRef.current = setTimeout(() => {
-        setTimer(t => t - 1);
+        setTimer(t => {
+          if (t <= 1) {
+            setCompleted(true);
+            setTimerRunning(false);
+            return 0;
+          }
+          return t - 1;
+        });
       }, 1000);
-    } else if (timer === 0) {
-      setCompleted(true);
-      setTimerRunning(false);
     }
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, [timer, timerRunning]);
 
-  // Check AdBlocker / Ad Load
-  useEffect(() => {
-    if (!adModalOpen) return;
-    
-    // reset state
+  const handleSlotClick = (slot: AdSlot) => {
+    const cdTimestamp = slotCooldowns[slot.id];
+    const isLocked = cdTimestamp && (currentTime - cdTimestamp < COOLDOWN_DURATION_MS);
+
+    if (isLocked) {
+      const remainingMs = COOLDOWN_DURATION_MS - (currentTime - cdTimestamp);
+      toast(`এই স্লটের ৫টি এড শেষ হয়েছে। আবার ২৪ ঘণ্টা পর আনলক হবে। বাকি সময়: ${formatCooldownBn(remainingMs)}`, { icon: '⏳', duration: 4000 });
+      return;
+    }
+
+    const currentCount = slotCounts[slot.id] || 0;
+    if (currentCount >= 5) {
+      toast.error(`অ্যাড ${slot.slotNumberBn} এর ৫টি বিজ্ঞাপন দেখা সম্পন্ন হয়েছে!`);
+      return;
+    }
+
+    setActiveSlot(slot);
+    adStartTimeRef.current = Date.now();
+    hasLeftWindowRef.current = false;
+    setAdCancelled(false);
+    setRemainingSeconds(15);
     setTimer(15);
-    setTimerRunning(false);
-    setAdLoaded(false);
-    setAdBlocked(false);
+    setTimerRunning(true);
     setCompleted(false);
-    setCheatingWarning(false);
-
-    // Simulated ad loading check after a short delay
-    const loadCheckTimer = setTimeout(() => {
-      if (adContainerRef.current) {
-        const height = adContainerRef.current.clientHeight;
-        const hasChildren = adContainerRef.current.childElementCount > 0 || adContainerRef.current.innerHTML.trim() !== "";
-        
-        if (adIncomeSettings.adCode) {
-           // With iframe, the container always has children. Just assume it loaded.
-           setAdLoaded(true);
-           setTimerRunning(true);
-        } else {
-           setAdLoaded(true);
-           setTimerRunning(true);
-        }
-      }
-    }, 2000);
-
-    return () => clearTimeout(loadCheckTimer);
-  }, [adModalOpen, adIncomeSettings.adCode]);
-
-  const openAd = (adId: string) => {
-    setActiveAdId(adId);
     setAdModalOpen(true);
+
+    try {
+      window.open(AD_NETWORK_URL, '_blank', 'noopener,noreferrer');
+    } catch (e) {
+      console.warn("Could not automatically open window:", e);
+    }
+  };
+
+  const handleRetry = () => {
+    if (!activeSlot) {
+      setAdModalOpen(false);
+      return;
+    }
+    handleSlotClick(activeSlot);
   };
 
   const closeAd = () => {
     setAdModalOpen(false);
-    setActiveAdId(null);
+    setActiveSlot(null);
+    setAdCancelled(false);
   };
 
   const handleClaim = async () => {
-    if (!profile || !activeAdId) return;
+    if (!user || !activeSlot) return;
     setClaimLoading(true);
-    
+
+    const prevCount = slotCounts[activeSlot.id] || 0;
+    const nextCount = prevCount + 1;
+    const adId = `slot_${activeSlot.id}_view_${nextCount}`;
+    const willLock24h = nextCount >= 5;
+
+    const onClaimSuccess = async () => {
+      triggerRealisticConfetti();
+      toast.success(`অভিনন্দন! ৳${rewardPerAd.toFixed(2)} আপনার ওয়ালেটে জমা হয়েছে!`);
+      
+      setSlotCounts(prev => ({
+        ...prev,
+        [activeSlot.id]: Math.min(5, nextCount)
+      }));
+
+      // If user finished all 5 ads of this slot, lock for 24 hours!
+      if (willLock24h) {
+        const completedNow = Date.now();
+        setSlotCooldowns(prev => ({ ...prev, [activeSlot.id]: completedNow }));
+        try {
+          localStorage.setItem(`ad_slot_cooldown_${user.uid}_${activeSlot.id}`, String(completedNow));
+        } catch (e) {}
+
+        await updateDoc(doc(db, "users", user.uid), {
+          [`adSlotCooldowns.${activeSlot.id}`]: completedNow
+        }).catch(() => {});
+
+        setTimeout(() => {
+          toast.success(`স্লট ${activeSlot.slotNumberBn} সফলভাবে সম্পন্ন! এটি আবার ২৪ ঘণ্টা পর আনলক হবে।`, { duration: 6000 });
+        }, 1200);
+      }
+
+      closeAd();
+      setClaimLoading(false);
+    };
+
+    // 1. Try server API
     try {
       const response = await fetch("/api/ads/claim", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          uid: user?.uid,
-          adId: activeAdId
+          uid: user.uid,
+          adId: adId,
+          slotId: activeSlot.id
         })
       });
       
       const result = await response.json();
-      
-      if (result.success) {
-        toast.success(result.message || `Congratulations! ${result.rewardAmount} BDT added to your Ads Income Wallet.`);
-        setClaimedAdsCount(prev => prev + 1);
-        closeAd();
-      } else {
-        toast.error(result.error || "Failed to claim ad.");
+      if (response.ok && result.success) {
+        await onClaimSuccess();
+        return;
       }
-    } catch (err: any) {
-      console.error(err);
-      toast.error("Network error.");
-    } finally {
+    } catch (apiErr) {
+      // Fallback to client Firestore
+    }
+
+    // 2. Direct Firestore fallback (guaranteed on Vercel)
+    try {
+      await addDoc(collection(db, "ad_views"), {
+        userId: user.uid,
+        slotId: activeSlot.id,
+        adId: adId,
+        rewardAmount: rewardPerAd,
+        viewedAt: serverTimestamp()
+      });
+
+      const userRef = doc(db, "users", user.uid);
+      await updateDoc(userRef, {
+        "balances.tasks.Watch Ads": increment(rewardPerAd)
+      });
+
+      const leaderboardRef = doc(db, "leaderboard", user.uid);
+      await setDoc(leaderboardRef, {
+        totalIncome: increment(rewardPerAd),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
+      await onClaimSuccess();
+    } catch (clientErr: any) {
+      console.error("Direct claim error:", clientErr);
+      toast.error("ক্লেইম করতে সমস্যা হয়েছে: " + (clientErr?.message || "Error"));
       setClaimLoading(false);
     }
   };
 
+  const totalCompleted = Object.values(slotCounts).reduce((a, b) => a + b, 0);
+  const totalEarned = (totalCompleted * rewardPerAd).toFixed(2);
+
   return (
-    <div className="pt-6 px-4 pb-24 max-w-lg mx-auto">
-      <div className="flex justify-between items-center mb-6">
-        <button onClick={() => navigate(-1)} className="p-2 bg-white dark:bg-slate-800 rounded-full shadow-sm">
-          <ArrowLeft className="w-5 h-5 text-slate-800 dark:text-white" />
+    <div className="pt-6 px-4 pb-28 max-w-lg mx-auto text-white select-none">
+      
+      {/* Top Header / Back Button */}
+      <div className="flex items-center justify-between mb-5">
+        <button 
+          onClick={() => navigate(-1)} 
+          className="w-10 h-10 bg-[#151515] border border-[#3D3215] hover:border-[#D4A017] rounded-full flex items-center justify-center text-[#A3A3A3] hover:text-[#FACC15] transition active:scale-95 cursor-pointer shadow-md"
+        >
+          <ArrowLeft className="w-5 h-5" />
         </button>
-        <h2 className="text-xl font-display font-black tracking-tight text-slate-800 dark:text-white flex items-center gap-2">
-          <MonitorPlay className="w-5 h-5 text-indigo-500" />
-          Ad Income
-        </h2>
-        <div className="w-9"></div>
+        <div className="text-center">
+          <h2 className="text-xl font-display font-black tracking-tight text-white flex items-center justify-center gap-2">
+            <Crown className="w-5 h-5 text-[#FACC15]" />
+            <span className="bg-gradient-to-r from-[#D4A017] via-[#FACC15] to-[#FFE082] bg-clip-text text-transparent">
+              প্রিমিয়াম ইনকাম
+            </span>
+          </h2>
+          <p className="text-[10px] text-[#A3A3A3] font-bold uppercase tracking-widest mt-0.5">
+            ৪টি স্লট • ২০টি বিজ্ঞাপন (২৪ ঘণ্টা কুলডাউন)
+          </p>
+        </div>
+        <div className="w-10"></div>
       </div>
 
-      <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-3xl p-6 mb-6 text-white shadow-xl relative overflow-hidden">
-        <div className="absolute -right-4 -top-4 w-24 h-24 bg-white/10 rounded-full blur-xl"></div>
-        <div className="relative z-10 flex items-center justify-between">
+      {/* Withdraw Money Card in our dark gold theme */}
+      <div 
+        onClick={() => navigate('/wallet')}
+        className="bg-[#151515] hover:bg-[#1a1a1a] rounded-2xl p-4 mb-5 flex items-center justify-between shadow-lg border border-[#3D3215] hover:border-[#D4A017]/70 transition-all active:scale-[0.99] cursor-pointer group"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] flex items-center justify-center shadow-md">
+            <Wallet className="w-5 h-5 stroke-[2.5]" />
+          </div>
           <div>
-            <p className="text-indigo-100 text-sm font-bold uppercase tracking-widest mb-1">Today's Progress</p>
-            <div className="flex items-end gap-2">
-              <span className="text-3xl font-black">{claimedAdsCount}</span>
-              <span className="text-indigo-200 mb-1">/ {adIncomeSettings.dailyAdLimit} Ads</span>
+            <span className="font-black text-base text-white group-hover:text-[#FACC15] transition-colors block leading-tight">
+              Withdraw Money
+            </span>
+            <span className="text-[10px] text-[#A3A3A3] font-bold uppercase tracking-wider">
+              উত্তোলন করতে ক্লিক করুন
+            </span>
+          </div>
+        </div>
+        <div className="w-9 h-9 rounded-full bg-[#1C1C1C] border border-[#3D3215] flex items-center justify-center text-[#FACC15] group-hover:translate-x-1 transition-transform">
+          <ArrowRight className="w-4 h-4 stroke-[2.5]" />
+        </div>
+      </div>
+
+      {/* Main "প্রিমিয়াম ইনকাম" Container Card in Dark Luxury Gold */}
+      <div className="bg-[#151515] rounded-[32px] p-5 pt-6 pb-7 shadow-2xl border border-[#3D3215] relative overflow-hidden mb-6">
+        <div className="absolute -right-8 -top-8 w-36 h-36 bg-[#D4A017]/10 rounded-full blur-2xl pointer-events-none"></div>
+        <div className="absolute -left-8 -bottom-8 w-36 h-36 bg-[#8A6508]/10 rounded-full blur-2xl pointer-events-none"></div>
+
+        {/* Header Title with Crown */}
+        <div className="text-center mb-6 relative z-10">
+          <h2 className="text-2xl font-black tracking-tight text-white flex items-center justify-center gap-2 mb-2">
+            <span className="text-xl">👑</span>
+            <span className="bg-gradient-to-r from-[#D4A017] via-[#FACC15] to-[#FFE082] bg-clip-text text-transparent">
+              প্রিমিয়াম ইনকাম
+            </span>
+          </h2>
+          <p className="text-xs text-[#A3A3A3] font-medium leading-relaxed px-2">
+            নিচের বাটনে ক্লিক করে কমপক্ষে ১৫ সেকেন্ড ওয়েট করবেন নাহলে রিওয়ার্ড পাবেন না। ৫টি এড দেখার পর স্লটটি ২৪ ঘণ্টা পর আনলক হবে।
+          </p>
+
+          <div className="mt-3 flex items-center justify-center gap-2 flex-wrap">
+            <div className="text-[11px] font-bold text-[#FACC15] bg-[#1C1C1C] px-3.5 py-1 rounded-full border border-[#3D3215] inline-flex items-center gap-1.5 shadow-inner">
+              <Sparkles className="w-3.5 h-3.5 text-[#FACC15]" />
+              <span>মোট সম্পন্ন: {totalCompleted} / ২০টি</span>
+              <span>•</span>
+              <span>আয়: ৳ {totalEarned}</span>
             </div>
           </div>
-          <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
-            <Coins className="w-6 h-6 text-white" />
+        </div>
+
+        {/* 2x2 Grid of 4 Slots (5 ads each) matching screenshot layout */}
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-16 gap-3">
+            <Loader2 className="w-8 h-8 animate-spin text-[#FACC15]" />
+            <span className="text-xs text-[#A3A3A3] font-bold">স্লট লোড হচ্ছে...</span>
           </div>
-        </div>
-        <div className="mt-4 w-full bg-white/20 h-2 rounded-full overflow-hidden">
-          <div 
-            className="h-full bg-white rounded-full transition-all duration-500" 
-            style={{ width: `${Math.min(100, (claimedAdsCount / adIncomeSettings.dailyAdLimit) * 100)}%` }}
-          ></div>
-        </div>
-      </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3.5 relative z-10">
+            {SLOTS_LIST.map((slot) => {
+              const cdTimestamp = slotCooldowns[slot.id];
+              const isLocked = Boolean(cdTimestamp && (currentTime - cdTimestamp < COOLDOWN_DURATION_MS));
+              const remainingMs = isLocked ? Math.max(0, COOLDOWN_DURATION_MS - (currentTime - cdTimestamp)) : 0;
+              const count = isLocked ? 5 : (slotCounts[slot.id] || 0);
 
-      {loading ? (
-        <div className="flex justify-center items-center h-40">
-          <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {Array.from({ length: adIncomeSettings.dailyAdLimit }).map((_, index) => {
-            const adNumber = index + 1;
-            const isClaimed = adNumber <= claimedAdsCount;
-            const adId = `ad_${adNumber}`;
-
-            return (
-              <div key={adId} className={`p-4 rounded-2xl border ${isClaimed ? "bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700" : "bg-white dark:bg-slate-800 border-indigo-100 dark:border-indigo-900 shadow-sm"} flex items-center justify-between transition-all`}>
-                <div className="flex items-center gap-4">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isClaimed ? "bg-emerald-100 text-emerald-500 dark:bg-emerald-900/30" : "bg-indigo-100 text-indigo-500 dark:bg-indigo-900/30"}`}>
-                    {isClaimed ? <CheckCircle className="w-5 h-5" /> : <PlayCircle className="w-5 h-5" />}
-                  </div>
-                  <div>
-                    <h3 className={`font-bold text-sm ${isClaimed ? "text-slate-500 dark:text-slate-400" : "text-slate-800 dark:text-white"}`}>
-                      Advertisement {adNumber}
-                    </h3>
-                    <p className="text-[11px] font-semibold text-slate-400">Reward: {adIncomeSettings.rewardPerAdView} BDT</p>
-                  </div>
-                </div>
-                
-                <button
-                  onClick={() => !isClaimed && openAd(adId)}
-                  disabled={isClaimed}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                    isClaimed 
-                      ? "bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500" 
-                      : "bg-indigo-500 hover:bg-indigo-600 text-white shadow-md shadow-indigo-500/20 active:scale-95"
+              return (
+                <div
+                  key={slot.id}
+                  className={`relative rounded-[24px] p-4 pt-6 flex flex-col items-center text-center transition-all group border ${
+                    isLocked
+                      ? "bg-[#101010] border-amber-900/40 opacity-90 shadow-inner"
+                      : "bg-[#181818] border-[#3D3215] hover:border-[#D4A017]/70 shadow-lg shadow-black/40"
                   }`}
                 >
-                  {isClaimed ? "Completed" : "View Ad"}
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      )}
+                  {/* Top Right Ribbon Badge */}
+                  {isLocked ? (
+                    <div className="absolute -top-3 right-1 flex items-center gap-1 bg-gradient-to-r from-amber-700 via-amber-600 to-amber-800 text-white text-[9px] font-black px-2.5 py-0.5 rounded-full shadow-md z-10 select-none border border-amber-500/40">
+                      <Lock className="w-2.5 h-2.5 text-amber-200" />
+                      <span>২৪ ঘণ্টা লক</span>
+                    </div>
+                  ) : (
+                    <div className="absolute -top-3 right-1 flex items-center gap-1 bg-gradient-to-r from-[#D4A017] via-[#FACC15] to-[#FFE082] text-[#090909] text-[10px] font-black px-2.5 py-0.5 rounded-full shadow-md z-10 select-none">
+                      <span className="text-xs">👆</span>
+                      <span>এখানে চাপ দিন</span>
+                    </div>
+                  )}
 
-      {/* Ad View Modal */}
+                  {/* Centered Squircle Button (Play or Lock with Live Countdown) */}
+                  {isLocked ? (
+                    <button
+                      onClick={() => handleSlotClick(slot)}
+                      className="w-16 h-16 rounded-[22px] bg-[#121212] border border-amber-500/40 flex flex-col items-center justify-center text-amber-400 shadow-xl mb-3 cursor-pointer active:scale-95 transition-transform"
+                      title="২৪ ঘণ্টার কুলডাউন চলছে"
+                    >
+                      <Lock className="w-5 h-5 text-[#FACC15] mb-0.5" />
+                      <span className="text-[9px] font-mono font-black text-[#FACC15] tracking-tighter">
+                        {formatCooldownTimer(remainingMs)}
+                      </span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleSlotClick(slot)}
+                      className="w-16 h-16 rounded-[22px] bg-gradient-to-tr from-[#8A6508] via-[#D4A017] to-[#FACC15] flex items-center justify-center text-[#090909] shadow-xl shadow-[#D4A017]/25 mb-3 group-hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                      aria-label={slot.title}
+                    >
+                      <Play className="w-7 h-7 fill-[#090909] translate-x-0.5" />
+                    </button>
+                  )}
+
+                  {/* Slot Title */}
+                  <h3 className={`font-black text-sm mb-1 tracking-tight ${isLocked ? "text-[#737373]" : "text-white"}`}>
+                    {slot.title}
+                  </h3>
+
+                  {/* Subtitle */}
+                  <p className="text-[10px] text-[#A3A3A3] font-medium mb-3 truncate max-w-full px-1">
+                    {isLocked ? `বাকি: ${formatCooldownTimer(remainingMs)}` : slot.subtitle}
+                  </p>
+
+                  {/* Pill Action Button */}
+                  {isLocked ? (
+                    <button
+                      onClick={() => handleSlotClick(slot)}
+                      className="w-full py-2 px-1.5 rounded-full text-[10px] font-black flex items-center justify-center gap-1 transition-all shadow-sm bg-[#121212] text-amber-400 border border-amber-500/40 cursor-pointer"
+                    >
+                      <Clock className="w-3 h-3 text-amber-400 animate-spin" />
+                      <span>লক: {formatCooldownTimer(remainingMs)}</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleSlotClick(slot)}
+                      className="w-full py-2 px-2.5 rounded-full text-xs font-black flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer bg-[#101010] hover:bg-[#1C1C1C] text-[#FACC15] border border-[#3D3215] hover:border-[#D4A017] active:scale-95"
+                    >
+                      <Play className="w-3 h-3 fill-[#FACC15] text-[#FACC15]" />
+                      <span>অ্যাড {slot.slotNumberBn}: {count} / 5</span>
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+      </div>
+
+      {/* 15s Ad View & Countdown Modal OR Early Return Cancellation Popup */}
       <AnimatePresence>
-        {adModalOpen && (
+        {adModalOpen && activeSlot && (
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex flex-col items-center justify-center p-4"
+            className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-4"
           >
-            <div className="w-full max-w-md bg-white dark:bg-slate-800 rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="w-full max-w-sm bg-[#151515] border border-[#3D3215] rounded-[32px] overflow-hidden shadow-2xl flex flex-col">
               
-              {/* Modal Header */}
-              <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-800/80">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></div>
-                  <span className="text-xs font-black uppercase tracking-widest text-slate-500">Sponsored Ad</span>
-                </div>
-                {/* Cannot close if not completed or blocked */}
-                {(completed || adBlocked || cheatingWarning) && (
-                  <button onClick={closeAd} className="text-xs font-bold text-slate-400 hover:text-slate-600 dark:hover:text-white">
-                    Close
-                  </button>
-                )}
-              </div>
-
-              {/* Warning Area */}
-              {cheatingWarning && !completed && (
-                <div className="bg-rose-500 text-white p-3 text-center text-xs font-bold flex items-center justify-center gap-2">
-                  <AlertCircle className="w-4 h-4" />
-                  Please stay on this page and keep ad visible to earn.
-                </div>
-              )}
-
-              {/* Ad Container */}
-              <div className="flex-1 bg-slate-100 dark:bg-slate-900 relative min-h-[250px] flex flex-col items-center justify-center overflow-auto p-4">
-                
-                {adBlocked ? (
-                  <div className="text-center p-6">
-                    <AlertCircle className="w-12 h-12 text-rose-500 mx-auto mb-3" />
-                    <h3 className="text-lg font-black text-slate-800 dark:text-white mb-2">Ad Blocker Detected!</h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
-                      Warning! Ad not loaded. Please disable your Ad Blocker and refresh. You will not earn without viewing the ad.
-                    </p>
+              {/* IF AD CANCELLED DUE TO EARLY RETURN */}
+              {adCancelled ? (
+                <div className="p-7 text-center flex flex-col items-center justify-center bg-[#151515]">
+                  <div className="w-20 h-20 rounded-full bg-rose-600 text-white flex items-center justify-center mx-auto mb-5 shadow-2xl shadow-rose-900/50 ring-8 ring-rose-950/40 animate-in zoom-in-75 duration-300">
+                    <X className="w-10 h-10 stroke-[3]" />
                   </div>
-                ) : (
-                  <>
-                    {!adLoaded && (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-900 z-10">
-                        <Loader2 className="w-8 h-8 animate-spin text-indigo-500 mb-2" />
-                        <span className="text-xs font-bold text-slate-400">Loading Advertisement...</span>
+
+                  <h3 className="text-2xl font-black text-white text-center mb-3 tracking-tight">
+                    অ্যাড বাতিল হয়েছে!
+                  </h3>
+
+                  <p className="text-xs text-[#D4D4D4] text-center leading-relaxed mb-6 px-1">
+                    আপনি ১৫ সেকেন্ডের আগেই ওয়েবসাইটে ফিরে এসেছেন। আপনার আরও{" "}
+                    <span className="text-[#FACC15] font-black text-sm px-1.5 bg-[#1C1C1C] py-0.5 rounded border border-[#3D3215]">
+                      {remainingSeconds}
+                    </span>{" "}
+                    সেকেন্ড অপেক্ষা করা প্রয়োজন ছিল।
+                  </p>
+
+                  <button
+                    onClick={handleRetry}
+                    className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-rose-600 via-rose-700 to-rose-800 hover:from-rose-500 hover:to-rose-700 text-white font-black uppercase tracking-wider text-sm flex items-center justify-center gap-2 shadow-xl shadow-rose-950/60 active:scale-95 transition-all cursor-pointer"
+                  >
+                    <RotateCcw className="w-5 h-5 stroke-[2.5]" />
+                    <span>আবার চেষ্টা করুন</span>
+                  </button>
+                </div>
+              ) : (
+                /* NORMAL COUNTDOWN OR COMPLETED STATE */
+                <>
+                  <div className="p-4 border-b border-[#3D3215] flex justify-between items-center bg-[#101010]">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2.5 h-2.5 rounded-full ${completed ? "bg-emerald-400" : "bg-[#FACC15] animate-ping"}`}></div>
+                      <div>
+                        <span className="text-xs font-black uppercase tracking-wider text-[#FACC15] block leading-none">
+                          {activeSlot.title}
+                        </span>
+                        <span className="text-[10px] text-[#A3A3A3] font-bold">
+                          অ্যাড {activeSlot.slotNumberBn}: {(slotCounts[activeSlot.id] || 0) + 1} / 5
+                        </span>
                       </div>
-                    )}
+                    </div>
+
+                    <button 
+                      onClick={closeAd} 
+                      className="text-xs font-bold text-[#A3A3A3] hover:text-white px-2.5 py-1 rounded-lg bg-[#1C1C1C] border border-[#3D3215] cursor-pointer"
+                    >
+                      বন্ধ করুন
+                    </button>
+                  </div>
+
+                  <div className="p-6 text-center flex flex-col items-center justify-center bg-[#151515]">
+                    <div className="w-16 h-16 rounded-[24px] bg-gradient-to-tr from-[#8A6508] via-[#D4A017] to-[#FACC15] flex items-center justify-center text-[#090909] shadow-xl shadow-[#D4A017]/25 mb-3">
+                      <Play className="w-8 h-8 fill-[#090909] translate-x-0.5" />
+                    </div>
                     
-                    <div ref={adContainerRef} className="w-full h-full min-h-[250px] flex items-center justify-center relative">
-                      {adIncomeSettings.adCode ? (
-                        <iframe 
-                          srcDoc={`<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body style="margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;background:transparent;">${adIncomeSettings.adCode}</body></html>`}
-                          className="w-full h-full min-h-[250px] border-none"
-                          sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
-                        />
+                    <h4 className="font-black text-white text-base mb-1">
+                      {completed ? "বিজ্ঞাপন দেখা সম্পন্ন হয়েছে!" : "বিজ্ঞাপন দেখা হচ্ছে"}
+                    </h4>
+                    <p className="text-xs text-[#A3A3A3] mb-4 px-2">
+                      {completed 
+                        ? "আপনি সফলভাবে ১৫ সেকেন্ড বিজ্ঞাপন দেখেছেন। রিওয়ার্ড গ্রহণ করুন।" 
+                        : "বিজ্ঞাপন লিংকটি ওপেন হয়েছে। রিওয়ার্ড পেতে কমপক্ষে ১৫ সেকেন্ড অপেক্ষা করুন।"
+                      }
+                    </p>
+
+                    <a
+                      href={AD_NETWORK_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-[#1C1C1C] hover:bg-[#252525] text-[#FACC15] border border-[#3D3215] text-xs font-bold transition-all shadow-md active:scale-95 mb-4"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      <span>বিজ্ঞাপন পেজ দেখুন (Open Ad Link)</span>
+                    </a>
+
+                    <div className="inline-flex items-center gap-1.5 text-[10px] font-bold text-[#737373]">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> ভেরিফাইড এড পার্টনার
+                    </div>
+                  </div>
+
+                  <div className="p-5 bg-[#101010] border-t border-[#3D3215]">
+                    <div className="flex flex-col items-center justify-center">
+                      {!completed ? (
+                        <div className="text-center w-full">
+                          <div className="flex items-center justify-center gap-2 mb-1.5">
+                            <Clock className="w-4 h-4 text-[#FACC15] animate-spin" />
+                            <span className="text-3xl font-black text-[#FACC15] tracking-tight">{timer}s</span>
+                          </div>
+                          <p className="text-[11px] font-bold text-[#A3A3A3]">
+                            টাইমার শেষ হওয়া পর্যন্ত অপেক্ষা করুন (আগে ফিরলে এড বাতিল হবে)
+                          </p>
+                        </div>
                       ) : (
-                        <div className="text-slate-400 text-sm italic font-medium">Demo Ad Placeholder</div>
+                        <button
+                          onClick={handleClaim}
+                          disabled={claimLoading}
+                          className="w-full bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] hover:from-[#D4A017] hover:to-[#FFE082] text-[#090909] font-black uppercase tracking-wider py-3.5 rounded-2xl shadow-xl shadow-[#D4A017]/25 transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer text-sm"
+                        >
+                          {claimLoading ? (
+                            <>
+                              <Loader2 className="w-5 h-5 animate-spin" />
+                              <span>ব্যালেন্স যুক্ত হচ্ছে...</span>
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle className="w-5 h-5 stroke-[2.5]" />
+                              <span>রিওয়ার্ড গ্রহণ করুন (৳ {rewardPerAd.toFixed(2)})</span>
+                            </>
+                          )}
+                        </button>
                       )}
                     </div>
-                  </>
-                )}
-              </div>
-
-              {/* Modal Footer with Timer & Claim */}
-              <div className="p-6 bg-white dark:bg-slate-800 border-t border-slate-100 dark:border-slate-700">
-                {!adBlocked && (
-                  <div className="flex flex-col items-center justify-center">
-                    {!completed ? (
-                      <div className="text-center">
-                        <div className="text-3xl font-black text-indigo-500 mb-1">{timer}s</div>
-                        <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">Remaining</div>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={handleClaim}
-                        disabled={claimLoading}
-                        className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-black uppercase tracking-widest py-4 rounded-2xl shadow-lg shadow-emerald-500/30 transition-all flex items-center justify-center gap-2 active:scale-95"
-                      >
-                        {claimLoading ? (
-                          <Loader2 className="w-5 h-5 animate-spin" />
-                        ) : (
-                          <>
-                            <CheckCircle className="w-5 h-5" />
-                            Claim Reward
-                          </>
-                        )}
-                      </button>
-                    )}
                   </div>
-                )}
-              </div>
+                </>
+              )}
 
             </div>
           </motion.div>
         )}
       </AnimatePresence>
+
     </div>
   );
 }

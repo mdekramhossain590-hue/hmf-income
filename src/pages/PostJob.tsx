@@ -204,42 +204,43 @@ export function PostJob() {
   };
 
   return (
-    <div className="pt-6 px-4 pb-24">
+    <div className="pt-6 px-4 pb-24 text-white">
       <Celebration isVisible={showCelebration} onComplete={() => setShowCelebration(false)} />
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <button 
           onClick={() => navigate('/')}
-          className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-slate-700 dark:text-slate-200 hover:scale-105 active:scale-95 transition-all"
+          className="p-3 bg-[#151515] border border-[#3D3215] rounded-2xl shadow-sm text-[#A3A3A3] hover:text-[#FACC15] hover:scale-105 active:scale-95 transition-all cursor-pointer"
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <h2 className="text-xl font-black text-slate-850 dark:text-white uppercase tracking-tight">
+        <h2 className="text-xl font-black text-white uppercase tracking-tight">
           {t('post_job_title') || 'Post a Job / জব পোস্ট'}
         </h2>
         <div className="w-11"></div> {/* Spacer for alignment */}
       </div>
 
       {/* Main Balance Info */}
-      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-3xl p-5 mb-6 text-white shadow-lg shadow-blue-500/20 relative overflow-hidden">
-        <div className="absolute right-[-10px] top-[-10px] opacity-10">
+      <div className="bg-[#151515] border border-[#3D3215] rounded-3xl p-5 mb-6 text-white shadow-xl relative overflow-hidden">
+        <div className="absolute right-[-10px] top-[-10px] opacity-10 text-[#FACC15]">
           <Briefcase className="w-32 h-32" />
         </div>
-        <span className="text-[10px] font-black uppercase tracking-widest text-blue-100 block mb-1">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-[#D4A017]/10 rounded-full blur-2xl pointer-events-none"></div>
+        <span className="text-[10px] font-black uppercase tracking-widest text-[#D4A017] block mb-1">
           Available Wallet Balance
         </span>
-        <div className="flex justify-between items-end">
+        <div className="flex justify-between items-end relative z-10">
           <div>
-            <h3 className="text-3xl font-black tracking-tight leading-none">
+            <h3 className="text-3xl font-black tracking-tight leading-none text-[#FACC15]">
               ৳{(profile?.balances?.main || 0).toFixed(2)}
             </h3>
-            <p className="text-[11px] font-bold text-blue-200 mt-2">
+            <p className="text-[11px] font-bold text-[#A3A3A3] mt-2">
               জব পোস্ট করার জন্য আপনার মেইন ব্যালেন্স ব্যবহার করা হবে।
             </p>
           </div>
           <button 
             onClick={() => navigate('/wallet')} 
-            className="bg-white text-indigo-600 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider active:scale-95 transition-all"
+            className="bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider active:scale-95 transition-all cursor-pointer shadow-md"
           >
             Deposit
           </button>
@@ -247,17 +248,17 @@ export function PostJob() {
       </div>
 
       {/* Create Job Form */}
-      <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 mb-6">
-        <div className="flex items-center gap-2 mb-4 border-b border-slate-100 dark:border-slate-700 pb-3">
-          <PlusCircle className="w-5 h-5 text-indigo-500" />
-          <h3 className="font-black text-sm dark:text-white uppercase tracking-wider">
+      <div className="bg-[#151515] p-5 rounded-3xl shadow-sm border border-[#3D3215] mb-6 relative overflow-hidden">
+        <div className="flex items-center gap-2 mb-4 border-b border-[#3D3215] pb-3">
+          <PlusCircle className="w-5 h-5 text-[#FACC15]" />
+          <h3 className="font-black text-sm text-white uppercase tracking-wider">
             নতুন টাস্ক বা জব পাবলিশ করুন
           </h3>
         </div>
 
         <form onSubmit={handlePostJob} className="space-y-4">
           <div>
-            <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1 px-1">
+            <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest block mb-1 px-1">
               Task Title / জবের শিরোনাম
             </label>
             <input 
@@ -266,12 +267,12 @@ export function PostJob() {
               required 
               value={title} 
               onChange={e => setTitle(e.target.value)} 
-              className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold placeholder:text-slate-400 focus:ring-2 focus:ring-indigo-500/20 dark:text-white" 
+              className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold placeholder:text-[#737373] focus:ring-2 focus:ring-[#D4A017] text-white focus:outline-none" 
             />
           </div>
 
           <div>
-            <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1 px-1">
+            <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest block mb-1 px-1">
               Task Instructions / কিভাবে কাজটি করতে হবে
             </label>
             <textarea 
@@ -279,16 +280,16 @@ export function PostJob() {
               required 
               value={description} 
               onChange={e => setDescription(e.target.value)} 
-              className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold h-24 placeholder:text-slate-400 focus:ring-2 focus:ring-indigo-500/20 dark:text-white" 
+              className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold h-24 placeholder:text-[#737373] focus:ring-2 focus:ring-[#D4A017] text-white focus:outline-none" 
             />
           </div>
 
           <div>
-            <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1 px-1">
+            <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest block mb-1 px-1">
               Target Link / জবের লিংক
             </label>
             <div className="relative">
-              <span className="absolute left-4 top-3.5 text-slate-450">
+              <span className="absolute left-4 top-3.5 text-[#737373]">
                 <LinkIcon className="w-4 h-4" />
               </span>
               <input 
@@ -297,28 +298,28 @@ export function PostJob() {
                 required 
                 value={link} 
                 onChange={e => setLink(e.target.value)} 
-                className="w-full bg-slate-50 dark:bg-slate-900 border-none pl-11 pr-4 py-3 rounded-2xl text-sm font-bold placeholder:text-slate-400 text-blue-500 focus:ring-2 focus:ring-indigo-500/20" 
+                className="w-full bg-[#101010] border border-[#3D3215] pl-11 pr-4 py-3 rounded-2xl text-sm font-bold placeholder:text-[#737373] text-[#FFE082] focus:ring-2 focus:ring-[#D4A017] focus:outline-none" 
               />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1 px-1">
+              <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest block mb-1 px-1">
                 Category / ক্যাটাগরি
               </label>
               <select 
                 value={category} 
                 onChange={e => setCategory(e.target.value)} 
-                className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold dark:text-white"
+                className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white focus:outline-none focus:ring-2 focus:ring-[#D4A017]"
               >
                 {['Facebook', 'Gmail', 'Instagram', 'Telegram', 'Sell Accounts', 'Microjob', 'Typing', 'Watch Ads', 'Other'].map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
+                  <option key={cat} value={cat} className="bg-[#151515] text-white">{cat}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1 px-1">
+              <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest block mb-1 px-1">
                 Reward (৳) / কাজের রেট
               </label>
               <input 
@@ -328,14 +329,14 @@ export function PostJob() {
                 required 
                 value={reward} 
                 onChange={e => setReward(Math.max(3, parseFloat(e.target.value) || 0))} 
-                className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-black text-indigo-600 dark:text-indigo-400" 
+                className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-black text-[#FACC15] focus:outline-none focus:ring-2 focus:ring-[#D4A017]" 
               />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1 px-1">
+              <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest block mb-1 px-1">
                 Total Slots / কয়জন কাজ করবে
               </label>
               <input 
@@ -344,22 +345,22 @@ export function PostJob() {
                 required 
                 value={slots} 
                 onChange={e => setSlots(Math.max(5, parseInt(e.target.value) || 0))} 
-                className="w-full bg-slate-50 dark:bg-slate-900 border-none px-4 py-3 rounded-2xl text-sm font-bold dark:text-white" 
+                className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white focus:outline-none focus:ring-2 focus:ring-[#D4A017]" 
               />
             </div>
-            <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-2xl flex flex-col justify-center text-center">
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+            <div className="bg-[#101010] border border-[#3D3215] p-3 rounded-2xl flex flex-col justify-center text-center">
+              <span className="text-[9px] font-black text-[#A3A3A3] uppercase tracking-widest">
                 Total Cost / মোট খরচ
               </span>
-              <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">
+              <span className="text-lg font-black text-[#FACC15]">
                 ৳{totalCost.toFixed(2)}
               </span>
             </div>
           </div>
 
           {/* Proof Options */}
-          <div className="p-3.5 bg-slate-50 dark:bg-slate-900 rounded-2xl space-y-2">
-            <span className="text-[10px] font-black text-slate-450 uppercase tracking-widest block pl-1">
+          <div className="p-3.5 bg-[#101010] border border-[#3D3215] rounded-2xl space-y-2">
+            <span className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest block pl-1">
               Required Proofs / প্রমাণ যাচাইয়ের ধরণ
             </span>
             <div className="flex flex-wrap gap-2">
@@ -373,10 +374,10 @@ export function PostJob() {
                   type="button"
                   key={proof.id}
                   onClick={() => handleToggleProof(proof.id)}
-                  className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${
+                  className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all cursor-pointer ${
                     selectedProofs.includes(proof.id)
-                      ? 'bg-slate-900 text-white border-slate-900 dark:bg-indigo-600 dark:border-indigo-600'
-                      : 'bg-white text-slate-500 border-slate-100 dark:bg-slate-800 dark:border-slate-700/50'
+                      ? 'bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] border-[#D4A017]'
+                      : 'bg-[#151515] text-[#A3A3A3] border-[#3D3215] hover:text-white'
                   }`}
                 >
                   {proof.id}
@@ -388,7 +389,7 @@ export function PostJob() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-[0.2em] py-4 rounded-2xl shadow-lg shadow-indigo-600/20 active:scale-95 transition-all text-xs flex items-center justify-center gap-2 disabled:opacity-50"
+            className="w-full bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] font-black uppercase tracking-[0.2em] py-4 rounded-2xl shadow-lg shadow-[#D4A017]/20 active:scale-95 transition-all text-xs flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
           >
             {isSubmitting ? <RefreshCw className="w-4 h-4 animate-spin" /> : null}
             Submit Job for Approval (৳{totalCost.toFixed(2)})
@@ -399,13 +400,13 @@ export function PostJob() {
       {/* User Posted Jobs List */}
       <div className="space-y-4">
         <div className="flex justify-between items-center px-1">
-          <h3 className="font-black text-sm dark:text-white uppercase tracking-wider flex items-center gap-2">
-            <Layers className="w-4.5 h-4.5 text-blue-500" />
+          <h3 className="font-black text-sm text-white uppercase tracking-wider flex items-center gap-2">
+            <Layers className="w-4.5 h-4.5 text-[#FACC15]" />
             আপনার পূর্বের জব সমূহ ({userJobs.length})
           </h3>
           <button 
             onClick={fetchUserJobs}
-            className="text-xs text-indigo-500 font-bold flex items-center gap-1 active:scale-95"
+            className="text-xs text-[#FACC15] font-bold flex items-center gap-1 active:scale-95 cursor-pointer"
           >
             <RefreshCw className="w-3 h-3" /> Refresh
           </button>
@@ -413,11 +414,11 @@ export function PostJob() {
 
         {loadingJobs ? (
           <div className="text-center py-8">
-            <RefreshCw className="w-6 h-6 animate-spin mx-auto text-slate-400" />
+            <RefreshCw className="w-6 h-6 animate-spin mx-auto text-[#FACC15]" />
           </div>
         ) : userJobs.length === 0 ? (
-          <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl text-center text-slate-400 border border-slate-100 dark:border-slate-700">
-            <AlertCircle className="w-8 h-8 mx-auto mb-2 opacity-30 text-indigo-500" />
+          <div className="bg-[#151515] p-6 rounded-3xl text-center text-[#737373] border border-[#3D3215]">
+            <AlertCircle className="w-8 h-8 mx-auto mb-2 opacity-30 text-[#FACC15]" />
             আপনি এখনো কোনো জব পোস্ট করেননি।
           </div>
         ) : (
@@ -425,27 +426,27 @@ export function PostJob() {
             {userJobs.map((job) => (
               <div 
                 key={job.id} 
-                className="bg-white dark:bg-slate-800 p-4 rounded-3xl border border-slate-100 dark:border-slate-700 flex justify-between items-start"
+                className="bg-[#151515] p-4 rounded-3xl border border-[#3D3215] flex justify-between items-start"
               >
                 <div className="min-w-0 flex-1 pr-3">
                   <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                    <span className="text-[10px] font-black uppercase bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 px-2 py-0.5 rounded-md">
+                    <span className="text-[10px] font-black uppercase bg-[#1C1C1C] border border-[#3D3215] text-[#FACC15] px-2 py-0.5 rounded-md">
                       {job.type}
                     </span>
                     <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${
                       job.status === 'active' 
-                        ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400'
+                        ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-800/30'
                         : job.status === 'pending'
-                        ? 'bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400'
-                        : 'bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400'
+                        ? 'bg-amber-950/40 text-[#FACC15] border border-amber-800/30'
+                        : 'bg-rose-950/40 text-rose-400 border border-rose-800/30'
                     }`}>
                       {job.status}
                     </span>
                   </div>
-                  <h4 className="font-bold dark:text-white text-sm leading-snug truncate">
+                  <h4 className="font-bold text-white text-sm leading-snug truncate">
                     {job.title}
                   </h4>
-                  <div className="flex gap-4 mt-2 text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                  <div className="flex gap-4 mt-2 text-[10px] font-black text-[#A3A3A3] uppercase tracking-wider">
                     <span>Rate: ৳{job.reward}</span>
                     <span>Slots: {job.allowedCompletions}</span>
                     <span>Cost: ৳{job.totalCost}</span>
@@ -453,21 +454,21 @@ export function PostJob() {
                 </div>
                 
                 {job.status === 'pending' && (
-                  <div className="text-[10px] font-black text-amber-500 uppercase tracking-widest bg-amber-50 dark:bg-amber-900/10 px-2 py-1.5 rounded-xl border border-amber-100 dark:border-amber-900/30 flex items-center gap-1">
+                  <div className="text-[10px] font-black text-[#FACC15] uppercase tracking-widest bg-amber-950/20 px-2 py-1.5 rounded-xl border border-amber-800/40 flex items-center gap-1">
                     <ShieldCheck className="w-3.5 h-3.5" />
                     Pending Review
                   </div>
                 )}
                 {job.status === 'active' && (
-                  <div className="text-[10px] font-black text-emerald-500 uppercase tracking-widest bg-emerald-50 dark:bg-emerald-900/10 px-2 py-1.5 rounded-xl border border-emerald-100 dark:border-emerald-900/30 flex items-center gap-1">
+                  <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest bg-emerald-950/20 px-2 py-1.5 rounded-xl border border-emerald-800/40 flex items-center gap-1">
                     <CheckCircle className="w-3.5 h-3.5" />
                     Live
                   </div>
                 )}
                 {job.status === 'rejected' && (
-                  <div className="text-[10px] font-black text-rose-500 uppercase tracking-widest bg-rose-50 dark:bg-rose-900/10 px-2 py-1.5 rounded-xl border border-rose-100 dark:border-rose-900/30 flex flex-col items-end">
+                  <div className="text-[10px] font-black text-rose-400 uppercase tracking-widest bg-rose-950/20 px-2 py-1.5 rounded-xl border border-rose-800/40 flex flex-col items-end">
                     <span>Rejected</span>
-                    <span className="text-[8px] text-slate-400 capitalize -mt-0.5 font-bold">Balance Refunded</span>
+                    <span className="text-[8px] text-[#A3A3A3] capitalize -mt-0.5 font-bold">Balance Refunded</span>
                   </div>
                 )}
               </div>
