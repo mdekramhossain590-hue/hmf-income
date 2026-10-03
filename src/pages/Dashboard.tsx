@@ -397,6 +397,74 @@ export function Dashboard() {
     return combined.slice(0, 5);
   };
 
+  const [showAdminBalanceModal, setShowAdminBalanceModal] = useState(false);
+  const [adminBalanceInputs, setAdminBalanceInputs] = useState({
+    main: 0,
+    bonus: 0,
+    referral: 0,
+    partner: 0
+  });
+
+  const handleOpenAdminBalanceModal = () => {
+    setAdminBalanceInputs({
+      main: Number(profile?.balances?.main || 0),
+      bonus: Number(profile?.balances?.bonus || 0),
+      referral: Number(profile?.balances?.referral || 0),
+      partner: Number(profile?.balances?.partner || 0)
+    });
+    setShowAdminBalanceModal(true);
+  };
+
+  const handleSaveAdminBalance = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!auth.currentUser) return;
+    try {
+      toast.loading("ব্যালেন্স আপডেট হচ্ছে...", { id: "admin_bal_save" });
+      const uid = auth.currentUser.uid;
+      const totalInc = Number(adminBalanceInputs.main) + Number(adminBalanceInputs.bonus) + Number(adminBalanceInputs.referral) + Number(adminBalanceInputs.partner);
+      await updateDoc(doc(db, "users", uid), {
+        balance: Number(adminBalanceInputs.main),
+        "balances.main": Number(adminBalanceInputs.main),
+        "balances.bonus": Number(adminBalanceInputs.bonus),
+        "balances.referral": Number(adminBalanceInputs.referral),
+        "balances.partner": Number(adminBalanceInputs.partner)
+      });
+      await setDoc(doc(db, "leaderboard", uid), {
+        fullName: profile?.fullName || auth.currentUser.displayName || 'Admin',
+        totalIncome: totalInc,
+        bonus: Number(adminBalanceInputs.bonus),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      if (refreshProfile) await refreshProfile();
+      toast.success("ব্যালেন্স সফলভাবে আপডেট করা হয়েছে!", { id: "admin_bal_save" });
+      setShowAdminBalanceModal(false);
+    } catch (err: any) {
+      toast.error("ব্যালেন্স আপডেট ব্যর্থ: " + err.message, { id: "admin_bal_save" });
+    }
+  };
+
+  const handleQuickAddAdminBalance = async (amount: number, target: 'main' | 'bonus' = 'main') => {
+    if (!auth.currentUser) return;
+    try {
+      toast.loading(`৳${amount} যোগ করা হচ্ছে...`, { id: "admin_quick_bal" });
+      const uid = auth.currentUser.uid;
+      await updateDoc(doc(db, "users", uid), {
+        [`balances.${target}`]: increment(amount),
+        ...(target === 'main' ? { balance: increment(amount) } : {})
+      });
+      await setDoc(doc(db, "leaderboard", uid), {
+        totalIncome: increment(amount),
+        ...(target === 'bonus' ? { bonus: increment(amount) } : {}),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      if (refreshProfile) await refreshProfile();
+      toast.success(`৳${amount} সফলভাবে যোগ করা হয়েছে!`, { id: "admin_quick_bal" });
+      setShowAdminBalanceModal(false);
+    } catch (err: any) {
+      toast.error("ব্যালেন্স যোগ ব্যর্থ: " + err.message, { id: "admin_quick_bal" });
+    }
+  };
+
   const handleResetAdminBalance = async () => {
     if (!auth.currentUser) return;
     const confirm = window.confirm("আপনি কি অ্যাডমিন ব্যালেন্স ৳ 0.00 করতে চান?");
@@ -1146,14 +1214,23 @@ export function Dashboard() {
                       )}
                     </button>
                     {profile?.role === "admin" && (
-                      <button
-                        onClick={handleResetAdminBalance}
-                        title="অ্যাডমিন ব্যালেন্স ৳ 0.00 করুন"
-                        className="p-1 sm:px-2 py-1 bg-rose-500/20 hover:bg-rose-500/40 text-rose-300 rounded-lg text-[10px] font-bold border border-rose-400/20 transition-all flex items-center gap-1 cursor-pointer"
-                      >
-                        <RotateCcw className="w-3 h-3" />
-                        <span className="hidden sm:inline">ব্যালেন্স ০ করুন</span>
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={handleOpenAdminBalanceModal}
+                          title="ব্যালেন্স যোগ বা পরিবর্তন করুন"
+                          className="px-2 py-1 bg-[#D4A017]/20 hover:bg-[#D4A017]/30 text-[#FACC15] rounded-lg text-[10px] font-bold border border-[#FACC15]/30 transition-all flex items-center gap-1 cursor-pointer"
+                        >
+                          <Coins className="w-3 h-3" />
+                          <span>ব্যালেন্স যোগ করুন</span>
+                        </button>
+                        <button
+                          onClick={handleResetAdminBalance}
+                          title="অ্যাডমিন ব্যালেন্স ৳ 0.00 করুন"
+                          className="p-1 px-1.5 py-1 bg-rose-500/10 hover:bg-rose-500/30 text-rose-400 rounded-lg text-[10px] font-bold border border-rose-500/20 transition-all flex items-center gap-1 cursor-pointer"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                        </button>
+                      </div>
                     )}
                   </div>
                   {loading ? (
@@ -2364,6 +2441,97 @@ export function Dashboard() {
               </div>
             </motion.div>
           </>
+        )}
+      </AnimatePresence>
+
+      {/* Admin Quick Balance Modal */}
+      <AnimatePresence>
+        {showAdminBalanceModal && (
+          <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#151515] rounded-3xl p-6 w-full max-w-sm shadow-2xl relative border border-[#3D3215] text-left"
+            >
+              <div className="flex justify-between items-center mb-4">
+                <div className="flex items-center gap-2">
+                  <Coins className="w-5 h-5 text-[#FACC15]" />
+                  <h3 className="text-lg font-black text-white">অ্যাডমিন ব্যালেন্স ম্যানেজমেন্ট</h3>
+                </div>
+                <button 
+                  onClick={() => setShowAdminBalanceModal(false)}
+                  className="p-1 rounded-full text-[#A3A3A3] hover:text-white hover:bg-white/5 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* 1-Click Quick Add buttons */}
+              <div className="mb-4">
+                <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest block mb-1.5">তাৎক্ষণিক ব্যালেন্স যোগ করুন (+1-Click)</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {[100, 500, 1000, 5000].map(amt => (
+                    <button
+                      key={amt}
+                      type="button"
+                      onClick={() => handleQuickAddAdminBalance(amt, 'main')}
+                      className="py-2 px-1 bg-[#1C1C1C] border border-[#3D3215] text-[#FACC15] font-black text-xs rounded-xl hover:border-[#D4A017] hover:scale-105 active:scale-95 transition-all text-center cursor-pointer"
+                    >
+                      +৳{amt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Custom Balance Inputs Form */}
+              <form onSubmit={handleSaveAdminBalance} className="space-y-3">
+                <div>
+                  <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest block mb-1">Main Balance (৳)</label>
+                  <input
+                    type="number"
+                    value={adminBalanceInputs.main}
+                    onChange={e => setAdminBalanceInputs(prev => ({ ...prev, main: Number(e.target.value) }))}
+                    className="w-full bg-[#101010] border border-[#3D3215] rounded-xl px-3.5 py-2 text-sm font-bold text-white focus:border-[#FACC15] outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest block mb-1">Bonus Balance (৳)</label>
+                  <input
+                    type="number"
+                    value={adminBalanceInputs.bonus}
+                    onChange={e => setAdminBalanceInputs(prev => ({ ...prev, bonus: Number(e.target.value) }))}
+                    className="w-full bg-[#101010] border border-[#3D3215] rounded-xl px-3.5 py-2 text-sm font-bold text-white focus:border-[#FACC15] outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest block mb-1">Referral Balance (৳)</label>
+                  <input
+                    type="number"
+                    value={adminBalanceInputs.referral}
+                    onChange={e => setAdminBalanceInputs(prev => ({ ...prev, referral: Number(e.target.value) }))}
+                    className="w-full bg-[#101010] border border-[#3D3215] rounded-xl px-3.5 py-2 text-sm font-bold text-white focus:border-[#FACC15] outline-none"
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAdminBalanceModal(false)}
+                    className="flex-1 py-2.5 rounded-xl bg-[#1C1C1C] text-[#A3A3A3] font-bold text-xs hover:bg-[#252525] border border-[#3D3215] cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-[#D4A017] to-[#FACC15] text-[#090909] font-black text-xs uppercase tracking-wider shadow-lg hover:brightness-110 active:scale-95 transition-all cursor-pointer"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 

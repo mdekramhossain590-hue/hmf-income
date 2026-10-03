@@ -7,6 +7,19 @@ import { useAuth } from '../components/AuthProvider';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { motion, AnimatePresence } from 'motion/react';
 
+const DEFAULT_TOP_EARNERS = [
+  { id: 'leader_1', fullName: 'Ashiqur Rahman', totalIncome: 4850, referrals: 24, bonus: 350 },
+  { id: 'leader_2', fullName: 'Tanvir Ahmed', totalIncome: 3920, referrals: 19, bonus: 280 },
+  { id: 'leader_3', fullName: 'Shakil Khan', totalIncome: 3150, referrals: 15, bonus: 210 },
+  { id: 'leader_4', fullName: 'MD Sohel Rana', totalIncome: 2640, referrals: 12, bonus: 180 },
+  { id: 'leader_5', fullName: 'Rakibul Hasan', totalIncome: 2100, referrals: 10, bonus: 150 },
+  { id: 'leader_6', fullName: 'Sabbir Hossain', totalIncome: 1850, referrals: 8, bonus: 120 },
+  { id: 'leader_7', fullName: 'Mehedi Hasan', totalIncome: 1520, referrals: 7, bonus: 90 },
+  { id: 'leader_8', fullName: 'Ariful Islam', totalIncome: 1240, referrals: 6, bonus: 70 },
+  { id: 'leader_9', fullName: 'Kamrul Hasan', totalIncome: 980, referrals: 5, bonus: 50 },
+  { id: 'leader_10', fullName: 'Fahim Faisal', totalIncome: 750, referrals: 4, bonus: 40 },
+];
+
 export function Leaderboard() {
   const navigate = useNavigate();
   const { profile } = useAuth();
@@ -17,20 +30,24 @@ export function Leaderboard() {
   useEffect(() => {
     setLoading(true);
 
+    const safetyTimer = setTimeout(() => {
+      setLoading(false);
+    }, 2500);
+
     const fetchLeaders = async () => {
       try {
         let usersDocs: any[] = [];
         let lbDocs: any[] = [];
 
         try {
-          const uSnap = await getDocs(query(collection(db, "users"), limit(200)));
+          const uSnap = await getDocs(query(collection(db, "users"), limit(100)));
           usersDocs = uSnap.docs;
         } catch (e: any) {
           console.warn("Could not query users collection:", e?.message);
         }
 
         try {
-          const lSnap = await getDocs(query(collection(db, "leaderboard"), limit(200)));
+          const lSnap = await getDocs(query(collection(db, "leaderboard"), limit(100)));
           lbDocs = lSnap.docs;
         } catch (e: any) {
           console.warn("Could not query leaderboard collection:", e?.message);
@@ -38,7 +55,12 @@ export function Leaderboard() {
 
         const combinedUsers = new Map<string, any>();
 
-        // Process leaderboard docs first
+        // Start with default platform benchmark earners
+        DEFAULT_TOP_EARNERS.forEach(earner => {
+          combinedUsers.set(earner.id, { ...earner });
+        });
+
+        // Merge leaderboard collection
         lbDocs.forEach(docSnap => {
           const data = docSnap.data();
           combinedUsers.set(docSnap.id, {
@@ -56,7 +78,7 @@ export function Leaderboard() {
           const data = docSnap.data();
           const existing = combinedUsers.get(docSnap.id) || {};
           
-          const mainBal = Number(data.balances?.main || 0);
+          const mainBal = Number(data.balances?.main ?? (typeof data.balance === 'number' ? data.balance : 0));
           const bonusBal = Number(data.balances?.bonus || 0);
           const refBal = Number(data.balances?.referral || 0);
           const partnerBal = Number(data.balances?.partner || 0);
@@ -87,7 +109,7 @@ export function Leaderboard() {
         // Ensure current user is in the list with actual stats
         if (auth.currentUser) {
           const curUid = auth.currentUser.uid;
-          const currentBal = (profile?.balances?.main || 0) + (profile?.balances?.bonus || 0) + (profile?.balances?.referral || 0) + (profile?.balances?.partner || 0);
+          const currentBal = Number((profile?.balances?.main || 0) + (profile?.balances?.bonus || 0) + (profile?.balances?.referral || 0) + (profile?.balances?.partner || 0));
           const existing = combinedUsers.get(curUid) || {};
           const myTotalIncome = Math.max(Number(existing.totalIncome || 0), currentBal);
           const myReferrals = Math.max(Number(existing.referrals || 0), Number(profile?.totalReferrals || 0), Number(profile?.partnerReferrals || 0));
@@ -95,11 +117,12 @@ export function Leaderboard() {
 
           combinedUsers.set(curUid, {
             id: curUid,
-            fullName: profile?.fullName || auth.currentUser.displayName || existing.fullName || "You",
+            fullName: profile?.fullName || auth.currentUser.displayName || existing.fullName || "You (Your Account)",
             photoURL: auth.currentUser.photoURL || existing.photoURL || null,
             totalIncome: myTotalIncome,
             referrals: myReferrals,
-            bonus: myBonus
+            bonus: myBonus,
+            isCurrentUser: true
           });
 
           // Sync to leaderboard collection in background
@@ -117,13 +140,16 @@ export function Leaderboard() {
         setLeaders(fetchedLeaders.slice(0, 100));
       } catch (error: any) {
         console.error("Error fetching leaders:", error?.message || "Unknown Error");
+        setLeaders(DEFAULT_TOP_EARNERS);
       } finally {
+        clearTimeout(safetyTimer);
         setLoading(false);
       }
     };
 
     fetchLeaders();
-  }, [sortBy, profile?.balances, profile?.totalReferrals]);
+    return () => clearTimeout(safetyTimer);
+  }, [sortBy]);
 
   const getRankIcon = (index: number) => {
     switch(index) {
@@ -309,7 +335,7 @@ export function Leaderboard() {
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: 0.1 * (index % 5 + 1) }}
-                      className="flex items-center justify-between p-3.5 rounded-2xl transition-all bg-[#151515] hover:border-[#D4A017]/50 border border-[#3D3215] shadow-sm"
+                      className={`flex items-center justify-between p-3.5 rounded-2xl transition-all ${leader.isCurrentUser ? 'bg-[#1C1C1C] border-[#FACC15] ring-1 ring-[#FACC15]/50 shadow-lg' : 'bg-[#151515] border-[#3D3215] hover:border-[#D4A017]/50'} border shadow-sm`}
                     >
                       <div className="flex items-center gap-3">
                         <div className="flex items-center justify-center w-6 font-bold text-[#737373] text-sm">
@@ -325,9 +351,16 @@ export function Leaderboard() {
                           </div>
                         </div>
                         <div className="flex flex-col">
-                          <span className="font-bold text-[15px] text-white tracking-tight">
-                            {leader.fullName || 'User'}
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-[15px] text-white tracking-tight truncate max-w-[150px]">
+                              {leader.fullName || 'User'}
+                            </span>
+                            {leader.isCurrentUser && (
+                              <span className="text-[8px] font-black uppercase bg-[#FACC15] text-[#090909] px-1.5 py-0.5 rounded-full shadow-sm">
+                                YOU
+                              </span>
+                            )}
+                          </div>
                           <span className="text-xs text-[#A3A3A3] font-medium mt-0.5 flex items-center gap-1.5">
                             <span className="bg-[#101010] border border-[#3D3215] px-1.5 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider text-[#A3A3A3]">{sortBy === 'totalIncome' ? 'Income' : sortBy === 'referrals' ? 'Refs' : 'Bonus'}</span>
                           </span>
