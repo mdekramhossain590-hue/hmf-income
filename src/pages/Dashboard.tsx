@@ -51,7 +51,7 @@ export function Dashboard() {
     text: "Welcome to HMF EARNING ZONE! Complete tasks and earn money daily.",
     link: "#",
   });
-  const [partnerSettings, setPartnerSettings] = useState({ requiredReferrals: 10, dailyBonus: 100, enabled: false });
+  const [partnerSettings, setPartnerSettings] = useState({ requiredReferrals: 10, dailyBonus: 100, enabled: true });
   
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -94,8 +94,46 @@ export function Dashboard() {
     linkText?: string;
   } | null>(null);
   const { t, language } = useLanguage();
-    const [actualReferralsCount, setActualReferralsCount] = useState(profile?.totalReferrals || 0);
-  const partnerReferralsCount = profile?.partnerReferrals || 0;
+  const [actualReferralsCount, setActualReferralsCount] = useState(profile?.totalReferrals || 0);
+  const partnerReferralsCount = Math.max(
+    Number(profile?.partnerReferrals || 0),
+    Number(profile?.totalReferrals || 0),
+    Number(actualReferralsCount || 0)
+  );
+
+  // Fallback referral code guaranteed to be ready immediately
+  const effectiveReferCode = profile?.myReferCode || (() => {
+    try {
+      const cached = localStorage.getItem(`profile_${auth.currentUser?.uid}`);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed?.myReferCode) return parsed.myReferCode;
+      }
+    } catch (e) {}
+    if (!auth.currentUser) return '';
+    const prefix = ((auth.currentUser.displayName || auth.currentUser.email || 'HM').replace(/[^a-zA-Z]/g, '').substring(0, 2) || 'HE').toUpperCase();
+    const hash = Math.abs(auth.currentUser.uid.split('').reduce((acc, char) => (acc * 31 + char.charCodeAt(0)) % 1000000, 123456)).toString().padStart(6, '0');
+    return `${prefix.padEnd(2, 'E')}${hash}`;
+  })();
+
+  const effectiveReferLink = effectiveReferCode 
+    ? `${window.location.origin}/register?ref=${effectiveReferCode}`
+    : '';
+
+  useEffect(() => {
+    if (auth.currentUser && effectiveReferCode && (!profile?.myReferCode || profile.myReferCode !== effectiveReferCode)) {
+      updateDoc(doc(db, "users", auth.currentUser.uid), {
+        myReferCode: effectiveReferCode
+      }).catch(() => {
+        setDoc(doc(db, "users", auth.currentUser!.uid), {
+          myReferCode: effectiveReferCode,
+          email: auth.currentUser!.email || '',
+          fullName: auth.currentUser!.displayName || 'User',
+          role: auth.currentUser!.email?.toLowerCase() === 'mdekramhossain590@gmail.com' ? 'admin' : 'user'
+        }, { merge: true }).catch(() => {});
+      });
+    }
+  }, [auth.currentUser?.uid, profile?.myReferCode, effectiveReferCode]);
 
   useEffect(() => {
     if (!auth.currentUser) return;
@@ -104,13 +142,17 @@ export function Dashboard() {
         const snap = await getDocs(collection(db, "users", (auth.currentUser?.uid as string), "referrals"));
         const gen1 = snap.docs.filter(d => !d.data().level || d.data().level === 1).length;
         setActualReferralsCount(gen1);
-        if (profile && gen1 !== profile.totalReferrals) {
-           updateDoc(doc(db, "users", (auth.currentUser?.uid as string)), { totalReferrals: gen1 }).catch(e => {});
+        const maxRefs = Math.max(gen1, profile?.totalReferrals || 0, profile?.partnerReferrals || 0);
+        if (profile && (gen1 !== profile.totalReferrals || maxRefs > (profile.partnerReferrals || 0))) {
+           updateDoc(doc(db, "users", (auth.currentUser?.uid as string)), { 
+             totalReferrals: maxRefs,
+             partnerReferrals: maxRefs
+           }).catch(e => {});
         }
       } catch (e: any) {}
     };
     fixReferrals();
-  }, [profile?.totalReferrals]);
+  }, [profile?.totalReferrals, profile?.partnerReferrals]);
 
 
 
@@ -552,8 +594,10 @@ export function Dashboard() {
           setPartnerSettings({
             requiredReferrals: d.requiredReferrals !== undefined ? d.requiredReferrals : 10,
             dailyBonus: d.dailyBonus !== undefined ? d.dailyBonus : 100,
-            enabled: d.enabled === true
+            enabled: d.enabled !== false
           });
+        } else {
+          setPartnerSettings({ requiredReferrals: 10, dailyBonus: 100, enabled: true });
         }
       } catch (error: any) {
         console.warn("Settings config not available yet:", error.message);
@@ -1148,7 +1192,7 @@ export function Dashboard() {
                   {t("member_id")}
                 </p>
                 <p className="text-xs sm:text-[14px] font-mono font-bold tracking-[0.1em] text-[#FACC15]">
-                  {profile?.myReferCode || "HE000001"}
+                  {effectiveReferCode || "HE000001"}
                 </p>
               </div>
             </div>
@@ -1580,14 +1624,12 @@ export function Dashboard() {
               {t("code")}:
             </span>
             <span className="font-mono font-bold text-[#FACC15] flex-1 truncate">
-              {profile?.myReferCode || (
-                <span className="text-xs text-[#737373] animate-pulse">Generating...</span>
-              )}
+              {effectiveReferCode || "HE000001"}
             </span>
             <button
-              onClick={() => handleCopy(profile?.myReferCode || "", "code")}
-              className="p-1.5 rounded-md bg-[#1C1C1C] text-[#FACC15] hover:bg-[#252525] shadow-sm border border-[#3D3215] transition-colors"
-              disabled={!profile?.myReferCode}
+              onClick={() => handleCopy(effectiveReferCode, "code")}
+              className="p-1.5 rounded-md bg-[#1C1C1C] text-[#FACC15] hover:bg-[#252525] shadow-sm border border-[#3D3215] transition-colors cursor-pointer"
+              disabled={!effectiveReferCode}
             >
               {copiedCode ? (
                 <Check className="w-4 h-4 text-emerald-500" />
@@ -1601,19 +1643,17 @@ export function Dashboard() {
               {t("link")}:
             </span>
             <span className="text-xs text-[#A3A3A3] flex-1 truncate opacity-90 select-all">
-              {profile?.myReferCode
-                ? `${window.location.origin}/register?ref=${profile.myReferCode}`
-                : <span className="text-xs text-[#737373] animate-pulse">Generating link...</span>}
+              {effectiveReferLink || `${window.location.origin}/register?ref=${effectiveReferCode}`}
             </span>
             <button
               onClick={() =>
                 handleCopy(
-                  `${window.location.origin}/register?ref=${profile?.myReferCode}`,
+                  effectiveReferLink,
                   "link",
                 )
               }
-              className="p-1.5 rounded-md bg-[#1C1C1C] text-[#FACC15] hover:bg-[#252525] shadow-sm border border-[#3D3215] transition-colors flex-shrink-0"
-              disabled={!profile?.myReferCode}
+              className="p-1.5 rounded-md bg-[#1C1C1C] text-[#FACC15] hover:bg-[#252525] shadow-sm border border-[#3D3215] transition-colors flex-shrink-0 cursor-pointer"
+              disabled={!effectiveReferLink}
             >
               {copiedLink ? (
                 <Check className="w-4 h-4 text-emerald-500" />

@@ -24,9 +24,23 @@ export function Refer() {
 
 
 
+  const effectiveReferCode = profile?.myReferCode || (() => {
+    try {
+      const cached = localStorage.getItem(`profile_${auth.currentUser?.uid}`);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed?.myReferCode) return parsed.myReferCode;
+      }
+    } catch (e) {}
+    if (!auth.currentUser) return '';
+    const prefix = ((auth.currentUser.displayName || auth.currentUser.email || 'HM').replace(/[^a-zA-Z]/g, '').substring(0, 2) || 'HE').toUpperCase();
+    const hash = Math.abs(auth.currentUser.uid.split('').reduce((acc, char) => (acc * 31 + char.charCodeAt(0)) % 1000000, 123456)).toString().padStart(6, '0');
+    return `${prefix.padEnd(2, 'E')}${hash}`;
+  })();
+
   const [referrals, setReferrals] = useState<any[]>([]);
   const [historyTab, setHistoryTab] = useState<number>(1);
-    const [referralBonus, setReferralBonus] = useState(10);
+  const [referralBonus, setReferralBonus] = useState(10);
   const [partnerSettings, setPartnerSettings] = useState({ requiredReferrals: 10, dailyBonus: 100, enabled: true });
 
   useEffect(() => {
@@ -39,7 +53,32 @@ export function Refer() {
         );
         
         const snapshot = await getDocs(q);
-        const refs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        let refs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+        // Also check if any users in the users collection used this code
+        if (effectiveReferCode) {
+          try {
+            const uQ = query(collection(db, "users"), where("usedReferCode", "==", effectiveReferCode));
+            const uSnap = await getDocs(uQ);
+            const existingEmails = new Set(refs.map((r: any) => r.referredEmail?.toLowerCase()));
+            uSnap.forEach((uDoc) => {
+              const uData = uDoc.data();
+              if (uData.email && !existingEmails.has(uData.email.toLowerCase())) {
+                const synthesized = {
+                  id: uDoc.id,
+                  referredEmail: uData.email,
+                  referredName: uData.fullName || 'User',
+                  bonusEarned: 10,
+                  level: 1,
+                  createdAt: uData.createdAt || new Date()
+                };
+                refs.push(synthesized);
+                existingEmails.add(uData.email.toLowerCase());
+              }
+            });
+          } catch (e) {}
+        }
+
         refs.sort((a: any, b: any) => {
           const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
           const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
@@ -48,9 +87,12 @@ export function Refer() {
         setReferrals(refs);
         const gen1Count = refs.filter(r => !r.level || r.level === 1).length;
         if (gen1Count !== (profile?.totalReferrals || 0)) {
-          updateDoc(doc(db, "users", auth.currentUser!.uid), { totalReferrals: gen1Count }).catch(e => console.error(e?.message || "Unknown Error"));
+          updateDoc(doc(db, "users", auth.currentUser!.uid), { 
+            totalReferrals: gen1Count,
+            partnerReferrals: Math.max(gen1Count, profile?.partnerReferrals || 0)
+          }).catch(e => console.error(e?.message || "Unknown Error"));
         }
-        setActualReferralsCount(gen1Count);
+        setActualReferralsCount(Math.max(gen1Count, profile?.totalReferrals || 0));
         
         const [refDoc, pDoc] = await Promise.all([
           getCachedDoc(doc(db, "settings", "referral")),
@@ -73,13 +115,13 @@ export function Refer() {
     };
     
     loadReferrals();
-  }, [profile?.uid]);
+  }, [auth.currentUser?.uid, profile?.myReferCode, effectiveReferCode, profile?.totalReferrals]);
 
-  const referLink = profile?.myReferCode ? `${window.location.origin}/register?ref=${profile.myReferCode}` : '';
+  const referLink = effectiveReferCode ? `${window.location.origin}/register?ref=${effectiveReferCode}` : '';
 
   const copyReferCode = () => {
-    if (profile?.myReferCode) {
-      navigator.clipboard.writeText(profile.myReferCode);
+    if (effectiveReferCode) {
+      navigator.clipboard.writeText(effectiveReferCode);
       toast.success("Referral code copied!");
     }
   };
@@ -280,7 +322,7 @@ export function Refer() {
         <p className="text-[11px] font-bold text-[#A3A3A3] mb-2 uppercase tracking-wide">{t('your_referral_code')}</p>
         <div className="bg-[#101010] rounded-xl p-3 pr-12 border border-[#3D3215]">
           <h3 className="text-lg font-black tracking-widest text-[#FACC15] select-all">
-            {profile?.myReferCode || <span className="text-[#737373]">Unavailable</span>}
+            {effectiveReferCode || "HE000001"}
           </h3>
         </div>
         <button 
@@ -295,7 +337,7 @@ export function Refer() {
         <p className="text-[11px] font-bold text-[#A3A3A3] mb-2 uppercase tracking-wide">{t('your_referral_link')}</p>
         <div className="bg-[#101010] rounded-xl p-3 pr-12 border border-[#3D3215]">
           <p className="text-[13px] font-semibold text-[#FACC15] break-all select-all">
-            {referLink || <span className="text-[#737373]">Unavailable</span>}
+            {referLink || `${window.location.origin}/register?ref=${effectiveReferCode}`}
           </p>
         </div>
         <button 

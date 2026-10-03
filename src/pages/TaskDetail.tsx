@@ -35,6 +35,7 @@ import { File as FileIcon } from "lucide-react";
 import toast from "react-hot-toast";
 
 import { Celebration } from "../components/Celebration";
+import { getDefaultCategoryPhoto } from "../lib/taskPhotos";
 
 export function TaskDetail() {
   const { id } = useParams();
@@ -769,24 +770,41 @@ export function TaskDetail() {
         </h2>
       </div>
 
-      <div className="bg-[#151515] rounded-2xl shadow-sm border border-[#3D3215] p-5 mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="text-lg font-bold text-white">
-              {job.title}
-            </h3>
-            <p className="text-xs text-[#A3A3A3]">
+      <div className="bg-[#151515] rounded-3xl shadow-sm border border-[#3D3215] overflow-hidden mb-6">
+        <div className="relative w-full h-44 sm:h-52 overflow-hidden border-b border-[#3D3215] bg-[#101010]">
+          <img 
+            src={job.imageUrl || getDefaultCategoryPhoto(job.type)} 
+            alt={job.title} 
+            className="w-full h-full object-cover" 
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#151515] via-black/40 to-transparent pointer-events-none" />
+          <div className="absolute top-3 left-3">
+            <span className="text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-white">
               {job.type}
-            </p>
+            </span>
           </div>
-          <div className="bg-[#D4A017]/15 border border-[#FACC15]/30 text-[#FACC15] font-bold px-3 py-1 rounded-full text-sm">
-            ৳ {job.reward}
+          <div className="absolute top-3 right-3">
+            <div className="bg-gradient-to-r from-[#D4A017] via-[#FACC15] to-[#FFE082] text-[#090909] font-black px-3.5 py-1 rounded-full text-xs shadow-lg font-display">
+              ৳ {job.reward}
+            </div>
           </div>
         </div>
 
-        <p className="text-sm text-[#A3A3A3] mb-6">
-          {job.description}
-        </p>
+        <div className="p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-lg font-black text-white">
+                {job.title}
+              </h3>
+              <p className="text-xs text-[#A3A3A3]">
+                {job.type}
+              </p>
+            </div>
+          </div>
+
+          <p className="text-sm text-[#A3A3A3] mb-6">
+            {job.description}
+          </p>
 
         {job.type === "Review" && selectedComment && (
           <div className="bg-[#101010] border border-[#3D3215] rounded-2xl p-4 mb-5 space-y-3">
@@ -882,6 +900,7 @@ export function TaskDetail() {
           )}
         </div>
       </div>
+    </div>
 
       {job.requiredProofs && job.requiredProofs.length > 0 && (
         <div className="bg-[#151515] rounded-2xl shadow-sm border border-[#3D3215] p-5 mb-6">

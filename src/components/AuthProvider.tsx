@@ -180,7 +180,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const docSnap = await getCachedDoc(doc(db, 'users', targetUid), true);
       if (docSnap.exists()) {
-        let data = docSnap.data() as UserProfile;
+        let data = { id: targetUid, uid: targetUid, ...docSnap.data() } as UserProfile;
         data = await ensureValidReferralCode(targetUid, data);
         setProfile(prev => {
           if (!prev) return data;
@@ -190,6 +190,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           localStorage.setItem(`profile_${targetUid}`, safeStringify(data));
         } catch (e: any) {}
+      } else {
+        // If document doesn't exist yet, auto-bootstrap it so user is never empty
+        const currentUser = auth.currentUser;
+        if (currentUser && currentUser.uid === targetUid) {
+          const defaultReferCode = generateUserReferralCode(currentUser.displayName || currentUser.email || 'User');
+          const newProfileData: any = {
+            id: targetUid,
+            uid: targetUid,
+            email: currentUser.email || '',
+            fullName: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
+            name: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
+            role: (currentUser.email?.toLowerCase() === 'mdekramhossain590@gmail.com') ? 'admin' : 'user',
+            myReferCode: defaultReferCode,
+            usedReferCode: 'none',
+            balances: { main: 0, bonus: 0, referral: 0, partner: 0, tasks: 0 },
+            isActive: true,
+            totalReferrals: 0,
+            partnerReferrals: 0,
+            createdAt: serverTimestamp()
+          };
+          try {
+            await setDoc(doc(db, 'users', targetUid), newProfileData, { merge: true });
+          } catch (e) {}
+          setProfile(newProfileData);
+          try {
+            localStorage.setItem(`profile_${targetUid}`, safeStringify(newProfileData));
+          } catch (e) {}
+        }
       }
     } catch (error: any) {
       if (detectQuotaError(error)) {
@@ -295,7 +323,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           unsubscribeProfile = onSnapshot(doc(db, 'users', user.uid), async (docSnap: any) => {
             if (docSnap.exists()) {
-              let data = docSnap.data();
+              let data = { id: user.uid, uid: user.uid, ...docSnap.data() };
               data = await ensureValidReferralCode(user.uid, data);
               setProfile(prev => {
                 if (!prev) return data;

@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Trophy, Medal, Crown, Star, TrendingUp, User } from 'lucide-react';
-import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { getCachedQuery } from '../lib/cache';
+import { collection, query, orderBy, limit, getDocs, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { db, auth } from '../lib/firebase';
+import { useAuth } from '../components/AuthProvider';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { motion, AnimatePresence } from 'motion/react';
 
 export function Leaderboard() {
   const navigate = useNavigate();
+  const { profile } = useAuth();
   const [leaders, setLeaders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState<'totalIncome' | 'referrals' | 'bonus'>('totalIncome');
@@ -18,53 +19,111 @@ export function Leaderboard() {
 
     const fetchLeaders = async () => {
       try {
-        const [usersSnap, lbSnap] = await Promise.all([
-          getDocs(collection(db, "users")),
-          getDocs(collection(db, "leaderboard"))
-        ]);
-        
-        const lbData = new Map();
-        lbSnap.forEach(doc => {
-          lbData.set(doc.id, doc.data());
+        let usersDocs: any[] = [];
+        let lbDocs: any[] = [];
+
+        try {
+          const uSnap = await getDocs(query(collection(db, "users"), limit(200)));
+          usersDocs = uSnap.docs;
+        } catch (e: any) {
+          console.warn("Could not query users collection:", e?.message);
+        }
+
+        try {
+          const lSnap = await getDocs(query(collection(db, "leaderboard"), limit(200)));
+          lbDocs = lSnap.docs;
+        } catch (e: any) {
+          console.warn("Could not query leaderboard collection:", e?.message);
+        }
+
+        const combinedUsers = new Map<string, any>();
+
+        // Process leaderboard docs first
+        lbDocs.forEach(docSnap => {
+          const data = docSnap.data();
+          combinedUsers.set(docSnap.id, {
+            id: docSnap.id,
+            fullName: data.fullName || "User",
+            photoURL: data.photoURL || null,
+            totalIncome: Number(data.totalIncome || 0),
+            referrals: Number(data.referrals || 0),
+            bonus: Number(data.bonus || 0)
+          });
         });
 
-        const fetchedLeaders = usersSnap.docs.map((doc) => {
-          try {
-            const data = doc.data();
-            const lb = lbData.get(doc.id) || {};
-            
-            // Use leaderboard collection for all-time stats
-            // Fallback to 0 if no leaderboard document exists yet
-            const totalIncome = Number(lb.totalIncome || 0);
-            const bonus = Number(lb.bonus || 0);
-            const referrals = Number(lb.referrals || data.referralCount || data.totalReferrals || 0);
-            
-            return {
-              id: doc.id,
-              fullName: data.fullName || lb.fullName || "User",
-              photoURL: data.photoURL || null,
-              totalIncome,
-              referrals,
-              bonus
-            };
-          } catch (err: any) {
-            console.warn("Skipping malformed user record:", doc.id, err?.message || "Unknown Error");
-            return null;
-          }
-        }).filter(Boolean);
-        
-        fetchedLeaders.sort((a: any, b: any) => b[sortBy] - a[sortBy]);
-        setLeaders(fetchedLeaders.slice(0, 100)); // top 100
+        // Merge with users collection data
+        usersDocs.forEach(docSnap => {
+          const data = docSnap.data();
+          const existing = combinedUsers.get(docSnap.id) || {};
+          
+          const mainBal = Number(data.balances?.main || 0);
+          const bonusBal = Number(data.balances?.bonus || 0);
+          const refBal = Number(data.balances?.referral || 0);
+          const partnerBal = Number(data.balances?.partner || 0);
+          const tasksBal = typeof data.balances?.tasks === 'number' 
+            ? data.balances.tasks 
+            : (typeof data.balances?.tasks === 'object' ? Object.values(data.balances.tasks).reduce((a: any, b: any) => Number(a || 0) + Number(b || 0), 0) : 0);
+
+          const calcIncome = mainBal + bonusBal + refBal + partnerBal + Number(tasksBal);
+          const totalIncome = Math.max(Number(existing.totalIncome || 0), calcIncome);
+          const bonus = Math.max(Number(existing.bonus || 0), bonusBal);
+          const referrals = Math.max(
+            Number(existing.referrals || 0), 
+            Number(data.referralCount || 0), 
+            Number(data.totalReferrals || 0),
+            Number(data.partnerReferrals || 0)
+          );
+
+          combinedUsers.set(docSnap.id, {
+            id: docSnap.id,
+            fullName: data.fullName || existing.fullName || "User",
+            photoURL: data.photoURL || existing.photoURL || null,
+            totalIncome,
+            referrals,
+            bonus
+          });
+        });
+
+        // Ensure current user is in the list with actual stats
+        if (auth.currentUser) {
+          const curUid = auth.currentUser.uid;
+          const currentBal = (profile?.balances?.main || 0) + (profile?.balances?.bonus || 0) + (profile?.balances?.referral || 0) + (profile?.balances?.partner || 0);
+          const existing = combinedUsers.get(curUid) || {};
+          const myTotalIncome = Math.max(Number(existing.totalIncome || 0), currentBal);
+          const myReferrals = Math.max(Number(existing.referrals || 0), Number(profile?.totalReferrals || 0), Number(profile?.partnerReferrals || 0));
+          const myBonus = Math.max(Number(existing.bonus || 0), Number(profile?.balances?.bonus || 0));
+
+          combinedUsers.set(curUid, {
+            id: curUid,
+            fullName: profile?.fullName || auth.currentUser.displayName || existing.fullName || "You",
+            photoURL: auth.currentUser.photoURL || existing.photoURL || null,
+            totalIncome: myTotalIncome,
+            referrals: myReferrals,
+            bonus: myBonus
+          });
+
+          // Sync to leaderboard collection in background
+          setDoc(doc(db, "leaderboard", curUid), {
+            fullName: profile?.fullName || auth.currentUser.displayName || 'User',
+            totalIncome: myTotalIncome,
+            referrals: myReferrals,
+            bonus: myBonus,
+            updatedAt: serverTimestamp()
+          }, { merge: true }).catch(() => {});
+        }
+
+        const fetchedLeaders = Array.from(combinedUsers.values());
+        fetchedLeaders.sort((a: any, b: any) => (Number(b[sortBy]) || 0) - (Number(a[sortBy]) || 0));
+        setLeaders(fetchedLeaders.slice(0, 100));
       } catch (error: any) {
         console.error("Error fetching leaders:", error?.message || "Unknown Error");
-        setLeaders([]);
       } finally {
         setLoading(false);
       }
     };
 
     fetchLeaders();
-  }, [sortBy]);
+  }, [sortBy, profile?.balances, profile?.totalReferrals]);
 
   const getRankIcon = (index: number) => {
     switch(index) {

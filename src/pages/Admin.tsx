@@ -8,7 +8,8 @@ import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { getCachedDoc, getCachedQuery, clearCache } from '../lib/cache';
 import { uploadImageOrFallback } from '../lib/imageUpload';
 import { processReferralCommission, processRegistrationReferral } from '../lib/referral';
-import { Trash2, CheckCircle, XCircle, Users, ShieldAlert, ShieldCheck, Wallet, ListChecks, Settings, User, Eye, Calculator, MessageSquare, Globe, Coins, Megaphone, Gamepad2, CreditCard, Lock, BellRing, RefreshCw, Smartphone, Mail, Camera, MessageCircle, Send, BookOpen, Layers, Copy, HelpCircle, Database, Search, Download, Gift, Sparkles, RotateCcw } from 'lucide-react';
+import { getDefaultCategoryPhoto } from '../lib/taskPhotos';
+import { Trash2, CheckCircle, XCircle, Users, ShieldAlert, ShieldCheck, Wallet, ListChecks, Settings, User, Eye, Calculator, MessageSquare, Globe, Coins, Megaphone, Gamepad2, CreditCard, Lock, BellRing, RefreshCw, Smartphone, Mail, Camera, MessageCircle, Send, BookOpen, Layers, Copy, HelpCircle, Database, Search, Download, Gift, Sparkles, RotateCcw, Play } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
@@ -156,6 +157,7 @@ export function AdminPanel() {
     description: '',
     reward: 3,
     link: '',
+    imageUrl: '',
     type: 'Facebook',
     icon: 'MessageCircle', // hardcode or select
     color: 'text-blue-500',
@@ -175,6 +177,7 @@ export function AdminPanel() {
       description: job.description || '',
       reward: job.reward || 0,
       link: job.link || '',
+      imageUrl: job.imageUrl || '',
       type: job.type || 'Other',
       icon: job.icon || 'MessageCircle',
       color: job.color || 'text-blue-500',
@@ -192,7 +195,7 @@ export function AdminPanel() {
 
   const handleCancelEditJob = () => {
     setNewJob({
-      title: '', description: '', reward: 3, link: '', type: 'Facebook', icon: 'MessageCircle', color: 'text-blue-500', bg: 'bg-blue-100', requiredProofs: ['text'], allowedCompletions: 1, userLimit: 1, deadline: '', isAccountSell: false, todaysPassword: '', reviewComments: []
+      title: '', description: '', reward: 3, link: '', imageUrl: '', type: 'Facebook', icon: 'MessageCircle', color: 'text-blue-500', bg: 'bg-blue-100', requiredProofs: ['text'], allowedCompletions: 1, userLimit: 1, deadline: '', isAccountSell: false, todaysPassword: '', reviewComments: []
     });
     setEditingJobId(null);
   };
@@ -403,8 +406,11 @@ export function AdminPanel() {
         ? newJob.reviewComments.map(line => line.trim()).filter(line => line !== '')
         : [];
 
+      const finalImageUrl = (newJob.imageUrl || '').trim() || getDefaultCategoryPhoto(newJob.type || 'Other');
+
       const jobPayload = {
         ...newJob,
+        imageUrl: finalImageUrl,
         reviewComments: cleanedReviewComments
       };
 
@@ -426,7 +432,7 @@ export function AdminPanel() {
         });
         toast.success('Job created.');
       }
-      setNewJob({ title: '', description: '', reward: 3, link: '', type: 'Facebook', icon: 'MessageCircle', color: 'text-blue-500', bg: 'bg-blue-100', requiredProofs: ['text'], allowedCompletions: 1, userLimit: 1, deadline: '', isAccountSell: false, todaysPassword: '', reviewComments: [] });
+      setNewJob({ title: '', description: '', reward: 3, link: '', imageUrl: '', type: 'Facebook', icon: 'MessageCircle', color: 'text-blue-500', bg: 'bg-blue-100', requiredProofs: ['text'], allowedCompletions: 1, userLimit: 1, deadline: '', isAccountSell: false, todaysPassword: '', reviewComments: [] });
       await loadData(true);
     } catch (err) {
       handleFirestoreError(err, editingJobId ? OperationType.UPDATE : OperationType.CREATE, 'jobs');
@@ -1522,6 +1528,8 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
       const url = await uploadImageOrFallback(file, 400);
       if (target === 'logo') {
         setSiteSettings(prev => ({ ...prev, logoUrl: url }));
+      } else if (target === 'job') {
+        setNewJob(prev => ({ ...prev, imageUrl: url }));
       }
       toast.success("Image uploaded successfully!", { id: "upload_img" });
     } catch (err: any) {
@@ -2012,6 +2020,69 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
               <input type="text" placeholder="Task Title" required value={newJob.title} onChange={e => setNewJob({...newJob, title: e.target.value})} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none" />
               <textarea placeholder="Job Description / Instructions" required value={newJob.description} onChange={e => setNewJob({...newJob, description: e.target.value})} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white h-24 placeholder:text-[#737373] focus:border-[#D4A017] outline-none" />
               <input type="text" placeholder="Action Link (e.g. Telegram Group Link, URL)" value={newJob.link || ''} onChange={e => setNewJob({...newJob, link: e.target.value})} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold placeholder:text-[#737373] text-[#FACC15] focus:border-[#D4A017] outline-none" />
+              
+              <div>
+                <div className="flex items-center justify-between mb-1 px-1">
+                  <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest block">
+                    Task Cover Photo (কার্ডের সম্পূর্ণ ব্যাকগ্রাউন্ড ফটো)
+                  </label>
+                  <span className="text-[9px] text-[#FACC15] font-bold">সম্পূর্ণ কার্ডে ফটো থাকবে, উপরে টাইটেল ও স্টার্ট বাটন</span>
+                </div>
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    placeholder="Photo URL (https://...) বা সরাসরি আপলোড করুন" 
+                    value={newJob.imageUrl || ''} 
+                    onChange={e => setNewJob({...newJob, imageUrl: e.target.value})} 
+                    className="flex-1 bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none" 
+                  />
+                  <div className="relative overflow-hidden group shrink-0">
+                    <button type="button" className="bg-[#1C1C1C] border border-[#3D3215] px-4 py-3 rounded-2xl font-black text-[10px] uppercase tracking-wider text-[#FACC15] hover:border-[#D4A017] transition-all">Upload</button>
+                    <input type="file" accept="image/*" onChange={(e) => handleUploadImage(e, 'job')} className="absolute inset-0 opacity-0 cursor-pointer" />
+                  </div>
+                  <button 
+                    type="button" 
+                    onClick={() => setNewJob(prev => ({ ...prev, imageUrl: getDefaultCategoryPhoto(prev.type || 'Other') }))}
+                    className="bg-[#151515] border border-[#3D3215] px-3 py-3 rounded-2xl font-bold text-[9px] uppercase tracking-wider text-[#A3A3A3] hover:text-white hover:border-[#D4A017] transition-all shrink-0"
+                    title="Set default category photo"
+                  >
+                    Auto Photo
+                  </button>
+                </div>
+                
+                {/* Full Live Card Preview */}
+                <div className="mt-3">
+                  <span className="text-[9px] font-bold text-[#737373] uppercase tracking-wider block mb-1.5 ml-1">Card Live Preview (ইউজার যেমন কার্ডটি দেখতে পাবে):</span>
+                  <div className="relative w-full aspect-[16/9] max-w-sm rounded-3xl overflow-hidden shadow-xl border border-[#3D3215] bg-[#101010] flex flex-col justify-between p-4">
+                    <img 
+                      src={newJob.imageUrl?.trim() || getDefaultCategoryPhoto(newJob.type || 'Other')} 
+                      alt="Card Preview" 
+                      className="absolute inset-0 w-full h-full object-cover" 
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/55 to-black/35 pointer-events-none" />
+                    
+                    <div className="relative z-10 flex items-center justify-between w-full">
+                      <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/15 text-white flex items-center gap-1.5 shadow-md">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#FACC15] animate-pulse"></span>
+                        {newJob.type || 'Facebook'}
+                      </span>
+                      <span className="text-xs font-black text-[#090909] bg-gradient-to-r from-[#D4A017] via-[#FACC15] to-[#FFE082] px-3 py-1 rounded-full shadow-lg font-display">
+                        ৳ {Number(newJob.reward || 0).toFixed(2)}
+                      </span>
+                    </div>
+
+                    <div className="relative z-10 space-y-2 pt-2">
+                      <h4 className="font-display font-black text-sm leading-snug text-white line-clamp-2 drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]">
+                        {newJob.title || 'টাস্ক শিরোনাম (Task Title)'}
+                      </h4>
+                      <div className="w-full bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] py-2 rounded-xl text-xs font-black uppercase tracking-wider text-center shadow-lg flex items-center justify-center gap-1.5">
+                        <span>Start Task</span>
+                        <Play className="w-3 h-3 fill-[#090909]" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
             
             <div className="grid grid-cols-2 gap-3">

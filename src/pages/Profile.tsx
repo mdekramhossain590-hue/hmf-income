@@ -67,11 +67,12 @@ export function Profile() {
     }
   }, [profile?.myReferCode]);
 
-    const [requiredReferrals, setRequiredReferrals] = useState(10);
+  const [requiredReferrals, setRequiredReferrals] = useState(10);
   useEffect(() => {
-    getCachedDoc(doc(db, "settings", "dashboard")).then(snap => {
-      if (snap.exists() && snap.data().partnerSettings) {
-        setRequiredReferrals(snap.data().partnerSettings.requiredReferrals || 10);
+    getCachedDoc(doc(db, "settings", "partner")).then(snap => {
+      if (snap.exists()) {
+        const d = snap.data();
+        setRequiredReferrals(d.requiredReferrals !== undefined ? d.requiredReferrals : 10);
       }
     });
   }, []);
@@ -261,7 +262,7 @@ export function Profile() {
               <div className="flex items-center gap-2">
                 <h2 className="text-2xl font-display font-bold tracking-tight text-white group-hover:text-[#FACC15] transition-colors drop-shadow-sm flex items-center gap-2">
                   {profile?.fullName || user?.displayName || 'User'}
-                  {((profile?.partnerReferrals || 0) >= requiredReferrals) && (
+                  {(Math.max(profile?.partnerReferrals || 0, profile?.totalReferrals || 0) >= requiredReferrals) && (
                   <div className="bg-[#D4A017] rounded-full p-0.5 text-[#090909] shadow-sm" title="Verified Partner">
                     <Check className="w-3.5 h-3.5" />
                   </div>

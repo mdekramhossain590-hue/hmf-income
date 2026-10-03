@@ -13,6 +13,8 @@ import {
 } from 'firebase/firestore';
 import { Celebration } from '../components/Celebration';
 import toast from 'react-hot-toast';
+import { uploadImageOrFallback } from '../lib/imageUpload';
+import { getDefaultCategoryPhoto } from '../lib/taskPhotos';
 
 export function PostJob() {
   const [showCelebration, setShowCelebration] = useState(false);
@@ -24,10 +26,29 @@ export function PostJob() {
   const [description, setDescription] = useState('');
   const [link, setLink] = useState('');
   const [category, setCategory] = useState('Facebook');
+  const [imageUrl, setImageUrl] = useState('');
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [reward, setReward] = useState(3); // Minimum 3 Taka per job
   const [slots, setSlots] = useState(10); // Minimum 10 slots
   const [selectedProofs, setSelectedProofs] = useState<string[]>(['text']);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setIsUploadingPhoto(true);
+      toast.loading("Uploading photo...", { id: "job_photo_upload" });
+      const url = await uploadImageOrFallback(file, 600);
+      setImageUrl(url);
+      toast.success("Photo uploaded!", { id: "job_photo_upload" });
+    } catch (err: any) {
+      toast.error("Upload failed: " + (err?.message || "Unknown error"), { id: "job_photo_upload" });
+    } finally {
+      setIsUploadingPhoto(false);
+      e.target.value = '';
+    }
+  };
 
   // User's own posted jobs
   const [userJobs, setUserJobs] = useState<any[]>([]);
@@ -100,6 +121,7 @@ export function PostJob() {
         title,
         description,
         link,
+        imageUrl: imageUrl.trim() || getDefaultCategoryPhoto(category),
         type: category,
         reward,
         allowedCompletions: slots,
@@ -300,6 +322,57 @@ export function PostJob() {
                 onChange={e => setLink(e.target.value)} 
                 className="w-full bg-[#101010] border border-[#3D3215] pl-11 pr-4 py-3 rounded-2xl text-sm font-bold placeholder:text-[#737373] text-[#FFE082] focus:ring-2 focus:ring-[#D4A017] focus:outline-none" 
               />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest block mb-1 px-1">
+              Task Cover Photo / কার্ডের ব্যাকগ্রাউন্ড ফটো
+            </label>
+            <div className="flex gap-2">
+              <input 
+                type="url" 
+                placeholder="Photo URL (https://...) বা সরাসরি আপলোড করুন" 
+                value={imageUrl} 
+                onChange={e => setImageUrl(e.target.value)} 
+                className="flex-1 bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold placeholder:text-[#737373] text-white focus:ring-2 focus:ring-[#D4A017] focus:outline-none" 
+              />
+              <div className="relative overflow-hidden group shrink-0">
+                <button 
+                  type="button" 
+                  disabled={isUploadingPhoto}
+                  className="bg-[#1C1C1C] border border-[#3D3215] px-4 py-3 rounded-2xl font-black text-[10px] uppercase tracking-wider text-[#FACC15] hover:border-[#D4A017] transition-all disabled:opacity-50"
+                >
+                  {isUploadingPhoto ? 'Uploading...' : 'Upload'}
+                </button>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  onChange={handlePhotoUpload} 
+                  disabled={isUploadingPhoto}
+                  className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed" 
+                />
+              </div>
+            </div>
+            {/* Live Card Preview */}
+            <div className="mt-2.5 relative h-28 w-full rounded-2xl overflow-hidden border border-[#3D3215] bg-[#101010]">
+              <img 
+                src={imageUrl.trim() || getDefaultCategoryPhoto(category)} 
+                alt="Preview" 
+                className="w-full h-full object-cover" 
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent pointer-events-none" />
+              <div className="absolute bottom-2 left-3 right-3 flex items-center justify-between pointer-events-none">
+                <span className="text-[11px] font-bold text-white drop-shadow truncate max-w-[70%]">
+                  {title || 'টাস্ক শিরোনাম'}
+                </span>
+                <span className="text-[9px] font-black text-[#090909] bg-[#FACC15] px-2 py-0.5 rounded-full">
+                  ৳ {reward}
+                </span>
+              </div>
+              <span className="absolute top-2 right-2 text-[8px] font-black uppercase tracking-wider bg-black/70 text-[#FACC15] px-2 py-0.5 rounded-full border border-white/10">
+                Cover Photo
+              </span>
             </div>
           </div>
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { History, Loader2, RefreshCw, List, MessageCircle, Video, Copy, Send, Key, ThumbsUp, Mail, Camera, Monitor, Smartphone, MonitorPlay, Heart, Star, User, Music, Globe, Hash, Briefcase, ArrowLeft, ChevronRight, Shield } from 'lucide-react';
+import { History, Loader2, RefreshCw, List, MessageCircle, Video, Copy, Send, Key, ThumbsUp, Mail, Camera, Monitor, Smartphone, MonitorPlay, Heart, Star, User, Music, Globe, Hash, Briefcase, ArrowLeft, ChevronRight, Shield, Play } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../components/AuthProvider';
 import { collection, getDocs, query, orderBy, limit, where } from 'firebase/firestore';
@@ -8,6 +8,7 @@ import { getCachedQuery } from '../lib/cache';
 import { useLanguage } from '../components/LanguageProvider';
 import { motion, AnimatePresence } from 'motion/react';
 import { playTapSound } from '../lib/sound';
+import { getDefaultCategoryPhoto } from '../lib/taskPhotos';
 
 const getIcon = (iconName: string) => {
   switch (iconName) {
@@ -260,8 +261,8 @@ export function Tasks() {
                 );
               })()}
 
-              {/* Jobs Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {/* Jobs Grid: Full-Card Photo with Overlay Title and Start Button */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {filteredJobs.length === 0 ? (
                   <div className="col-span-full text-center py-12 bg-[#151515] border border-[#3D3215] rounded-3xl p-6 text-[#737373] font-medium">
                     <Briefcase className="w-10 h-10 mx-auto mb-2 opacity-30 text-[#D4A017]" />
@@ -269,34 +270,67 @@ export function Tasks() {
                   </div>
                 ) : (
                   filteredJobs.map((job) => {
-                    const Icon = getIcon(job.icon);
                     const userSubmission = taskHistory.find((h: any) => h.jobId === job.id);
+                    const coverPhoto = job.imageUrl || getDefaultCategoryPhoto(job.type || viewingCategory || 'Other');
                     return (
-                      <div key={job.id} className="relative bg-[#151515] p-4 rounded-2xl shadow-sm hover:shadow-md border border-[#3D3215] hover:border-[#D4A017] flex flex-col items-center text-center transition-all overflow-hidden">
-                        {userSubmission && (
-                          <div className="absolute top-0 right-0">
-                             <span className={`text-[8px] px-2 py-0.5 rounded-bl-lg font-black uppercase tracking-widest ${
-                               userSubmission.status === 'approved' ? 'bg-emerald-500 text-white' :
-                               userSubmission.status === 'rejected' ? 'bg-red-500 text-white' :
-                               'bg-[#D4A017] text-black font-bold'
-                             }`}>
-                               {userSubmission.status || 'pending'}
-                             </span>
+                      <div 
+                        key={job.id} 
+                        className="relative w-full aspect-[16/10] sm:aspect-[16/9] min-h-[195px] rounded-3xl overflow-hidden shadow-xl border border-[#3D3215] hover:border-[#D4A017] transition-all group flex flex-col justify-between p-4.5 bg-[#101010]"
+                      >
+                        {/* 1. Full-Card Cover Photo */}
+                        <img 
+                          src={coverPhoto} 
+                          alt={job.title} 
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = getDefaultCategoryPhoto(job.type || viewingCategory || 'Other');
+                          }}
+                          className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                          loading="lazy"
+                        />
+
+                        {/* 2. Dark Gradient Overlay so text and buttons pop */}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/55 to-black/35 pointer-events-none" />
+
+                        {/* 3. Top Badges & Reward on top of photo */}
+                        <div className="relative z-10 flex items-center justify-between w-full">
+                          <span className="text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/15 text-white flex items-center gap-1.5 shadow-md">
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#FACC15] animate-pulse"></span>
+                            {job.type || viewingCategory}
+                          </span>
+
+                          <div className="flex items-center gap-2">
+                            {userSubmission && (
+                              <span className={`text-[9px] px-2.5 py-1 rounded-full font-black uppercase tracking-widest backdrop-blur-md shadow-md ${
+                                userSubmission.status === 'approved' ? 'bg-emerald-500/90 text-white border border-emerald-400/40' :
+                                userSubmission.status === 'rejected' ? 'bg-red-500/90 text-white border border-red-400/40' :
+                                'bg-[#D4A017]/90 text-black font-black border border-[#FACC15]/40'
+                              }`}>
+                                {userSubmission.status || 'pending'}
+                              </span>
+                            )}
+                            <span className="text-xs sm:text-sm font-black text-[#090909] bg-gradient-to-r from-[#D4A017] via-[#FACC15] to-[#FFE082] px-3 py-1 rounded-full shadow-lg shadow-black/50 font-display">
+                              ৳ {Number(job.reward || 0).toFixed(2)}
+                            </span>
                           </div>
-                        )}
-                        <div className="w-12 h-12 rounded-xl bg-[#101010] border border-[#3D3215] flex items-center justify-center mb-3 text-[#FACC15]">
-                          <Icon className="w-6 h-6" />
                         </div>
-                        <h4 className="font-display font-bold text-[12px] leading-tight mb-1 text-white flex items-center justify-center gap-1 w-full truncate">
-                          <span className="truncate">{job.title}</span>
-                        </h4>
-                        <span className="text-[#FACC15] text-[15px] font-display font-bold mb-3 tracking-tight">৳ {job.reward}</span>
-                        <button 
-                          onClick={() => startTask(job.id)}
-                          className="w-full bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] py-2 rounded-xl text-xs font-bold transition-all active:scale-95 shadow-md shadow-[#D4A017]/20"
-                        >
-                          {t('start')}
-                        </button>
+
+                        {/* 4. Bottom Area: Title and Start Button on top of photo */}
+                        <div className="relative z-10 space-y-2.5 pt-3">
+                          <h4 className="font-display font-black text-sm sm:text-base leading-snug text-white line-clamp-2 drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]">
+                            {job.title}
+                          </h4>
+
+                          <button 
+                            onClick={() => {
+                              playTapSound();
+                              startTask(job.id);
+                            }}
+                            className="w-full bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] hover:brightness-110 text-[#090909] py-2.5 rounded-2xl text-xs sm:text-sm font-black uppercase tracking-wider transition-all active:scale-[0.98] shadow-xl shadow-black/60 flex items-center justify-center gap-2 cursor-pointer"
+                          >
+                            <span>{t('start') || 'Start Task'}</span>
+                            <Play className="w-3.5 h-3.5 fill-[#090909]" />
+                          </button>
+                        </div>
                       </div>
                     );
                   })
