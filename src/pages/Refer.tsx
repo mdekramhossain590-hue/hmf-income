@@ -58,24 +58,28 @@ export function Refer() {
         // Also check if any users in the users collection used this code
         if (effectiveReferCode) {
           try {
-            const uQ = query(collection(db, "users"), where("usedReferCode", "==", effectiveReferCode));
-            const uSnap = await getDocs(uQ);
-            const existingEmails = new Set(refs.map((r: any) => r.referredEmail?.toLowerCase()));
-            uSnap.forEach((uDoc) => {
-              const uData = uDoc.data();
-              if (uData.email && !existingEmails.has(uData.email.toLowerCase())) {
-                const synthesized = {
-                  id: uDoc.id,
-                  referredEmail: uData.email,
-                  referredName: uData.fullName || 'User',
-                  bonusEarned: 10,
-                  level: 1,
-                  createdAt: uData.createdAt || new Date()
-                };
-                refs.push(synthesized);
-                existingEmails.add(uData.email.toLowerCase());
-              }
-            });
+            const cleanCode = effectiveReferCode.trim();
+            const codesToTest = Array.from(new Set([cleanCode, cleanCode.toUpperCase(), cleanCode.toLowerCase()]));
+            for (const code of codesToTest) {
+              const uQ = query(collection(db, "users"), where("usedReferCode", "==", code));
+              const uSnap = await getDocs(uQ);
+              const existingEmails = new Set(refs.map((r: any) => r.referredEmail?.toLowerCase()));
+              uSnap.forEach((uDoc) => {
+                const uData = uDoc.data();
+                if (uData.email && !existingEmails.has(uData.email.toLowerCase())) {
+                  const synthesized = {
+                    id: uDoc.id,
+                    referredEmail: uData.email,
+                    referredName: uData.fullName || 'User',
+                    bonusEarned: 10,
+                    level: 1,
+                    createdAt: uData.createdAt || new Date()
+                  };
+                  refs.push(synthesized);
+                  existingEmails.add(uData.email.toLowerCase());
+                }
+              });
+            }
           } catch (e) {}
         }
 
@@ -117,19 +121,24 @@ export function Refer() {
     loadReferrals();
   }, [auth.currentUser?.uid, profile?.myReferCode, effectiveReferCode, profile?.totalReferrals]);
 
-  const referLink = effectiveReferCode ? `${window.location.origin}/register?ref=${effectiveReferCode}` : '';
+  const safeOrigin = (typeof window !== 'undefined' && window.location.origin && window.location.origin !== 'null') 
+    ? window.location.origin 
+    : 'https://hmf-income-app.web.app';
+
+  const referLink = effectiveReferCode ? `${safeOrigin}/register?ref=${effectiveReferCode}` : '';
 
   const copyReferCode = () => {
     if (effectiveReferCode) {
       navigator.clipboard.writeText(effectiveReferCode);
-      toast.success("Referral code copied!");
+      toast.success(language === 'Bengali' ? 'রেফার কোড কপি হয়েছে!' : "Referral code copied!");
     }
   };
 
   const copyReferLink = () => {
-    if (referLink) {
-      navigator.clipboard.writeText(referLink);
-      toast.success("Referral link copied!");
+    const linkToCopy = referLink || `${safeOrigin}/register?ref=${effectiveReferCode}`;
+    if (linkToCopy) {
+      navigator.clipboard.writeText(linkToCopy);
+      toast.success(language === 'Bengali' ? 'রেফার লিংক কপি হয়েছে!' : "Referral link copied!");
     }
   };
 

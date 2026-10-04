@@ -171,7 +171,7 @@ export default function App() {
             <Route path="/tasks/:id" element={<ActiveGuard><TaskDetail /></ActiveGuard>} />
             <Route path="/spin" element={<ActiveGuard><Spin /></ActiveGuard>} />
             <Route path="/math" element={<ActiveGuard><MathQuiz /></ActiveGuard>} />
-            <Route path="/refer" element={<ActiveGuard><Refer /></ActiveGuard>} />
+            <Route path="/refer" element={<Refer />} />
             <Route path="/wallet" element={<Wallet />} />
             <Route path="/recharge" element={<Recharge />} />
                 <Route path="/deposit" element={<Deposit />} />

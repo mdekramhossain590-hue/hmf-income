@@ -42,7 +42,7 @@ service cloud.firestore {
       allow create: if isAuth() && isOwner(userId);
       // Allow updates for referrals to work
       allow update: if isAuth() && (isOwner(userId) || isAdmin() || 
-        request.resource.data.diff(resource.data).affectedKeys().hasAny(['balances', 'totalReferrals', 'referralBonusPaid'])
+        request.resource.data.diff(resource.data).affectedKeys().hasAny(['balances', 'totalReferrals', 'partnerReferrals', 'referralBonusPaid'])
       );
       allow delete: if isAdmin();
 
@@ -74,7 +74,7 @@ service cloud.firestore {
 
     // ৫. সিস্টেম, রিপোর্ট ও লিডারবোর্ড
     match /leaderboard/{userId} {
-      allow read: if isAuth();
+      allow read: if true;
       allow create, update: if isAuth();
       allow delete: if isAdmin();
     }

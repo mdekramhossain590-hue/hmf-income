@@ -109,7 +109,17 @@ export function Leaderboard() {
         // Ensure current user is in the list with actual stats
         if (auth.currentUser) {
           const curUid = auth.currentUser.uid;
-          const currentBal = Number((profile?.balances?.main || 0) + (profile?.balances?.bonus || 0) + (profile?.balances?.referral || 0) + (profile?.balances?.partner || 0));
+          const tasksTotal = typeof profile?.balances?.tasks === 'object'
+            ? Object.values(profile.balances.tasks).reduce((a: any, b: any) => Number(a || 0) + Number(b || 0), 0)
+            : Number(profile?.balances?.tasks || 0);
+
+          const currentBal = Number(profile?.balances?.main || profile?.balance || 0) +
+            Number(profile?.balances?.bonus || 0) +
+            Number(profile?.balances?.referral || 0) +
+            Number(profile?.balances?.partner || 0) +
+            Number(profile?.balances?.gift || 0) +
+            Number(tasksTotal);
+
           const existing = combinedUsers.get(curUid) || {};
           const myTotalIncome = Math.max(Number(existing.totalIncome || 0), currentBal);
           const myReferrals = Math.max(Number(existing.referrals || 0), Number(profile?.totalReferrals || 0), Number(profile?.partnerReferrals || 0));
@@ -149,7 +159,7 @@ export function Leaderboard() {
 
     fetchLeaders();
     return () => clearTimeout(safetyTimer);
-  }, [sortBy]);
+  }, [sortBy, profile?.balances, profile?.balance, profile?.totalReferrals, profile?.partnerReferrals]);
 
   const getRankIcon = (index: number) => {
     switch(index) {

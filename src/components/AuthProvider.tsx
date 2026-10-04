@@ -133,7 +133,7 @@ export const generateUserReferralCode = (fullName?: string): string => {
 
 const ensureValidReferralCode = async (uid: string, data: any): Promise<any> => {
   if (!data) return data;
-  if (!data.myReferCode || !/^[A-Z]{2}[0-9]{6}$/.test(data.myReferCode)) {
+  if (!data.myReferCode || typeof data.myReferCode !== 'string' || data.myReferCode.trim() === '' || data.myReferCode === 'none') {
     const newReferCode = generateUserReferralCode(data.fullName || data.name);
     data.myReferCode = newReferCode;
     try {
@@ -145,9 +145,55 @@ const ensureValidReferralCode = async (uid: string, data: any): Promise<any> => 
   return data;
 };
 
+const normalizeProfileData = (targetUid: string, rawData: any): UserProfile => {
+  const mainBal = Number(
+    (rawData.balances?.main !== undefined && rawData.balances?.main !== null && Number(rawData.balances?.main) > 0)
+      ? rawData.balances.main
+      : (typeof rawData.balance === 'number' && rawData.balance > 0 ? rawData.balance : (Number(rawData.balances?.main) || Number(rawData.balance) || 0))
+  );
+
+  const bonusBal = Number(rawData.balances?.bonus || 0);
+  const refBal = Number(rawData.balances?.referral || 0);
+  const partnerBal = Number(rawData.balances?.partner || 0);
+  const giftBal = Number(rawData.balances?.gift || 0);
+  const tasksBal = rawData.balances?.tasks || {};
+
+  const email = (rawData.email || auth.currentUser?.email || '').toLowerCase();
+  const isAdminUser = email === 'mdekramhossain590@gmail.com' || rawData.role === 'admin' || rawData.role === 'super_admin';
+
+  return {
+    ...rawData,
+    id: targetUid,
+    uid: targetUid,
+    role: isAdminUser ? 'admin' : (rawData.role || 'user'),
+    balance: mainBal,
+    balances: {
+      main: mainBal,
+      bonus: bonusBal,
+      referral: refBal,
+      partner: partnerBal,
+      gift: giftBal,
+      tasks: tasksBal
+    },
+    totalReferrals: Number(rawData.totalReferrals || 0),
+    partnerReferrals: Number(rawData.partnerReferrals || 0)
+  };
+};
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const lastUid = localStorage.getItem('last_user_uid');
+        if (lastUid) {
+          const cached = localStorage.getItem(`profile_${lastUid}`);
+          if (cached) return JSON.parse(cached);
+        }
+      }
+    } catch (e) {}
+    return null;
+  });
   const [loading, setLoading] = useState(true);
   const [isQuotaExceeded, setIsQuotaExceeded] = useState(false);
   const [siteSettings, setSiteSettings] = useState<SiteSettings>(() => {
@@ -180,8 +226,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const docSnap = await getCachedDoc(doc(db, 'users', targetUid), true);
       if (docSnap.exists()) {
-        let data = { id: targetUid, uid: targetUid, ...docSnap.data() } as UserProfile;
-        data = await ensureValidReferralCode(targetUid, data);
+        let raw = { id: targetUid, uid: targetUid, ...docSnap.data() };
+        raw = await ensureValidReferralCode(targetUid, raw);
+        const data = normalizeProfileData(targetUid, raw);
         setProfile(prev => {
           if (!prev) return data;
           return { ...data, deviceId: data.deviceId || prev.deviceId };
@@ -205,6 +252,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             myReferCode: defaultReferCode,
             usedReferCode: 'none',
             balances: { main: 0, bonus: 0, referral: 0, partner: 0, tasks: 0 },
+            balance: 0,
             isActive: true,
             totalReferrals: 0,
             partnerReferrals: 0,
@@ -318,13 +366,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       setUser(user);
       if (user) {
+        try {
+          localStorage.setItem('last_user_uid', user.uid);
+          const cached = localStorage.getItem(`profile_${user.uid}`);
+          if (cached) {
+            setProfile(JSON.parse(cached));
+          }
+        } catch (e) {}
+        
         await refreshProfile(user.uid);
         
         try {
           unsubscribeProfile = onSnapshot(doc(db, 'users', user.uid), async (docSnap: any) => {
             if (docSnap.exists()) {
-              let data = { id: user.uid, uid: user.uid, ...docSnap.data() };
-              data = await ensureValidReferralCode(user.uid, data);
+              let raw = { id: user.uid, uid: user.uid, ...docSnap.data() };
+              raw = await ensureValidReferralCode(user.uid, raw);
+              const data = normalizeProfileData(user.uid, raw);
               setProfile(prev => {
                 if (!prev) return data;
                 return { ...data, deviceId: data.deviceId || prev.deviceId };

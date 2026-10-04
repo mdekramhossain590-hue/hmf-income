@@ -60,8 +60,8 @@ export function Profile() {
 
   useEffect(() => {
     if (profile) {
-      const isCorrectFormat = profile.myReferCode && /^[A-Z]{2}[0-9]{6}$/.test(profile.myReferCode);
-      if (!isCorrectFormat) {
+      const hasCode = profile.myReferCode && profile.myReferCode.trim() !== '' && profile.myReferCode !== 'none';
+      if (!hasCode) {
         upgradeReferralCode();
       }
     }

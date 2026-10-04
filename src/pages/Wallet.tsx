@@ -343,7 +343,11 @@ export function Wallet() {
     };
   });
 
-  const mainBal = Number(profile?.balances?.main ?? (typeof profile?.balance === 'number' ? profile.balance : 0));
+  const mainBal = Number(
+    (profile?.balances?.main !== undefined && profile?.balances?.main !== null && Number(profile?.balances?.main) > 0)
+      ? profile.balances.main
+      : (typeof profile?.balance === 'number' && profile.balance > 0 ? profile.balance : (Number(profile?.balances?.main) || Number(profile?.balance) || 0))
+  );
   const bonusBal = Number(profile?.balances?.bonus || 0);
   const refBal = Number(profile?.balances?.referral || 0);
   const partnerBal = Number(profile?.balances?.partner || 0);
