@@ -14,7 +14,7 @@ import { Celebration } from "../components/Celebration";
 import { motion, AnimatePresence } from "motion/react";
 import { playTapSound, playSuccessSound } from "../lib/sound";
 import { useTheme } from "../components/ThemeProvider";
-import { getCachedDoc, getCachedQuery } from "../lib/cache";
+import { getCachedDoc, getCachedQuery, clearCache } from "../lib/cache";
 import toast from "react-hot-toast";
 import { deferredPrompt, clearPwaPrompt, onPwaPrompt } from "../pwa";
 
@@ -24,6 +24,7 @@ export function Dashboard() {
 
   const {
     profile,
+    setProfile,
     user,
     loading,
     logOut,
@@ -303,9 +304,9 @@ export function Dashboard() {
           } catch (err: any) {}
         });
         
-        const allLeaders = Array.from(combinedMap.values());
+        const allLeaders = Array.from(combinedMap.values()).filter(l => Number(l.totalIncome) > 0);
         allLeaders.sort((a, b) => b.totalIncome - a.totalIncome);
-        setTopLeaders(allLeaders.slice(0, 5));
+        setTopLeaders(allLeaders.length > 0 ? allLeaders.slice(0, 5) : DEFAULT_LEADERS);
       } catch (err: any) {
         console.warn("Failed fetching top leaders", err?.message || "Unknown Error");
       }
@@ -465,19 +466,48 @@ export function Dashboard() {
       toast.loading("ব্যালেন্স আপডেট হচ্ছে...", { id: "admin_bal_save" });
       const uid = auth.currentUser.uid;
       const totalInc = Number(adminBalanceInputs.main) + Number(adminBalanceInputs.bonus) + Number(adminBalanceInputs.referral) + Number(adminBalanceInputs.partner);
-      await updateDoc(doc(db, "users", uid), {
-        balance: Number(adminBalanceInputs.main),
-        "balances.main": Number(adminBalanceInputs.main),
-        "balances.bonus": Number(adminBalanceInputs.bonus),
-        "balances.referral": Number(adminBalanceInputs.referral),
-        "balances.partner": Number(adminBalanceInputs.partner)
-      });
+      
+      clearCache();
+
+      const newMain = Number(adminBalanceInputs.main);
+      const newBonus = Number(adminBalanceInputs.bonus);
+      const newRef = Number(adminBalanceInputs.referral);
+      const newPartner = Number(adminBalanceInputs.partner);
+
+      await setDoc(doc(db, "users", uid), {
+        balance: newMain,
+        "balances.main": newMain,
+        "balances.bonus": newBonus,
+        "balances.referral": newRef,
+        "balances.partner": newPartner
+      }, { merge: true });
+
       await setDoc(doc(db, "leaderboard", uid), {
         fullName: profile?.fullName || auth.currentUser.displayName || 'Admin',
         totalIncome: totalInc,
-        bonus: Number(adminBalanceInputs.bonus),
+        bonus: newBonus,
         updatedAt: serverTimestamp()
       }, { merge: true });
+
+      setProfile(prev => {
+        if (!prev) return prev;
+        const updated = {
+          ...prev,
+          balance: newMain,
+          balances: {
+            ...prev.balances,
+            main: newMain,
+            bonus: newBonus,
+            referral: newRef,
+            partner: newPartner
+          }
+        };
+        try {
+          localStorage.setItem(`profile_${uid}`, JSON.stringify(updated));
+        } catch (e) {}
+        return updated;
+      });
+
       if (refreshProfile) await refreshProfile();
       toast.success("ব্যালেন্স সফলভাবে আপডেট করা হয়েছে!", { id: "admin_bal_save" });
       setShowAdminBalanceModal(false);
@@ -491,15 +521,37 @@ export function Dashboard() {
     try {
       toast.loading(`৳${amount} যোগ করা হচ্ছে...`, { id: "admin_quick_bal" });
       const uid = auth.currentUser.uid;
-      await updateDoc(doc(db, "users", uid), {
+      clearCache();
+
+      await setDoc(doc(db, "users", uid), {
         [`balances.${target}`]: increment(amount),
         ...(target === 'main' ? { balance: increment(amount) } : {})
-      });
+      }, { merge: true });
+
       await setDoc(doc(db, "leaderboard", uid), {
         totalIncome: increment(amount),
         ...(target === 'bonus' ? { bonus: increment(amount) } : {}),
         updatedAt: serverTimestamp()
       }, { merge: true });
+
+      setProfile(prev => {
+        if (!prev) return prev;
+        const curTarget = Number(prev.balances?.[target] || 0);
+        const newTarget = curTarget + amount;
+        const updated = {
+          ...prev,
+          ...(target === 'main' ? { balance: Number(prev.balance || 0) + amount } : {}),
+          balances: {
+            ...prev.balances,
+            [target]: newTarget
+          }
+        };
+        try {
+          localStorage.setItem(`profile_${uid}`, JSON.stringify(updated));
+        } catch (e) {}
+        return updated;
+      });
+
       if (refreshProfile) await refreshProfile();
       toast.success(`৳${amount} সফলভাবে যোগ করা হয়েছে!`, { id: "admin_quick_bal" });
       setShowAdminBalanceModal(false);
@@ -515,14 +567,37 @@ export function Dashboard() {
     try {
       toast.loading("ব্যালেন্স ০ করা হচ্ছে...", { id: "reset_bal" });
       const uid = auth.currentUser.uid;
-      await updateDoc(doc(db, "users", uid), {
+      clearCache();
+
+      await setDoc(doc(db, "users", uid), {
         balance: 0,
         balances: { main: 0, bonus: 0, referral: 0, partner: 0, tasks: 0 }
-      });
+      }, { merge: true });
+
       await setDoc(doc(db, "leaderboard", uid), {
         totalIncome: 0,
         bonus: 0
       }, { merge: true });
+
+      setProfile(prev => {
+        if (!prev) return prev;
+        const updated = {
+          ...prev,
+          balance: 0,
+          balances: {
+            ...prev.balances,
+            main: 0,
+            bonus: 0,
+            referral: 0,
+            partner: 0
+          }
+        };
+        try {
+          localStorage.setItem(`profile_${uid}`, JSON.stringify(updated));
+        } catch (e) {}
+        return updated;
+      });
+
       if (refreshProfile) await refreshProfile();
       toast.success("ব্যালেন্স সফলভাবে ৳ 0.00 করা হয়েছে!", { id: "reset_bal" });
     } catch (e: any) {

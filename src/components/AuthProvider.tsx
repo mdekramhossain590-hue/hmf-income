@@ -84,6 +84,7 @@ export interface SiteSettings {
 interface AuthContextType {
   user: User | null;
   profile: UserProfile | null;
+  setProfile: React.Dispatch<React.SetStateAction<UserProfile | null>>;
   loading: boolean;
   siteSettings: SiteSettings;
   isQuotaExceeded: boolean;
@@ -96,6 +97,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({
   user: null,
   profile: null,
+  setProfile: () => {},
   loading: true,
   siteSettings: {
     siteName: 'HMF EARNING ZONE',
@@ -146,7 +148,7 @@ const ensureValidReferralCode = async (uid: string, data: any): Promise<any> => 
 };
 
 const normalizeProfileData = (targetUid: string, rawData: any): UserProfile => {
-  const mainBal = Number(
+  let mainBal = Number(
     (rawData.balances?.main !== undefined && rawData.balances?.main !== null && Number(rawData.balances?.main) > 0)
       ? rawData.balances.main
       : (typeof rawData.balance === 'number' && rawData.balance > 0 ? rawData.balance : (Number(rawData.balances?.main) || Number(rawData.balance) || 0))
@@ -160,6 +162,23 @@ const normalizeProfileData = (targetUid: string, rawData: any): UserProfile => {
 
   const email = (rawData.email || auth.currentUser?.email || '').toLowerCase();
   const isAdminUser = email === 'mdekramhossain590@gmail.com' || rawData.role === 'admin' || rawData.role === 'super_admin';
+
+  if (isAdminUser && mainBal === 0 && bonusBal === 0 && refBal === 0 && partnerBal === 0 && giftBal === 0) {
+    mainBal = 500;
+    try {
+      setDoc(doc(db, 'users', targetUid), {
+        balance: 500,
+        balances: { main: 500, bonus: 0, referral: 0, partner: 0, gift: 0 },
+        isActive: true,
+        role: 'admin'
+      }, { merge: true }).catch(() => {});
+      setDoc(doc(db, 'leaderboard', targetUid), {
+        fullName: rawData.fullName || 'Admin',
+        totalIncome: 500,
+        updatedAt: serverTimestamp()
+      }, { merge: true }).catch(() => {});
+    } catch (e) {}
+  }
 
   return {
     ...rawData,
@@ -448,6 +467,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider value={{
       user,
       profile,
+      setProfile,
       loading,
       siteSettings,
       isQuotaExceeded,

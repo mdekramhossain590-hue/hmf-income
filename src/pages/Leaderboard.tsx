@@ -145,7 +145,7 @@ export function Leaderboard() {
           }, { merge: true }).catch(() => {});
         }
 
-        const fetchedLeaders = Array.from(combinedUsers.values());
+        const fetchedLeaders = Array.from(combinedUsers.values()).filter(l => Number(l[sortBy]) > 0 || l.isCurrentUser);
         fetchedLeaders.sort((a: any, b: any) => (Number(b[sortBy]) || 0) - (Number(a[sortBy]) || 0));
         setLeaders(fetchedLeaders.slice(0, 100));
       } catch (error: any) {
