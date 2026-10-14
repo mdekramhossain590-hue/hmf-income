@@ -410,6 +410,7 @@ export function AdminPanel() {
 
       const jobPayload = {
         ...newJob,
+        link: (newJob.link || '').trim(),
         imageUrl: finalImageUrl,
         reviewComments: cleanedReviewComments
       };
@@ -2018,8 +2019,23 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
             </div>
             <div className="grid gap-3">
               <input type="text" placeholder="Task Title" required value={newJob.title} onChange={e => setNewJob({...newJob, title: e.target.value})} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none" />
-              <textarea placeholder="Job Description / Instructions" required value={newJob.description} onChange={e => setNewJob({...newJob, description: e.target.value})} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white h-24 placeholder:text-[#737373] focus:border-[#D4A017] outline-none" />
-              <input type="text" placeholder="Action Link (ঐচ্ছিক / Optional - e.g. Telegram Group Link, URL)" value={newJob.link || ''} onChange={e => setNewJob({...newJob, link: e.target.value})} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold placeholder:text-[#737373] text-[#FACC15] focus:border-[#D4A017] outline-none" />
+              <div>
+                <div className="flex items-center justify-between mb-1 px-1">
+                  <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest block">
+                    Task Redirect / Action Link (ঐচ্ছিক / Optional)
+                  </label>
+                  <span className="text-[9px] font-bold text-emerald-400 bg-emerald-950/40 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                    ঐচ্ছিক / Optional
+                  </span>
+                </div>
+                <input 
+                  type="text" 
+                  placeholder="https://... (ঐচ্ছিক / Optional - লিংক না থাকলে ফাঁকা রাখুন)" 
+                  value={newJob.link || ''} 
+                  onChange={e => setNewJob({...newJob, link: e.target.value})} 
+                  className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold placeholder:text-[#737373] text-[#FFE082] focus:border-[#D4A017] outline-none" 
+                />
+              </div>
               
               <div>
                 <div className="flex items-center justify-between mb-1 px-1">
@@ -2184,12 +2200,6 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
               </div>
             </div>
 
-            <div className="grid gap-2">
-              <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1">
-                Task Redirect Link (ঐচ্ছিক / Optional)
-              </label>
-              <input type="text" placeholder="Task Redirect Link (ঐচ্ছিক / Optional - Full URL or leave empty)" value={newJob.link || ''} onChange={e => setNewJob({...newJob, link: e.target.value})} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-xs font-bold italic text-[#FACC15] focus:border-[#D4A017] outline-none" />
-            </div>
             
             <div className="space-y-3">
               <p className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1">Required Proofs To Check</p>
