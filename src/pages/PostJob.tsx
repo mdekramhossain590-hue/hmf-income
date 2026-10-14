@@ -307,17 +307,19 @@ export function PostJob() {
           </div>
 
           <div>
-            <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest block mb-1 px-1">
-              Target Link / জবের লিংক
-            </label>
+            <div className="flex items-center justify-between mb-1 px-1">
+              <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest block">
+                Target Link / জবের লিংক (ঐচ্ছিক / Optional)
+              </label>
+              <span className="text-[9px] font-bold text-[#A3A3A3]">বাধ্যতামূলক নয়</span>
+            </div>
             <div className="relative">
               <span className="absolute left-4 top-3.5 text-[#737373]">
                 <LinkIcon className="w-4 h-4" />
               </span>
               <input 
-                type="url" 
-                placeholder="https://youtube.com/..." 
-                required 
+                type="text" 
+                placeholder="https://... (ঐচ্ছিক / optional - লিংক না থাকলে ফাঁকা রাখুন)" 
                 value={link} 
                 onChange={e => setLink(e.target.value)} 
                 className="w-full bg-[#101010] border border-[#3D3215] pl-11 pr-4 py-3 rounded-2xl text-sm font-bold placeholder:text-[#737373] text-[#FFE082] focus:ring-2 focus:ring-[#D4A017] focus:outline-none" 

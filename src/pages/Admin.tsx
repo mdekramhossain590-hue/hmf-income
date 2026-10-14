@@ -2019,7 +2019,7 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
             <div className="grid gap-3">
               <input type="text" placeholder="Task Title" required value={newJob.title} onChange={e => setNewJob({...newJob, title: e.target.value})} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none" />
               <textarea placeholder="Job Description / Instructions" required value={newJob.description} onChange={e => setNewJob({...newJob, description: e.target.value})} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white h-24 placeholder:text-[#737373] focus:border-[#D4A017] outline-none" />
-              <input type="text" placeholder="Action Link (e.g. Telegram Group Link, URL)" value={newJob.link || ''} onChange={e => setNewJob({...newJob, link: e.target.value})} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold placeholder:text-[#737373] text-[#FACC15] focus:border-[#D4A017] outline-none" />
+              <input type="text" placeholder="Action Link (ঐচ্ছিক / Optional - e.g. Telegram Group Link, URL)" value={newJob.link || ''} onChange={e => setNewJob({...newJob, link: e.target.value})} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold placeholder:text-[#737373] text-[#FACC15] focus:border-[#D4A017] outline-none" />
               
               <div>
                 <div className="flex items-center justify-between mb-1 px-1">
@@ -2184,8 +2184,11 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
               </div>
             </div>
 
-            <div className="grid gap-3">
-              <input type="text" placeholder="Task Redirect Link (Full URL)" required value={newJob.link} onChange={e => setNewJob({...newJob, link: e.target.value})} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-xs font-bold italic text-[#FACC15] focus:border-[#D4A017] outline-none" />
+            <div className="grid gap-2">
+              <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1">
+                Task Redirect Link (ঐচ্ছিক / Optional)
+              </label>
+              <input type="text" placeholder="Task Redirect Link (ঐচ্ছিক / Optional - Full URL or leave empty)" value={newJob.link || ''} onChange={e => setNewJob({...newJob, link: e.target.value})} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-xs font-bold italic text-[#FACC15] focus:border-[#D4A017] outline-none" />
             </div>
             
             <div className="space-y-3">

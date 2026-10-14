@@ -482,6 +482,12 @@ export function TaskDetail() {
       IconLetter = job.type.charAt(0).toUpperCase();
     }
 
+    const safeJobLink = job.link?.trim() 
+      ? (job.link.trim().startsWith('http://') || job.link.trim().startsWith('https://') 
+          ? job.link.trim() 
+          : `https://${job.link.trim()}`) 
+      : null;
+
     return (
       <div className="pt-4 px-4 pb-24 max-w-lg mx-auto">
         <Celebration
@@ -499,9 +505,9 @@ export function TaskDetail() {
         </div>
 
         {/* Tutorial Button */}
-        {job.link && (
+        {safeJobLink && (
           <a
-            href={job.link}
+            href={safeJobLink}
             target="_blank"
             rel="noreferrer"
             className="w-full flex items-center justify-between bg-[#151515] border border-[#3D3215] text-white font-bold py-3.5 px-5 rounded-[18px] shadow-sm mb-5 active:scale-95 transition-all hover:border-[#D4A017]"
@@ -840,9 +846,9 @@ export function TaskDetail() {
           </div>
         )}
 
-        {job.link && (
+        {safeJobLink && (
           <a
-            href={job.link}
+            href={safeJobLink}
             target="_blank"
             rel="noreferrer"
             className="w-full flex items-center justify-center gap-2 bg-[#D4A017]/10 border border-[#3D3215] text-[#FACC15] font-bold py-3 rounded-xl hover:bg-[#D4A017]/20 transition"
