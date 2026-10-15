@@ -30,6 +30,7 @@ import {
 import { db, handleFirestoreError, OperationType, auth } from "../lib/firebase";
 import { getCachedDoc, getCachedQuery } from "../lib/cache";
 import { FullPageLoader } from "../components/LoadingSpinner";
+import { TaskExecutionSkeleton } from "../components/TaskExecutionSkeleton";
 import { uploadImageOrFallback, uploadFileGeneric } from "../lib/imageUpload";
 import { File as FileIcon } from "lucide-react";
 import toast from "react-hot-toast";
@@ -224,11 +225,23 @@ export function TaskDetail() {
     fetchJobAndSubmission();
   }, [id]);
 
-  if (loading) return <FullPageLoader />;
+  if (loading) return <TaskExecutionSkeleton />;
   if (!job)
     return (
-      <div className="p-10 text-center text-gray-500">
-        Task not found or unavailable
+      <div className="pt-12 px-4 pb-24 max-w-lg mx-auto text-center">
+        <div className="bg-[#151515] rounded-3xl border border-[#3D3215] p-8 shadow-xl">
+          <div className="w-16 h-16 rounded-2xl bg-[#1C1C1C] border border-[#3D3215] flex items-center justify-center mx-auto mb-4 text-[#FACC15]">
+            <XCircle className="w-8 h-8" />
+          </div>
+          <h3 className="text-lg font-bold text-white mb-2">টাস্কটি পাওয়া যায়নি</h3>
+          <p className="text-sm text-[#A3A3A3] mb-6">এই টাস্কটি সমাপ্ত হয়েছে অথবা সাময়িকভাবে অনুপলব্ধ।</p>
+          <button
+            onClick={() => navigate('/tasks')}
+            className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] font-black font-display active:scale-95 transition"
+          >
+            টাস্ক তালিকায় ফিরে যান
+          </button>
+        </div>
       </div>
     );
 
