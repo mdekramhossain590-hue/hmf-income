@@ -427,8 +427,14 @@ export function TaskDetail() {
     }
   };
 
+  const safeJobLink = (typeof job.link === 'string' && job.link.trim()) 
+    ? (job.link.trim().startsWith('http://') || job.link.trim().startsWith('https://') 
+        ? job.link.trim() 
+        : `https://${job.link.trim()}`) 
+    : null;
+
   if (job.isAccountSell) {
-    const jobTypeL = job.type.toLowerCase();
+    const jobTypeL = (job.type || '').toLowerCase();
 
     let themeColor = "bg-indigo-600";
     let themeLight =
@@ -479,14 +485,8 @@ export function TaskDetail() {
       themeRing = "focus:ring-[#229ED9]";
       IconLetter = "Tg";
     } else {
-      IconLetter = job.type.charAt(0).toUpperCase();
+      IconLetter = job.type ? job.type.charAt(0).toUpperCase() : "A";
     }
-
-    const safeJobLink = job.link?.trim() 
-      ? (job.link.trim().startsWith('http://') || job.link.trim().startsWith('https://') 
-          ? job.link.trim() 
-          : `https://${job.link.trim()}`) 
-      : null;
 
     return (
       <div className="pt-4 px-4 pb-24 max-w-lg mx-auto">
@@ -808,9 +808,15 @@ export function TaskDetail() {
             </div>
           </div>
 
-          <p className="text-sm text-[#A3A3A3] mb-6">
-            {job.description}
-          </p>
+          {/* Task Description & Instructions */}
+          <div className="bg-[#101010] p-4 rounded-2xl border border-[#3D3215] mb-5 shadow-inner">
+            <span className="text-[10px] font-black uppercase tracking-widest text-[#FACC15] block mb-1.5">
+              Task Description / কাজের বিস্তারিত বিবরণ
+            </span>
+            <p className="text-sm font-medium text-[#E5E5E5] whitespace-pre-wrap leading-relaxed">
+              {job.description?.trim() || "টাস্কটির নিয়মাবলী অনুসরণ করে কাজ সম্পন্ন করুন এবং প্রয়োজনীয় প্রমাণ নিচে সাবমিট করুন।"}
+            </p>
+          </div>
 
         {job.type === "Review" && selectedComment && (
           <div className="bg-[#101010] border border-[#3D3215] rounded-2xl p-4 mb-5 space-y-3">

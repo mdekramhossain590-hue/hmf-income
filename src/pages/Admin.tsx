@@ -2016,9 +2016,27 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
               {editingJobId && (
                 <button type="button" onClick={handleCancelEditJob} className="text-xs font-bold text-[#A3A3A3] hover:text-[#FACC15]">Cancel Edit</button>
               )}
-            </div>
             <div className="grid gap-3">
-              <input type="text" placeholder="Task Title" required value={newJob.title} onChange={e => setNewJob({...newJob, title: e.target.value})} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none" />
+              <div>
+                <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest block mb-1 px-1">
+                  Task Title (টাস্কের শিরোনাম) *
+                </label>
+                <input type="text" placeholder="Task Title" required value={newJob.title} onChange={e => setNewJob({...newJob, title: e.target.value})} className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none" />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest block mb-1 px-1">
+                  Task Description / Instructions (কাজের বিস্তারিত বিবরণ ও নির্দেশিকা) *
+                </label>
+                <textarea 
+                  placeholder="Job Description / Instructions (কাজের নিয়মাবলী ও নির্দেশিকা লিখুন)..." 
+                  required 
+                  value={newJob.description} 
+                  onChange={e => setNewJob({...newJob, description: e.target.value})} 
+                  className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-white placeholder:text-[#737373] focus:outline-none focus:border-[#D4A017] min-h-[110px] text-sm leading-relaxed" 
+                />
+              </div>
+
               <div>
                 <div className="flex items-center justify-between mb-1 px-1">
                   <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest block">
@@ -2030,7 +2048,7 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                 </div>
                 <input 
                   type="text" 
-                  placeholder="https://... (ঐচ্ছিক / Optional - লিংক না থাকলে ফাঁকা রাখুন)" 
+                  placeholder="https://... (ঐচ্ছিক - লিংক না থাকলে ফাঁকা রাখুন)" 
                   value={newJob.link || ''} 
                   onChange={e => setNewJob({...newJob, link: e.target.value})} 
                   className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold placeholder:text-[#737373] text-[#FFE082] focus:border-[#D4A017] outline-none" 
@@ -2100,6 +2118,7 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                 </div>
               </div>
             </div>
+          </div>
             
             <div className="grid grid-cols-2 gap-3">
               <div>
