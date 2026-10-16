@@ -65,7 +65,8 @@ service cloud.firestore {
 
     match /courses/{courseId} {
       allow read: if isAuth();
-      allow write: if isAdmin();
+      allow update: if isAuth() && (isAdmin() || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['salesCount']));
+      allow create, delete: if isAdmin();
     }
     match /drive_offers/{offerId} {
       allow read: if isAuth();
@@ -126,6 +127,12 @@ service cloud.firestore {
     match /support/{id} {
       allow read: if isAdmin() || isDataOwner(resource.data);
       allow create: if isAdmin() || isDataOwner(request.resource.data);
+      allow update, delete: if isAdmin();
+    }
+    match /course_orders/{id} {
+      allow list: if isAuth() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow get: if isAuth() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isAdmin();
     }
   }

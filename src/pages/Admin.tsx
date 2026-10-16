@@ -30,19 +30,29 @@ export function AdminPanel() {
   const [giftExpiresInHours, setGiftExpiresInHours] = useState<number | ''>(24);
   const [isCreatingGift, setIsCreatingGift] = useState(false);
 
-  // Courses Administration States
+  // Courses & Digital Marketplace Administration States
   const [adminCourses, setAdminCourses] = useState<any[]>([]);
+  const [courseOrders, setCourseOrders] = useState<any[]>([]);
+  const [courseSubTab, setCourseSubTab] = useState<'products' | 'orders'>('products');
+  const [courseOrderFilter, setCourseOrderFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
   const [newCourseTitle, setNewCourseTitle] = useState('');
+  const [newCourseType, setNewCourseType] = useState<'course' | 'premium_app'>('course');
   const [newCourseDesc, setNewCourseDesc] = useState('');
   const [newCourseThumbnail, setNewCourseThumbnail] = useState('');
   const [newCourseLink, setNewCourseLink] = useState('');
-  const [newCourseCategory, setNewCourseCategory] = useState<' ' | ' ' | ''>(' ');
+  const [newCourseCategory, setNewCourseCategory] = useState<string>('এনিমেশন');
+  const [newCoursePrice, setNewCoursePrice] = useState<number | ''>(500);
+  const [newCourseDiscountPrice, setNewCourseDiscountPrice] = useState<number | ''>(250);
+  const [newCourseDriveLink, setNewCourseDriveLink] = useState('');
+  const [newCourseAccessKey, setNewCourseAccessKey] = useState('');
+  const [newCourseSetupInstructions, setNewCourseSetupInstructions] = useState('');
   const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
-  const [courseItems, setCourseItems] = useState<{ title: string; description: string; thumbnailUrl: string; videoLink: string; }[]>([]);
+  const [courseItems, setCourseItems] = useState<{ title: string; description: string; thumbnailUrl?: string; videoLink: string; duration?: string; }[]>([]);
   const [optTitle, setOptTitle] = useState('');
   const [optDesc, setOptDesc] = useState('');
   const [optThumbnail, setOptThumbnail] = useState('');
   const [optLink, setOptLink] = useState('');
+  const [optDuration, setOptDuration] = useState('');
   
   const [jobs, setJobs] = useState<any[]>([]);
   const [userList, setUserList] = useState<any[]>([]);
@@ -315,6 +325,11 @@ export function AdminPanel() {
       }, logErr));
       unsubs.push(onSnapshot(query(collection(db, "courses"), limit(50)), (snap) => {
         setAdminCourses(snap.docs.map(d => ({id: d.id, ...d.data()} as any)));
+      }, logErr));
+      unsubs.push(onSnapshot(query(collection(db, "course_orders"), limit(100)), (snap) => {
+        const list = snap.docs.map(d => ({id: d.id, ...d.data()} as any));
+        list.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+        setCourseOrders(list);
       }, logErr));
     }
     
@@ -2879,396 +2894,824 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
 
       {activeTab === 'courses' && (
         <div className="space-y-6">
-          {/* Create/Edit Course Form */}
-          <div className="bg-[#151515] p-6 rounded-[32px] border border-[#3D3215] shadow-sm relative overflow-hidden">
-            <h3 className="font-black text-white uppercase tracking-tight text-sm mb-4">
-              {editingCourseId ? 'কোর্স এডিট করুন' : 'নতুন কোর্স তৈরি করুন'}
-            </h3>
-            
-            <form 
-              onSubmit={async (e) => {
-                e.preventDefault();
-                if (!newCourseTitle || !newCourseDesc || !newCourseThumbnail || !newCourseLink) {
-                  toast.error("সব ফিল্ড পূরণ করুন");
-                  return;
-                }
-                
-                try {
-                  const id = editingCourseId || `course_${Date.now()}`;
-                  await setDoc(doc(db, "courses", id), {
-                    title: newCourseTitle,
-                    description: newCourseDesc,
-                    thumbnailUrl: newCourseThumbnail,
-                    videoLink: newCourseLink,
-                    category: newCourseCategory,
-                    status: 'active',
-                    items: courseItems,
-                    updatedAt: serverTimestamp()
-                  }, { merge: true });
-                  
-                  toast.success(editingCourseId ? "কোর্স আপডেট হয়েছে!" : "কোর্স তৈরি হয়েছে!");
-          clearCache();
-          await loadData(true);
-                  
-                  // Clear form
-                  setNewCourseTitle('');
-                  setNewCourseDesc('');
-                  setNewCourseThumbnail('');
-                  setNewCourseLink('');
-                  setNewCourseCategory('ইউটিউব মার্কেটিং');
-                  setCourseItems([]);
-                  setEditingCourseId(null);
-                } catch (err) {
-                  toast.error("কোর্স সংরক্ষণ ব্যর্থ হয়েছে");
-                  console.error(err?.message || "Unknown Error");
-                }
-              }}
-              className="space-y-4"
+          {/* Sub Navigation Bar: Products vs Orders */}
+          <div className="grid grid-cols-2 p-1.5 bg-[#151515] border border-[#3D3215] rounded-2xl gap-1.5">
+            <button
+              type="button"
+              onClick={() => setCourseSubTab('products')}
+              className={`py-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                courseSubTab === 'products'
+                  ? 'bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] shadow-lg shadow-[#D4A017]/20'
+                  : 'text-[#A3A3A3] hover:text-white'
+              }`}
             >
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">কোর্সের নাম (Title)</label>
-                  <input 
-                    type="text" 
-                    placeholder="যেমন: ইউটিউব মার্কেটিং মাস্টারক্লাস" 
-                    required 
-                    value={newCourseTitle} 
-                    onChange={(e) => setNewCourseTitle(e.target.value)} 
-                    className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none transition-all" 
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">ক্যাটাগরি (Category)</label>
-                  <select 
-                    value={newCourseCategory} 
-                    onChange={(e) => setNewCourseCategory(e.target.value as any)} 
-                    className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white focus:border-[#D4A017] outline-none"
-                  >
-                    <option value="ইউটিউব মার্কেটিং" className="bg-[#151515] text-white">ইউটিউব মার্কেটিং</option>
-                    <option value="ফেসবুক মার্কেটিং" className="bg-[#151515] text-white">ফেসবুক মার্কেটিং</option>
-                    <option value="অন্যান্য" className="bg-[#151515] text-white">অন্যান্য</option>
-                  </select>
-                </div>
-              </div>
+              <BookOpen className="w-4 h-4" />
+              কোর্স ও ডিজিটাল প্রডাক্ট ({adminCourses.length})
+            </button>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">থাম্বনেইল লিংক (Thumbnail URL)</label>
-                  <input 
-                    type="url" 
-                    placeholder="https://images.unsplash.com/..." 
-                    required 
-                    value={newCourseThumbnail} 
-                    onChange={(e) => setNewCourseThumbnail(e.target.value)} 
-                    className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none transition-all" 
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">ভিডিও লিংক (Video/Instruction Link)</label>
-                  <input 
-                    type="url" 
-                    placeholder="https://youtube.com/watch?v=..." 
-                    required 
-                    value={newCourseLink} 
-                    onChange={(e) => setNewCourseLink(e.target.value)} 
-                    className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none transition-all" 
-                  />
-                </div>
-              </div>
+            <button
+              type="button"
+              onClick={() => setCourseSubTab('orders')}
+              className={`py-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all relative cursor-pointer ${
+                courseSubTab === 'orders'
+                  ? 'bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] shadow-lg shadow-[#D4A017]/20'
+                  : 'text-[#A3A3A3] hover:text-white'
+              }`}
+            >
+              <CreditCard className="w-4 h-4" />
+              কোর্স ও অ্যাপ অর্ডারস ({courseOrders.length})
+              {courseOrders.filter(o => o.status === 'pending').length > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-amber-400 text-black animate-pulse">
+                  {courseOrders.filter(o => o.status === 'pending').length}
+                </span>
+              )}
+            </button>
+          </div>
 
-              <div>
-                <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">বিস্তারিত বিবরণ (Detailed Description)</label>
-                <textarea 
-                  placeholder="এই কোর্সে কি কি শেখানো হবে বিস্তারিত লিখুন..." 
-                  required 
-                  rows={4} 
-                  value={newCourseDesc} 
-                  onChange={(e) => setNewCourseDesc(e.target.value)} 
-                  className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none transition-all"
-                />
-              </div>
-
-              {/* Option Creator UI Section */}
-              <div className="bg-[#101010] p-5 rounded-[24px] border border-[#3D3215] space-y-4">
-                <div className="flex items-center gap-1.5 border-b border-[#3D3215] pb-2">
-                  <Layers className="w-4 h-4 text-[#FACC15]" />
-                  <div className="flex-1">
-                    <h4 className="text-xs font-black text-white uppercase tracking-tight">মাল্টিপল অপশন / সাব-টিউটোরিয়াল (Multiple Option Items)</h4>
-                    <p className="text-[9px] text-[#A3A3A3] font-bold uppercase mt-0.5">Add sub-tutorials for How to complete tasks, How to withdraw, etc.</p>
-                  </div>
+          {/* -------------------- SUB TAB: PRODUCTS (COURSE & APPS) -------------------- */}
+          {courseSubTab === 'products' && (
+            <div className="space-y-6">
+              {/* Create/Edit Product Form */}
+              <div className="bg-[#151515] p-6 rounded-[32px] border border-[#3D3215] shadow-sm relative overflow-hidden">
+                <div className="flex items-center justify-between mb-4 border-b border-[#3D3215] pb-3">
+                  <h3 className="font-black text-white uppercase tracking-tight text-sm flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-[#FACC15]" />
+                    {editingCourseId ? 'প্রডাক্ট / কোর্স এডিট করুন' : 'নতুন কোর্স বা প্রিমিয়াম অ্যাপ আপলোড করুন'}
+                  </h3>
+                  {editingCourseId && (
+                    <span className="text-[10px] bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-lg font-bold">
+                      এডিটিং মোড
+                    </span>
+                  )}
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">অপশন টাইটেল (Option Title)</label>
-                    <input 
-                      type="text" 
-                      placeholder="যেমন: কিভাবে কাজটি সম্পন্ন করবেন" 
-                      value={optTitle} 
-                      onChange={(e) => setOptTitle(e.target.value)} 
-                      className="w-full bg-[#151515] border border-[#3D3215] px-4 py-2.5 rounded-xl text-xs font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none" 
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">অপশন থাম্বনেইল (Option Thumbnail URL)</label>
-                    <input 
-                      type="url" 
-                      placeholder="https://images.unsplash.com/..." 
-                      value={optThumbnail} 
-                      onChange={(e) => setOptThumbnail(e.target.value)} 
-                      className="w-full bg-[#151515] border border-[#3D3215] px-4 py-2.5 rounded-xl text-xs font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none" 
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">অপশন ভিডিও লিংক (Option Video/Instruction Link)</label>
-                    <input 
-                      type="url" 
-                      placeholder="https://youtube.com/watch?v=..." 
-                      value={optLink} 
-                      onChange={(e) => setOptLink(e.target.value)} 
-                      className="w-full bg-[#151515] border border-[#3D3215] px-4 py-2.5 rounded-xl text-xs font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none" 
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">সংক্ষিপ্ত বিবরণ (Option Description)</label>
-                    <input 
-                      type="text" 
-                      placeholder="ছোট একটি বিবরণ দিন" 
-                      value={optDesc} 
-                      onChange={(e) => setOptDesc(e.target.value)} 
-                      className="w-full bg-[#151515] border border-[#3D3215] px-4 py-2.5 rounded-xl text-xs font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none" 
-                    />
-                  </div>
-                </div>
-
-                <button 
-                  type="button"
-                  onClick={() => {
-                    if (!optTitle || !optLink) {
-                      toast.error("টাইটেল এবং ভিডিও লিংক দিন");
+                
+                <form 
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    if (!newCourseTitle || !newCourseDesc || !newCourseThumbnail) {
+                      toast.error("টাইটেল, থাম্বনেইল এবং ডেসক্রিপশন আবশ্যক");
                       return;
                     }
-                    const newItem = {
-                      title: optTitle,
-                      description: optDesc || 'টিউটোরিয়াল',
-                      thumbnailUrl: optThumbnail || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=600&auto=format&fit=crop',
-                      videoLink: optLink
-                    };
-                    setCourseItems(prev => [...prev, newItem]);
-                    // Clear option fields
-                    setOptTitle('');
-                    setOptDesc('');
-                    setOptThumbnail('');
-                    setOptLink('');
-                    toast.success("অপশন যুক্ত হয়েছে!");
-                  }}
-                  className="bg-[#1C1C1C] hover:bg-[#252525] border border-[#3D3215] text-[#FACC15] font-black px-5 py-2.5 rounded-xl text-[10px] uppercase tracking-wider flex items-center gap-1 active:scale-95 transition-all cursor-pointer"
-                >
-                  যুক্ত করুন (+ Add Option)
-                </button>
-
-                {/* Render added list items */}
-                {courseItems.length > 0 && (
-                  <div className="space-y-2 pt-3 border-t border-[#3D3215]">
-                    <p className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1">যুক্ত অপশনসমূহ ({courseItems.length})</p>
-                    <div className="grid gap-2 max-h-[220px] overflow-y-auto pr-1">
-                      {courseItems.map((item, index) => (
-                        <div key={index} className="bg-[#151515] p-3 rounded-xl border border-[#3D3215] flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <span className="w-5 h-5 rounded-full bg-[#1C1C1C] border border-[#3D3215] text-[#FACC15] text-[9px] font-black flex items-center justify-center shrink-0">
-                              {index + 1}
-                            </span>
-                            <img src={item.thumbnailUrl} alt="" className="w-10 h-8 object-cover rounded bg-[#101010] shrink-0 border border-[#3D3215]" />
-                            <div className="min-w-0">
-                              <h5 className="text-xs font-black text-white truncate max-w-[200px] leading-tight">{item.title}</h5>
-                              <p className="text-[9px] text-[#A3A3A3] truncate max-w-[200px] leading-tight">{item.videoLink}</p>
-                            </div>
-                          </div>
-                          <button 
-                            type="button" 
-                            onClick={() => {
-                              setCourseItems(prev => prev.filter((_, idx) => idx !== index));
-                              toast.success("অপশন মুছে ফেলা হয়েছে!");
-                            }}
-                            className="text-[9px] font-black uppercase text-rose-400 hover:text-rose-300 hover:underline shrink-0 cursor-pointer"
-                          >
-                            মুছুন
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex gap-2.5">
-                <button 
-                  type="submit" 
-                  className="flex-1 bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg transition-all text-xs cursor-pointer"
-                >
-                  {editingCourseId ? 'আপডেট করুন (Save Changes)' : 'কোর্স তৈরি করুন (Create)'}
-                </button>
-                
-                {editingCourseId && (
-                  <button 
-                    type="button"
-                    onClick={() => {
+                    
+                    try {
+                      const id = editingCourseId || `course_${Date.now()}`;
+                      await setDoc(doc(db, "courses", id), {
+                        title: newCourseTitle,
+                        type: newCourseType,
+                        description: newCourseDesc,
+                        thumbnailUrl: newCourseThumbnail,
+                        videoLink: newCourseLink || '',
+                        category: newCourseCategory,
+                        price: Number(newCoursePrice) || 0,
+                        discountPrice: newCourseDiscountPrice !== '' ? Number(newCourseDiscountPrice) : Number(newCoursePrice) || 0,
+                        driveLink: newCourseDriveLink || '',
+                        accessKey: newCourseAccessKey || '',
+                        setupInstructions: newCourseSetupInstructions || '',
+                        status: 'active',
+                        items: courseItems,
+                        updatedAt: serverTimestamp()
+                      }, { merge: true });
+                      
+                      toast.success(editingCourseId ? "প্রডাক্ট সফলভাবে আপডেট হয়েছে!" : "কোর্স/অ্যাপ সফলভাবে পাবলিশ হয়েছে!");
+                      clearCache();
+                      await loadData(true);
+                      
+                      // Clear form
                       setNewCourseTitle('');
+                      setNewCourseType('course');
                       setNewCourseDesc('');
                       setNewCourseThumbnail('');
                       setNewCourseLink('');
-                      setNewCourseCategory('ইউটিউব মার্কেটিং');
+                      setNewCourseCategory('এনিমেশন');
+                      setNewCoursePrice(500);
+                      setNewCourseDiscountPrice(250);
+                      setNewCourseDriveLink('');
+                      setNewCourseAccessKey('');
+                      setNewCourseSetupInstructions('');
                       setCourseItems([]);
                       setEditingCourseId(null);
-                    }}
-                    className="bg-[#1C1C1C] border border-[#3D3215] text-[#A3A3A3] hover:text-white font-bold px-6 py-3.5 rounded-2xl text-xs cursor-pointer"
-                  >
-                    বাতিল (Cancel)
-                  </button>
-                )}
-              </div>
-            </form>
-          </div>
+                    } catch (err: any) {
+                      toast.error("কোর্স সংরক্ষণ ব্যর্থ হয়েছে");
+                      console.error(err?.message || "Unknown Error");
+                    }
+                  }}
+                  className="space-y-4"
+                >
+                  {/* Product Type Selector */}
+                  <div>
+                    <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1.5 block">
+                      প্রডাক্টের ধরণ নির্বাচন করুন (Product Type)
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setNewCourseType('course')}
+                        className={`p-3 rounded-2xl border flex items-center justify-center gap-2 font-black text-xs uppercase tracking-wider transition-all cursor-pointer ${
+                          newCourseType === 'course'
+                            ? 'bg-[#1C1C1C] border-[#FACC15] text-[#FACC15] ring-1 ring-[#FACC15]'
+                            : 'bg-[#101010] border-[#3D3215] text-[#A3A3A3]'
+                        }`}
+                      >
+                        <BookOpen className="w-4 h-4" />
+                        অনলাইন কোর্স (Course)
+                      </button>
 
-          {/* Admin Courses List */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between px-1">
-              <h3 className="font-black text-white uppercase tracking-tight text-xs">লাইভ কোর্সসমূহ ({adminCourses.length})</h3>
-              
-              <button 
-                onClick={async () => {
-                  try {
-                    const batch = writeBatch(db);
-                    const DEFAULT_ITEMS = [
-                      {
-                        title: "ইউটিউব মার্কেটিং বেসিক",
-                        description: "ভিডিও আপলোড, এসইও এবং চ্যানেল অপটিমাইজেশন শিখুন",
-                        thumbnailUrl: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=600&auto=format&fit=crop",
-                        videoLink: "https://www.youtube.com",
-                        category: "ইউটিউব মার্কেটিং",
-                        status: 'active'
-                      },
-                      {
-                        title: "ফেসবুক ভিডিও ক্যাম্পেইন",
-                        description: "ফেসবুক পেজ গ্রোথ ও পেইড অ্যাড ক্যাম্পেইন সেটআপ",
-                        thumbnailUrl: "https://images.unsplash.com/photo-1559526324-4b87b5e36e44?q=80&w=600&auto=format&fit=crop",
-                        videoLink: "https://www.youtube.com",
-                        category: "ফেসবুক মার্কেটিং",
-                        status: 'active'
-                      },
-                      {
-                        title: "ডিজিটাল প্রোডাক্ট সেলিং",
-                        description: "অনলাইনে পণ্য বিক্রি এবং মার্কেটিং স্ট্র্যাটেজি",
-                        thumbnailUrl: "https://images.unsplash.com/photo-1606167668584-78701c57f13d?q=80&w=600&auto=format&fit=crop",
-                        videoLink: "https://www.youtube.com",
-                        category: "অন্যান্য",
-                        status: 'active'
-                      }
-                    ];
-                    DEFAULT_ITEMS.forEach((it, ix) => {
-                      const id = `course_imported_${ix + Date.now()}`;
-                      batch.set(doc(db, "courses", id), it);
-                    });
-                    await batch.commit();
-                    toast.success("ডেমো কোর্সগুলো যুক্ত হয়েছে!");
-                  } catch (err) {
-                    toast.error("ব্যর্থ হয়েছে");
-                  }
-                }}
-                className="text-[10px] font-black uppercase text-[#FACC15] hover:underline cursor-pointer"
-              >
-                + ডেমো কোর্স ইম্পোর্ট করুন
-              </button>
-            </div>
-
-            {adminCourses.length === 0 && (
-              <div className="text-center py-12 bg-[#151515] rounded-[32px] border-2 border-dashed border-[#3D3215]">
-                <p className="text-xs font-bold text-[#A3A3A3] uppercase tracking-widest">কোন কোর্স পাওয়া যায়নি</p>
-              </div>
-            )}
-
-            <div className="grid gap-4">
-              {adminCourses.map(course => (
-                <div key={course.id} className="bg-[#151515] p-4 rounded-2xl border border-[#3D3215] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
-                  <div className="flex items-center gap-3 w-full sm:w-auto">
-                    <img 
-                      src={course.thumbnailUrl} 
-                      alt="" 
-                      className="w-16 h-12 object-cover rounded-xl bg-[#101010] border border-[#3D3215] shrink-0" 
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-[9px] px-2 py-0.5 bg-[#1C1C1C] border border-[#3D3215] text-[#FACC15] font-bold rounded-lg uppercase">
-                          {course.category}
-                        </span>
-                        <span className={`text-[8px] px-1.5 py-0.5 rounded font-black uppercase tracking-wider border ${course.status === 'active' ? 'bg-emerald-950/40 text-emerald-400 border-emerald-500/30' : 'bg-[#1C1C1C] text-[#A3A3A3] border-[#3D3215]'}`}>
-                          {course.status}
-                        </span>
-                      </div>
-                      <h4 className="font-black text-white text-xs mt-1 truncate uppercase">{course.title}</h4>
-                      <p className="text-[10px] text-[#A3A3A3] font-bold max-w-sm truncate leading-none mt-1">{course.description}</p>
+                      <button
+                        type="button"
+                        onClick={() => setNewCourseType('premium_app')}
+                        className={`p-3 rounded-2xl border flex items-center justify-center gap-2 font-black text-xs uppercase tracking-wider transition-all cursor-pointer ${
+                          newCourseType === 'premium_app'
+                            ? 'bg-[#1C1C1C] border-emerald-400 text-emerald-400 ring-1 ring-emerald-400'
+                            : 'bg-[#101010] border-[#3D3215] text-[#A3A3A3]'
+                        }`}
+                      >
+                        <Smartphone className="w-4 h-4" />
+                        প্রিমিয়াম অ্যাপস (Premium App)
+                      </button>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-end gap-2 w-full sm:w-auto shrink-0 border-t sm:border-y-0 border-[#3D3215] pt-3 sm:pt-0">
-                    <button 
-                      onClick={() => {
-                        setNewCourseTitle(course.title || '');
-                        setNewCourseDesc(course.description || '');
-                        setNewCourseThumbnail(course.thumbnailUrl || '');
-                        setNewCourseLink(course.videoLink || '');
-                        setNewCourseCategory(course.category || 'ইউটিউব মার্কেটিং');
-                        setCourseItems(course.items || []);
-                        setEditingCourseId(course.id);
-                        toast.success("এডিট মোড সক্রিয় করা হয়েছে!");
-                      }}
-                      className="text-[10px] font-black uppercase px-2.5 py-1.5 rounded-xl border border-[#3D3215] bg-[#1C1C1C] text-[#FACC15] hover:border-[#D4A017] transition-all cursor-pointer"
-                    >
-                      এডিট
-                    </button>
-                    
-                    <button 
-                      onClick={async () => {
-                        try {
-                          const toggledStatus = course.status === 'active' ? 'inactive' : 'active';
-                          await updateDoc(doc(db, "courses", course.id), { status: toggledStatus });
-                          toast.success(`কোর্সটি ${toggledStatus} করা হয়েছে`);
-          clearCache();
-          await loadData(true);
-                        } catch (err) {
-                          toast.error("ব্যর্থ হয়েছে");
-                        }
-                      }}
-                      className={`text-[10px] font-black uppercase px-2.5 py-1.5 rounded-xl border cursor-pointer ${course.status === 'active' ? 'bg-emerald-950/40 text-emerald-400 border-emerald-500/30' : 'bg-[#1C1C1C] text-[#A3A3A3] border-[#3D3215]'}`}
-                    >
-                      {course.status === 'active' ? 'সক্রিয়' : 'নিষ্ক্রিয়'}
-                    </button>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">কোর্সের / অ্যাপের নাম (Title)</label>
+                      <input 
+                        type="text" 
+                        placeholder="যেমন: মোবাইল কার্টুন এনিমেশন কোর্স বা KineMaster VIP" 
+                        required 
+                        value={newCourseTitle} 
+                        onChange={(e) => setNewCourseTitle(e.target.value)} 
+                        className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none transition-all" 
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">ক্যাটাগরি (Category)</label>
+                      <select 
+                        value={newCourseCategory} 
+                        onChange={(e) => setNewCourseCategory(e.target.value)} 
+                        className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white focus:border-[#D4A017] outline-none"
+                      >
+                        <option value="এনিমেশন" className="bg-[#151515] text-white">এনিমেশন (Animation)</option>
+                        <option value="প্রিমিয়াম অ্যাপস" className="bg-[#151515] text-white">প্রিমিয়াম অ্যাপস (Premium Apps)</option>
+                        <option value="গ্রাফিক্স ও ভিডিও" className="bg-[#151515] text-white">গ্রাফিক্স ও ভিডিও (Graphics & Video)</option>
+                        <option value="ডিজিটাল স্কিল" className="bg-[#151515] text-white">ডিজিটাল স্কিল (Digital Skills)</option>
+                        <option value="ইউটিউব ও ফেসবুক" className="bg-[#151515] text-white">ইউটিউব ও ফেসবুক মার্কেটিং</option>
+                        <option value="অন্যান্য" className="bg-[#151515] text-white">অন্যান্য (Others)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Pricing Fields */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">
+                        নিয়মিত মূল্য (Regular Price - ৳)
+                      </label>
+                      <input 
+                        type="number" 
+                        placeholder="যেমন: 500" 
+                        required 
+                        min="0"
+                        value={newCoursePrice} 
+                        onChange={(e) => setNewCoursePrice(e.target.value === '' ? '' : Number(e.target.value))} 
+                        className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none transition-all" 
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">
+                        অফার বা ডিসকাউন্ট মূল্য (Discount Price - ৳)
+                      </label>
+                      <input 
+                        type="number" 
+                        placeholder="যেমন: 250 (ঐচ্ছিক)" 
+                        min="0"
+                        value={newCourseDiscountPrice} 
+                        onChange={(e) => setNewCourseDiscountPrice(e.target.value === '' ? '' : Number(e.target.value))} 
+                        className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none transition-all" 
+                      />
+                    </div>
+                  </div>
+
+                  {/* Media Links */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">থাম্বনেইল লিংক (Thumbnail URL)</label>
+                      <input 
+                        type="url" 
+                        placeholder="https://images.unsplash.com/..." 
+                        required 
+                        value={newCourseThumbnail} 
+                        onChange={(e) => setNewCourseThumbnail(e.target.value)} 
+                        className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none transition-all" 
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">প্রিভিউ / পরিচিতি ভিডিও লিংক (Preview Video Link)</label>
+                      <input 
+                        type="url" 
+                        placeholder="https://youtube.com/watch?v=..." 
+                        value={newCourseLink} 
+                        onChange={(e) => setNewCourseLink(e.target.value)} 
+                        className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none transition-all" 
+                      />
+                    </div>
+                  </div>
+
+                  {/* Delivery Links (Drive & Access Key) */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">
+                        গুগল ড্রাইভ / ডাউনলোড লিংক (Drive / Download Link)
+                      </label>
+                      <input 
+                        type="url" 
+                        placeholder="https://drive.google.com/... (অ্যাপ ফাইল বা প্রজেক্ট এসেটস)" 
+                        value={newCourseDriveLink} 
+                        onChange={(e) => setNewCourseDriveLink(e.target.value)} 
+                        className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none transition-all" 
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">
+                        লাইসেন্স কোড / অ্যাক্টিভেশন কী (License / Activation Key)
+                      </label>
+                      <input 
+                        type="text" 
+                        placeholder="যেমন: VIP-APP-PRO-2026-UNLOCKED (ঐচ্ছিক)" 
+                        value={newCourseAccessKey} 
+                        onChange={(e) => setNewCourseAccessKey(e.target.value)} 
+                        className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none transition-all font-mono" 
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">
+                      ইনস্টলেশন গাইড বা নোটস (Setup Instructions / Tutor Notes)
+                    </label>
+                    <input 
+                      type="text" 
+                      placeholder="যেমন: ১. APK নামিয়ে ইনস্টল করুন। ২. প্রদত্ত কোড দিয়ে আনলক করুন।" 
+                      value={newCourseSetupInstructions} 
+                      onChange={(e) => setNewCourseSetupInstructions(e.target.value)} 
+                      className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none transition-all" 
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">বিস্তারিত বিবরণ (Detailed Description)</label>
+                    <textarea 
+                      placeholder="এই কোর্সে বা অ্যাপে কি কি সুবিধা ও ফিচার রয়েছে তা বিস্তারিত লিখুন..." 
+                      required 
+                      rows={3} 
+                      value={newCourseDesc} 
+                      onChange={(e) => setNewCourseDesc(e.target.value)} 
+                      className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none transition-all"
+                    />
+                  </div>
+
+                  {/* Course Lessons / Modules Builder */}
+                  <div className="bg-[#101010] p-5 rounded-[24px] border border-[#3D3215] space-y-4">
+                    <div className="flex items-center gap-1.5 border-b border-[#3D3215] pb-2">
+                      <Layers className="w-4 h-4 text-[#FACC15]" />
+                      <div className="flex-1">
+                        <h4 className="text-xs font-black text-white uppercase tracking-tight">কোর্স ক্লাস লেসন ও মডিউল বিল্ডার (Course Lessons Builder)</h4>
+                        <p className="text-[9px] text-[#A3A3A3] font-bold uppercase mt-0.5">কোর্সের জন্য আলাদা আলাদা ভিডিও ক্লাস বা চ্যাপ্টার যোগ করুন</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">লেসন টাইটেল (Lesson Title)</label>
+                        <input 
+                          type="text" 
+                          placeholder="যেমন: ক্লাস ১: ক্যারেক্টার ডিজাইন" 
+                          value={optTitle} 
+                          onChange={(e) => setOptTitle(e.target.value)} 
+                          className="w-full bg-[#151515] border border-[#3D3215] px-4 py-2.5 rounded-xl text-xs font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none" 
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">ক্লাসের ভিডিও লিংক (Lesson Video Link)</label>
+                        <input 
+                          type="url" 
+                          placeholder="https://youtube.com/watch?v=..." 
+                          value={optLink} 
+                          onChange={(e) => setOptLink(e.target.value)} 
+                          className="w-full bg-[#151515] border border-[#3D3215] px-4 py-2.5 rounded-xl text-xs font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none" 
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">লেসন সময়কাল (Duration)</label>
+                        <input 
+                          type="text" 
+                          placeholder="যেমন: ২৫ মিনিট" 
+                          value={optDuration} 
+                          onChange={(e) => setOptDuration(e.target.value)} 
+                          className="w-full bg-[#151515] border border-[#3D3215] px-4 py-2.5 rounded-xl text-xs font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none" 
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">সংক্ষিপ্ত নোট (Description)</label>
+                        <input 
+                          type="text" 
+                          placeholder="লেসনে কি দেখানো হয়েছে" 
+                          value={optDesc} 
+                          onChange={(e) => setOptDesc(e.target.value)} 
+                          className="w-full bg-[#151515] border border-[#3D3215] px-4 py-2.5 rounded-xl text-xs font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none" 
+                        />
+                      </div>
+                    </div>
 
                     <button 
-                      onClick={async () => {
-                        if (confirm("আপনি কি নিশ্চিত এই কোর্সটি মুছে ফেলতে চান?")) {
-                          try {
-                            await deleteDoc(doc(db, "courses", course.id));
-                            toast.success("মুছে ফেলা হয়েছে!");
-          clearCache();
-          await loadData(true);
-                          } catch (err) {
-                            toast.error("ব্যর্থ হয়েছে!");
-                          }
+                      type="button"
+                      onClick={() => {
+                        if (!optTitle || !optLink) {
+                          toast.error("লেসনের টাইটেল এবং ভিডিও লিংক আবশ্যক");
+                          return;
                         }
+                        const newItem = {
+                          title: optTitle,
+                          description: optDesc || 'ভিডিও লেসন',
+                          videoLink: optLink,
+                          duration: optDuration || ''
+                        };
+                        setCourseItems(prev => [...prev, newItem]);
+                        setOptTitle('');
+                        setOptDesc('');
+                        setOptLink('');
+                        setOptDuration('');
+                        toast.success("লেসন যুক্ত হয়েছে!");
                       }}
-                      className="p-2 bg-rose-950/30 hover:bg-rose-900/40 border border-rose-800/30 text-rose-400 rounded-xl transition-colors cursor-pointer active:scale-95"
+                      className="bg-[#1C1C1C] hover:bg-[#252525] border border-[#3D3215] text-[#FACC15] font-black px-5 py-2.5 rounded-xl text-[10px] uppercase tracking-wider flex items-center gap-1 active:scale-95 transition-all cursor-pointer"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      + লেসন যোগ করুন (Add Lesson)
                     </button>
+
+                    {/* Added lessons list */}
+                    {courseItems.length > 0 && (
+                      <div className="space-y-2 pt-2 border-t border-[#3D3215]">
+                        <p className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1">যুক্ত লেসনসমূহ ({courseItems.length})</p>
+                        <div className="grid gap-2 max-h-[200px] overflow-y-auto pr-1">
+                          {courseItems.map((item, index) => (
+                            <div key={index} className="bg-[#151515] p-2.5 rounded-xl border border-[#3D3215] flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <span className="w-5 h-5 rounded-full bg-[#1C1C1C] border border-[#3D3215] text-[#FACC15] text-[9px] font-black flex items-center justify-center shrink-0">
+                                  {index + 1}
+                                </span>
+                                <div className="min-w-0">
+                                  <h5 className="text-xs font-black text-white truncate max-w-[200px]">{item.title}</h5>
+                                  <p className="text-[9px] text-[#A3A3A3] truncate max-w-[200px]">{item.videoLink}</p>
+                                </div>
+                              </div>
+                              <button 
+                                type="button" 
+                                onClick={() => {
+                                  setCourseItems(prev => prev.filter((_, idx) => idx !== index));
+                                  toast.success("লেসন মুছে ফেলা হয়েছে!");
+                                }}
+                                className="text-[9px] font-black uppercase text-rose-400 hover:text-rose-300 shrink-0 cursor-pointer"
+                              >
+                                মুছুন
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
+
+                  <div className="flex gap-2.5 pt-2">
+                    <button 
+                      type="submit" 
+                      className="flex-1 bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg transition-all text-xs cursor-pointer hover:opacity-95"
+                    >
+                      {editingCourseId ? 'আপডেট করুন (Save Changes)' : 'পাবলিশ করুন (Publish Product)'}
+                    </button>
+                    
+                    {editingCourseId && (
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          setNewCourseTitle('');
+                          setNewCourseType('course');
+                          setNewCourseDesc('');
+                          setNewCourseThumbnail('');
+                          setNewCourseLink('');
+                          setNewCourseCategory('এনিমেশন');
+                          setNewCoursePrice(500);
+                          setNewCourseDiscountPrice(250);
+                          setNewCourseDriveLink('');
+                          setNewCourseAccessKey('');
+                          setNewCourseSetupInstructions('');
+                          setCourseItems([]);
+                          setEditingCourseId(null);
+                        }}
+                        className="bg-[#1C1C1C] border border-[#3D3215] text-[#A3A3A3] hover:text-white font-bold px-6 py-3.5 rounded-2xl text-xs cursor-pointer"
+                      >
+                        বাতিল (Cancel)
+                      </button>
+                    )}
+                  </div>
+                </form>
+              </div>
+
+              {/* Admin Courses List */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between px-1">
+                  <h3 className="font-black text-white uppercase tracking-tight text-xs">
+                    লাইভ প্রডাক্ট ও কোর্সসমূহ ({adminCourses.length})
+                  </h3>
                 </div>
-              ))}
+
+                {adminCourses.length === 0 && (
+                  <div className="text-center py-12 bg-[#151515] rounded-[32px] border-2 border-dashed border-[#3D3215]">
+                    <p className="text-xs font-bold text-[#A3A3A3] uppercase tracking-widest">কোন কোর্স বা অ্যাপ পাওয়া যায়নি</p>
+                  </div>
+                )}
+
+                <div className="grid gap-3">
+                  {adminCourses.map((course) => {
+                    const isCourse = course.type !== 'premium_app';
+                    return (
+                      <div 
+                        key={course.id} 
+                        className="bg-[#151515] p-4 rounded-2xl border border-[#3D3215] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm"
+                      >
+                        <div className="flex items-center gap-3.5 min-w-0 w-full sm:w-auto flex-1">
+                          <img 
+                            src={course.thumbnailUrl || "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=600&auto=format&fit=crop"} 
+                            alt="" 
+                            className="w-16 h-14 object-cover rounded-xl bg-[#101010] border border-[#3D3215] shrink-0" 
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className={`text-[8px] px-2 py-0.5 rounded font-black uppercase tracking-wider border ${
+                                isCourse
+                                  ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                                  : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                              }`}>
+                                {isCourse ? 'কোর্স' : 'প্রিমিয়াম অ্যাপ'}
+                              </span>
+
+                              <span className="text-[9px] px-2 py-0.5 bg-[#1C1C1C] border border-[#3D3215] text-[#FACC15] font-bold rounded-lg uppercase">
+                                {course.category}
+                              </span>
+
+                              <span className="text-[9px] font-black text-white">
+                                ৳{course.discountPrice ?? course.price ?? 0}
+                              </span>
+
+                              <span className={`text-[8px] px-1.5 py-0.5 rounded font-black uppercase tracking-wider border ${course.status === 'active' ? 'bg-emerald-950/40 text-emerald-400 border-emerald-500/30' : 'bg-[#1C1C1C] text-[#A3A3A3] border-[#3D3215]'}`}>
+                                {course.status}
+                              </span>
+                            </div>
+                            <h4 className="font-black text-white text-xs mt-1 truncate">{course.title}</h4>
+                            <p className="text-[10px] text-[#A3A3A3] font-medium max-w-sm truncate mt-0.5">{course.description}</p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2 w-full sm:w-auto shrink-0 border-t sm:border-y-0 border-[#3D3215] pt-3 sm:pt-0">
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              setNewCourseTitle(course.title || '');
+                              setNewCourseType(course.type || 'course');
+                              setNewCourseDesc(course.description || '');
+                              setNewCourseThumbnail(course.thumbnailUrl || '');
+                              setNewCourseLink(course.videoLink || '');
+                              setNewCourseCategory(course.category || 'এনিমেশন');
+                              setNewCoursePrice(course.price ?? 500);
+                              setNewCourseDiscountPrice(course.discountPrice ?? 250);
+                              setNewCourseDriveLink(course.driveLink || '');
+                              setNewCourseAccessKey(course.accessKey || '');
+                              setNewCourseSetupInstructions(course.setupInstructions || '');
+                              setCourseItems(course.items || []);
+                              setEditingCourseId(course.id);
+                              window.scrollTo({ top: 300, behavior: 'smooth' });
+                              toast.success("এডিট মোড সক্রিয় করা হয়েছে!");
+                            }}
+                            className="text-[10px] font-black uppercase px-3 py-1.5 rounded-xl border border-[#3D3215] bg-[#1C1C1C] text-[#FACC15] hover:border-[#D4A017] transition-all cursor-pointer"
+                          >
+                            এডিট
+                          </button>
+                          
+                          <button 
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                const toggledStatus = course.status === 'active' ? 'inactive' : 'active';
+                                await updateDoc(doc(db, "courses", course.id), { status: toggledStatus });
+                                toast.success(`প্রডাক্টটি ${toggledStatus} করা হয়েছে`);
+                                clearCache();
+                                await loadData(true);
+                              } catch (err) {
+                                toast.error("ব্যর্থ হয়েছে");
+                              }
+                            }}
+                            className={`text-[10px] font-black uppercase px-2.5 py-1.5 rounded-xl border cursor-pointer ${course.status === 'active' ? 'bg-emerald-950/40 text-emerald-400 border-emerald-500/30' : 'bg-[#1C1C1C] text-[#A3A3A3] border-[#3D3215]'}`}
+                          >
+                            {course.status === 'active' ? 'সক্রিয়' : 'নিষ্ক্রিয়'}
+                          </button>
+
+                          <button 
+                            type="button"
+                            onClick={async () => {
+                              if (confirm("আপনি কি নিশ্চিত এই প্রডাক্টটি মুছে ফেলতে চান?")) {
+                                try {
+                                  await deleteDoc(doc(db, "courses", course.id));
+                                  toast.success("মুছে ফেলা হয়েছে!");
+                                  clearCache();
+                                  await loadData(true);
+                                } catch (err) {
+                                  toast.error("ব্যর্থ হয়েছে!");
+                                }
+                              }
+                            }}
+                            className="p-2 bg-rose-950/30 hover:bg-rose-900/40 border border-rose-800/30 text-rose-400 rounded-xl transition-colors cursor-pointer active:scale-95"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* -------------------- SUB TAB: ORDERS (PURCHASES & APPROVALS) -------------------- */}
+          {courseSubTab === 'orders' && (
+            <div className="space-y-5">
+              {/* Stats Metrics Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-[#151515] p-3.5 rounded-2xl border border-[#3D3215]">
+                  <span className="text-[10px] font-black text-[#A3A3A3] uppercase block">মোট অর্ডার</span>
+                  <span className="text-lg font-black text-white">{courseOrders.length}</span>
+                </div>
+
+                <div className="bg-[#151515] p-3.5 rounded-2xl border border-[#3D3215]">
+                  <span className="text-[10px] font-black text-[#A3A3A3] uppercase block">মোট সেলস রেভিনিউ</span>
+                  <span className="text-lg font-black text-[#FACC15]">
+                    ৳{courseOrders.filter(o => o.status === 'approved').reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0)}
+                  </span>
+                </div>
+
+                <div className="bg-[#151515] p-3.5 rounded-2xl border border-[#3D3215]">
+                  <span className="text-[10px] font-black text-amber-400 uppercase block">পেন্ডিং যাচাই</span>
+                  <span className="text-lg font-black text-amber-400">
+                    {courseOrders.filter(o => o.status === 'pending').length}
+                  </span>
+                </div>
+
+                <div className="bg-[#151515] p-3.5 rounded-2xl border border-[#3D3215]">
+                  <span className="text-[10px] font-black text-emerald-400 uppercase block">অনুমোদিত সম্পন্ন</span>
+                  <span className="text-lg font-black text-emerald-400">
+                    {courseOrders.filter(o => o.status === 'approved').length}
+                  </span>
+                </div>
+              </div>
+
+              {/* Status Filter Chips */}
+              <div className="flex gap-2">
+                {[
+                  { id: 'all', label: 'সকল অর্ডার' },
+                  { id: 'pending', label: 'পেন্ডিং (যাচাই প্রয়োজন)' },
+                  { id: 'approved', label: 'অনুমোদিত (Approved)' },
+                  { id: 'rejected', label: 'বাতিলকৃত (Rejected)' }
+                ].map((f) => {
+                  const isActive = courseOrderFilter === f.id;
+                  return (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => setCourseOrderFilter(f.id as any)}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all border cursor-pointer ${
+                        isActive
+                          ? 'bg-[#1C1C1C] text-[#FACC15] border-[#FACC15]'
+                          : 'bg-[#151515] text-[#A3A3A3] border-[#3D3215] hover:text-white'
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Order Cards List */}
+              {courseOrders.filter(o => courseOrderFilter === 'all' || o.status === courseOrderFilter).length === 0 ? (
+                <div className="bg-[#151515] rounded-[28px] p-8 text-center border border-[#3D3215]">
+                  <CreditCard className="w-10 h-10 text-[#737373] mx-auto mb-2" />
+                  <p className="text-xs font-black text-[#A3A3A3] uppercase">কোনো অর্ডার পাওয়া যায়নি</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {courseOrders
+                    .filter(o => courseOrderFilter === 'all' || o.status === courseOrderFilter)
+                    .map((order) => {
+                      const isPending = order.status === 'pending';
+                      const isApproved = order.status === 'approved';
+                      const isRejected = order.status === 'rejected';
+
+                      return (
+                        <div 
+                          key={order.id} 
+                          className="bg-[#151515] p-4 rounded-2xl border border-[#3D3215] space-y-3 shadow-md"
+                        >
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#3D3215] pb-2.5">
+                            <div className="flex items-center gap-2">
+                              <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border ${
+                                order.courseType === 'premium_app'
+                                  ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                                  : 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                              }`}>
+                                {order.courseType === 'premium_app' ? 'অ্যাপ' : 'কোর্স'}
+                              </span>
+                              <h4 className="text-xs font-black text-white">{order.courseTitle}</h4>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-black text-[#FACC15]">৳{order.amount}</span>
+                              <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border ${
+                                isApproved 
+                                  ? 'bg-emerald-950/40 text-emerald-400 border-emerald-500/30' 
+                                  : isPending 
+                                    ? 'bg-amber-950/40 text-amber-400 border-amber-500/30 animate-pulse' 
+                                    : 'bg-rose-950/40 text-rose-400 border-rose-500/30'
+                              }`}>
+                                {isApproved ? 'Approved' : isPending ? 'Pending' : 'Rejected'}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs bg-[#101010] p-3 rounded-xl border border-[#3D3215]">
+                            <div>
+                              <span className="text-[9px] font-black text-[#737373] uppercase block">ক্রেতার তথ্য (Customer)</span>
+                              <p className="font-bold text-white text-[11px] truncate">{order.userName || 'Customer'}</p>
+                              <p className="text-[9px] text-[#A3A3A3] truncate">{order.userEmail || order.userId}</p>
+                            </div>
+
+                            <div>
+                              <span className="text-[9px] font-black text-[#737373] uppercase block">পেমেন্ট মেথড (Payment)</span>
+                              <p className="font-black text-[#FACC15] uppercase text-[11px]">{order.paymentMethod}</p>
+                              {order.senderNumber && (
+                                <p className="text-[10px] text-white font-mono">নম্বর: {order.senderNumber}</p>
+                              )}
+                            </div>
+
+                            <div>
+                              <span className="text-[9px] font-black text-[#737373] uppercase block">ট্রানজেকশন আইডি (TrxID)</span>
+                              {order.trxId ? (
+                                <div className="flex items-center gap-1 font-mono font-black text-amber-400 text-xs">
+                                  <span>{order.trxId}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(order.trxId);
+                                      toast.success("TrxID কপি করা হয়েছে!");
+                                    }}
+                                    className="p-1 hover:text-white cursor-pointer"
+                                  >
+                                    <Copy className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <p className="text-[10px] text-emerald-400 font-bold">ওয়ালেট ইনস্ট্যান্ট পেমেন্ট</p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Action Buttons */}
+                          <div className="flex items-center justify-end gap-2 pt-1">
+                            {isPending && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    try {
+                                      await updateDoc(doc(db, "course_orders", order.id), {
+                                        status: 'approved',
+                                        approvedAt: serverTimestamp()
+                                      });
+                                      if (order.userId) {
+                                        try {
+                                          await updateDoc(doc(db, "users", order.userId, "course_orders", order.id), {
+                                            status: 'approved',
+                                            approvedAt: serverTimestamp()
+                                          });
+                                        } catch (_) {}
+                                      }
+                                      toast.success("অর্ডারটি সফলভাবে অনুমোদন করা হয়েছে!");
+                                    } catch (err: any) {
+                                      toast.error("অনুমোদন ব্যর্থ হয়েছে");
+                                    }
+                                  }}
+                                  className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer shadow-md"
+                                >
+                                  <CheckCircle className="w-3.5 h-3.5" />
+                                  Approve (অনুমোদন)
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    try {
+                                      await updateDoc(doc(db, "course_orders", order.id), {
+                                        status: 'rejected',
+                                        rejectedAt: serverTimestamp()
+                                      });
+                                      if (order.userId) {
+                                        try {
+                                          await updateDoc(doc(db, "users", order.userId, "course_orders", order.id), {
+                                            status: 'rejected',
+                                            rejectedAt: serverTimestamp()
+                                          });
+                                        } catch (_) {}
+                                      }
+                                      toast.success("অর্ডারটি বাতিল করা হয়েছে!");
+                                    } catch (err: any) {
+                                      toast.error("বাতিলকরণ ব্যর্থ হয়েছে");
+                                    }
+                                  }}
+                                  className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer"
+                                >
+                                  <XCircle className="w-3.5 h-3.5" />
+                                  Reject (বাতিল)
+                                </button>
+                              </>
+                            )}
+
+                            {isApproved && (
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  if (confirm("আপনি কি অনুমোদন বাতিল করতে চান?")) {
+                                    await updateDoc(doc(db, "course_orders", order.id), { status: 'rejected' });
+                                    if (order.userId) {
+                                      try {
+                                        await updateDoc(doc(db, "users", order.userId, "course_orders", order.id), { status: 'rejected' });
+                                      } catch (_) {}
+                                    }
+                                    toast.success("অর্ডার বাতিল করা হয়েছে!");
+                                  }
+                                }}
+                                className="px-3 py-1 rounded-xl bg-[#1C1C1C] border border-rose-900/40 text-rose-400 hover:bg-rose-950/40 text-[9px] font-bold uppercase cursor-pointer"
+                              >
+                                রিভোক / বাতিল
+                              </button>
+                            )}
+
+                            {isRejected && (
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  await updateDoc(doc(db, "course_orders", order.id), { status: 'approved' });
+                                  if (order.userId) {
+                                    try {
+                                      await updateDoc(doc(db, "users", order.userId, "course_orders", order.id), { status: 'approved' });
+                                    } catch (_) {}
+                                  }
+                                  toast.success("অর্ডারটি পুনরায় অনুমোদন করা হয়েছে!");
+                                }}
+                                className="px-3 py-1 rounded-xl bg-[#1C1C1C] border border-emerald-900/40 text-emerald-400 hover:bg-emerald-950/40 text-[9px] font-bold uppercase cursor-pointer"
+                              >
+                                পুনরায় অনুমোদন
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (confirm("আপনি কি নিশ্চিত এই অর্ডার রেকর্ডটি মুছে ফেলতে চান?")) {
+                                  try {
+                                    await deleteDoc(doc(db, "course_orders", order.id));
+                                    if (order.userId) {
+                                      try {
+                                        await deleteDoc(doc(db, "users", order.userId, "course_orders", order.id));
+                                      } catch (_) {}
+                                    }
+                                    toast.success("অর্ডার মুছে ফেলা হয়েছে!");
+                                  } catch (err: any) {
+                                    toast.error("মুছতে সমস্যা হয়েছে");
+                                  }
+                                }
+                              }}
+                              className="p-1.5 text-rose-400 hover:bg-rose-950/40 rounded-lg cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
