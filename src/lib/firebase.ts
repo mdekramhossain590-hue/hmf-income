@@ -40,6 +40,9 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   if (error instanceof Error) {
     userFriendlyMessage = error.message;
   }
-  toast.error(userFriendlyMessage);
+  console.warn(`Firestore Error [${operationType}] on ${path}:`, userFriendlyMessage);
+  if ([OperationType.CREATE, OperationType.UPDATE, OperationType.DELETE, OperationType.WRITE].includes(operationType)) {
+    toast.error(userFriendlyMessage);
+  }
   throw new Error(userFriendlyMessage);
 }

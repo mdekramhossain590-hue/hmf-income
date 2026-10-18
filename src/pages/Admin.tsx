@@ -286,7 +286,7 @@ export function AdminPanel() {
     if (!isAdmin) return;
     
     const unsubs: any[] = [];
-    const logErr = (err: any) => { toast.error("Firebase Error: " + err?.message); console.error(err?.message || "Firebase Error"); };
+    const logErr = (err: any) => { console.warn("Admin listener warning:", err?.message || err); };
     
     if (['jobs', 'submissions', 'dashboard'].includes(activeTab)) {
       unsubs.push(onSnapshot(query(collection(db, "jobs"), limit(100)), (snap) => {
