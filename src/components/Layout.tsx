@@ -10,6 +10,8 @@ import { WelcomePopup } from './WelcomePopup';
 import { AnimatePresence, motion } from 'motion/react';
 
 
+import { BannerAd } from './BannerAd';
+
 export function Layout() {
   const { user, siteSettings, isQuotaExceeded } = useAuth();
   const location = useLocation();
@@ -49,6 +51,7 @@ export function Layout() {
         <div className="flex-grow">
           {currentOutlet}
         </div>
+        <BannerAd />
         <div className="py-6 text-center text-[10px] text-[#737373] font-medium tracking-wide flex flex-col gap-1 items-center justify-center pb-8 border-t border-[#3D3215] mt-10">
           <p>© 2026 HMF EARNING ZONE. All Rights Reserved.</p>
           <p>
