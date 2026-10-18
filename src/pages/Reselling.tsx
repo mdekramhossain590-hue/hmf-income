@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, ShoppingBag, Truck, CheckCircle2, Clock, 
   AlertCircle, DollarSign, User, Phone, MapPin, Search, 
-  Sparkles, Package, ShieldCheck, ChevronRight, X, Plus, Info, ExternalLink 
+  Sparkles, Package, ShieldCheck, ChevronRight, X, Plus, Info, ExternalLink, Copy, CreditCard 
 } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { 
@@ -37,6 +37,9 @@ export interface ResellOrder {
   resalePrice: number;
   profit: number;
   deliveryFee: number;
+  advanceFeePaid?: number;
+  paymentMethod?: 'bkash' | 'nagad' | 'none';
+  trxId?: string;
   orderNumberIndex: number;
   customerName: string;
   customerPhone: string;
@@ -106,11 +109,28 @@ export function Reselling() {
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
   const [customerNote, setCustomerNote] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'bkash' | 'nagad'>('bkash');
+  const [trxId, setTrxId] = useState('');
+  const [depositNumbers, setDepositNumbers] = useState({ bkashNumber: '017XX-XXXXXX', nagadNumber: '018XX-XXXXXX' });
   const [submitting, setSubmitting] = useState(false);
 
-  // Load products & user's reseller orders
+  // Load products, user's reseller orders & deposit numbers
   useEffect(() => {
     let unsubs: (() => void)[] = [];
+
+    // Load deposit numbers for advance fee
+    try {
+      const unsubDep = onSnapshot(doc(db, "settings", "deposit"), (docSnap) => {
+        if (docSnap.exists()) {
+          const d = docSnap.data();
+          setDepositNumbers({
+            bkashNumber: d.bkashNumber || '017XX-XXXXXX',
+            nagadNumber: d.nagadNumber || '018XX-XXXXXX'
+          });
+        }
+      });
+      unsubs.push(unsubDep);
+    } catch (_) {}
 
     // Load products
     try {
@@ -178,6 +198,7 @@ export function Reselling() {
     setCustomerPhone('');
     setCustomerAddress('');
     setCustomerNote('');
+    setTrxId('');
   };
 
   const handleSubmitOrder = async (e: React.FormEvent) => {
@@ -192,6 +213,11 @@ export function Reselling() {
 
     if (!customerName.trim() || !customerPhone.trim() || !customerAddress.trim()) {
       toast.error("কাস্টমারের নাম, ফোন নম্বর এবং সম্পূর্ণ ঠিকানা দেওয়া আবশ্যক!");
+      return;
+    }
+
+    if (isEligibleFor120Delivery && !trxId.trim()) {
+      toast.error("প্রথম ২টি অর্ডারের জন্য ১২০ টাকা ডেলিভারি ফি সেন্ড মানি করে TrxID প্রদান করুন!");
       return;
     }
 
@@ -211,6 +237,9 @@ export function Reselling() {
         resalePrice: resaleVal,
         profit: profit,
         deliveryFee: deliveryFee,
+        advanceFeePaid: isEligibleFor120Delivery ? 120 : 0,
+        paymentMethod: isEligibleFor120Delivery ? paymentMethod : 'none',
+        trxId: isEligibleFor120Delivery ? trxId.trim() : '',
         orderNumberIndex: orderNumberIndex,
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim(),
@@ -222,8 +251,9 @@ export function Reselling() {
 
       await addDoc(collection(db, "reselling_orders"), newOrder);
 
-      toast.success("অর্ডারটি সফলভাবে সাবমিট হয়েছে! এডমিন যাচাই করে কাস্টমারের কাছে ডেলিভারি পাঠাবে।");
+      toast.success("অর্ডারটি সফলভাবে সাবমিট হয়েছে! এডমিন পেমেন্ট ও তথ্য যাচাই করে ডেলিভারি পাঠাবে।");
       setSelectedProduct(null);
+      setTrxId('');
       setActiveTab('my_orders');
     } catch (err: any) {
       console.error("Reselling order error:", err);
@@ -601,6 +631,104 @@ export function Reselling() {
                     <span className="text-white font-black">৳{selectedProduct.wholesalePrice + deliveryFee}</span>
                   </div>
                 </div>
+
+                {/* Advance Delivery Fee Payment Box (For First 2 Orders) */}
+                {isEligibleFor120Delivery && (
+                  <div className="bg-gradient-to-br from-[#1C1C1C] via-[#151515] to-[#201A08] border border-[#FACC15]/40 p-4 rounded-2xl space-y-3">
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="w-4 h-4 text-[#FACC15]" />
+                      <h4 className="text-xs font-black text-[#FACC15] uppercase tracking-wider">
+                        অগ্রীম ৳১২০ টাকা ডেলিভারি চার্জ পেমেন্ট
+                      </h4>
+                    </div>
+                    <p className="text-[10px] text-[#A3A3A3] font-bold leading-relaxed">
+                      আপনার ১ম/২য় রিসেলিং অর্ডারের জন্য অগ্রীম ৳১২০ টাকা নিচে প্রদত্ত নম্বরে সেন্ড মানি/ক্যাশ ইন করে TrxID দিয়ে সাবমিট করুন:
+                    </p>
+
+                    {/* Numbers Grid */}
+                    <div className="grid grid-cols-2 gap-2 text-[11px] font-black">
+                      <div className="bg-[#101010] p-2.5 rounded-xl border border-[#3D3215]">
+                        <span className="text-[#FACC15] block text-[9px] uppercase font-bold">Bkash Personal/Send Money</span>
+                        <div className="flex items-center justify-between mt-1 text-white">
+                          <span className="font-mono">{depositNumbers.bkashNumber}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(depositNumbers.bkashNumber);
+                              toast.success("Bkash নম্বর কপি করা হয়েছে!");
+                            }}
+                            className="p-1 hover:text-[#FACC15] text-[#A3A3A3] cursor-pointer"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="bg-[#101010] p-2.5 rounded-xl border border-[#3D3215]">
+                        <span className="text-[#FACC15] block text-[9px] uppercase font-bold">Nagad Personal/Send Money</span>
+                        <div className="flex items-center justify-between mt-1 text-white">
+                          <span className="font-mono">{depositNumbers.nagadNumber}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(depositNumbers.nagadNumber);
+                              toast.success("Nagad নম্বর কপি করা হয়েছে!");
+                            }}
+                            className="p-1 hover:text-[#FACC15] text-[#A3A3A3] cursor-pointer"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Payment Method Selector */}
+                    <div>
+                      <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-wider block mb-1">
+                        পেমেন্ট মেথড নির্বাচন করুন
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setPaymentMethod('bkash')}
+                          className={`py-2 px-3 rounded-xl text-xs font-black border transition cursor-pointer ${
+                            paymentMethod === 'bkash'
+                              ? 'bg-pink-950/40 border-pink-500 text-pink-400'
+                              : 'bg-[#101010] border-[#3D3215] text-[#A3A3A3]'
+                          }`}
+                        >
+                          Bkash (বিকাশ)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPaymentMethod('nagad')}
+                          className={`py-2 px-3 rounded-xl text-xs font-black border transition cursor-pointer ${
+                            paymentMethod === 'nagad'
+                              ? 'bg-orange-950/40 border-orange-500 text-orange-400'
+                              : 'bg-[#101010] border-[#3D3215] text-[#A3A3A3]'
+                          }`}
+                        >
+                          Nagad (নগদ)
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* TrxID Input */}
+                    <div>
+                      <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-wider block mb-1">
+                        পেমেন্ট Transaction ID (TrxID)
+                      </label>
+                      <input
+                        type="text"
+                        required={isEligibleFor120Delivery}
+                        placeholder="যেমন: BAX9281034"
+                        value={trxId}
+                        onChange={(e) => setTrxId(e.target.value)}
+                        className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-xl text-xs font-mono font-bold text-[#FACC15] placeholder-[#737373] focus:border-[#FACC15] outline-none uppercase"
+                      />
+                    </div>
+                  </div>
+                )}
 
                 {/* Customer Delivery Information */}
                 <div className="space-y-3 pt-1">

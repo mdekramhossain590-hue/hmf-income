@@ -17,7 +17,7 @@ import { useNavigate } from 'react-router-dom';
 export function AdminPanel() {
   const { profile } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'jobs' | 'submissions' | 'settings' | 'requests' | 'users' | 'drives' | 'courses' | 'faqs' | 'gifts'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'jobs' | 'submissions' | 'settings' | 'requests' | 'users' | 'drives' | 'courses' | 'products' | 'faqs' | 'gifts'>('dashboard');
   
   // Gift Codes States
   const [giftCodes, setGiftCodes] = useState<any[]>([]);
@@ -53,6 +53,21 @@ export function AdminPanel() {
   const [optThumbnail, setOptThumbnail] = useState('');
   const [optLink, setOptLink] = useState('');
   const [optDuration, setOptDuration] = useState('');
+
+  // Reselling Product & Orders Administration States
+  const [adminResellProducts, setAdminResellProducts] = useState<any[]>([]);
+  const [adminResellOrders, setAdminResellOrders] = useState<any[]>([]);
+  const [resellSubTab, setResellSubTab] = useState<'products' | 'orders'>('products');
+  const [resellOrderFilter, setResellOrderFilter] = useState<'all' | 'pending' | 'processing' | 'delivered' | 'cancelled'>('all');
+  const [isResellProductModalOpen, setIsResellProductModalOpen] = useState(false);
+  const [editingResellProductId, setEditingResellProductId] = useState<string | null>(null);
+  const [resellProductTitle, setResellProductTitle] = useState('');
+  const [resellProductCategory, setResellProductCategory] = useState('গ্যাজেট');
+  const [resellProductDesc, setResellProductDesc] = useState('');
+  const [resellProductWholesalePrice, setResellProductWholesalePrice] = useState<number | ''>(350);
+  const [resellProductMinResalePrice, setResellProductMinResalePrice] = useState<number | ''>(500);
+  const [resellProductStock, setResellProductStock] = useState<number | ''>(50);
+  const [resellProductImageUrl, setResellProductImageUrl] = useState('');
   
   const [jobs, setJobs] = useState<any[]>([]);
   const [userList, setUserList] = useState<any[]>([]);
@@ -226,6 +241,7 @@ export function AdminPanel() {
     { id: 'dashboard', label: 'Dashboard', icon: Calculator, color: 'text-[#FACC15]' },
     { id: 'submissions', label: 'Review', icon: CheckCircle, color: 'text-[#FACC15]' },
     { id: 'requests', label: 'Payments', icon: Wallet, color: 'text-[#FACC15]' },
+    { id: 'products', label: 'Products', icon: ShoppingBag, color: 'text-[#FACC15]' },
     { id: 'drives', label: 'Drives', icon: Smartphone, color: 'text-[#FACC15]' },
     { id: 'jobs', label: 'Jobs', icon: ListChecks, color: 'text-[#FACC15]' },
     { id: 'courses', label: 'Courses', icon: BookOpen, color: 'text-[#FACC15]' },
@@ -330,6 +346,17 @@ export function AdminPanel() {
         const list = snap.docs.map(d => ({id: d.id, ...d.data()} as any));
         list.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
         setCourseOrders(list);
+      }, logErr));
+    }
+
+    if (['products', 'dashboard'].includes(activeTab)) {
+      unsubs.push(onSnapshot(query(collection(db, "reselling_products"), limit(100)), (snap) => {
+        setAdminResellProducts(snap.docs.map(d => ({id: d.id, ...d.data()} as any)));
+      }, logErr));
+      unsubs.push(onSnapshot(query(collection(db, "reselling_orders"), limit(100)), (snap) => {
+        const list = snap.docs.map(d => ({id: d.id, ...d.data()} as any));
+        list.sort((a, b) => (b.createdAt?.seconds || b.createdAt?.toMillis?.() || 0) - (a.createdAt?.seconds || a.createdAt?.toMillis?.() || 0));
+        setAdminResellOrders(list);
       }, logErr));
     }
     
@@ -3495,6 +3522,461 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                     })}
                 </div>
               )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'products' && (
+        <div className="space-y-6">
+          {/* Sub Navigation Bar: Products vs Reselling Orders */}
+          <div className="grid grid-cols-2 p-1.5 bg-[#151515] border border-[#3D3215] rounded-2xl gap-1.5">
+            <button
+              type="button"
+              onClick={() => setResellSubTab('products')}
+              className={`py-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                resellSubTab === 'products'
+                  ? 'bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] shadow-lg shadow-[#D4A017]/20'
+                  : 'text-[#A3A3A3] hover:text-white'
+              }`}
+            >
+              <Package className="w-4 h-4" />
+              রিসেলিং প্রোডাক্ট ক্যাটালগ ({adminResellProducts.length})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setResellSubTab('orders')}
+              className={`py-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all relative cursor-pointer ${
+                resellSubTab === 'orders'
+                  ? 'bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] shadow-lg shadow-[#D4A017]/20'
+                  : 'text-[#A3A3A3] hover:text-white'
+              }`}
+            >
+              <Truck className="w-4 h-4" />
+              রিসেলিং অর্ডার তালিকা ({adminResellOrders.length})
+              {adminResellOrders.filter(o => o.status === 'pending').length > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-amber-400 text-black animate-pulse">
+                  {adminResellOrders.filter(o => o.status === 'pending').length}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* SUB-TAB 1: PRODUCTS LIST & ADD/EDIT MODAL */}
+          {resellSubTab === 'products' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-black text-white uppercase tracking-tight text-sm flex items-center gap-2">
+                    <ShoppingBag className="w-4 h-4 text-[#FACC15]" />
+                    রিসেলিং প্রোডাক্ট লিস্ট ({adminResellProducts.length})
+                  </h3>
+                  <p className="text-[10px] text-[#A3A3A3] font-bold">রিসেলাররা যেসব প্রোডাক্ট ক্যাটালগে দেখতে ও সেল করতে পারবে</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingResellProductId(null);
+                    setResellProductTitle('');
+                    setResellProductCategory('গ্যাজেট');
+                    setResellProductDesc('');
+                    setResellProductWholesalePrice(350);
+                    setResellProductMinResalePrice(500);
+                    setResellProductStock(50);
+                    setResellProductImageUrl('');
+                    setIsResellProductModalOpen(true);
+                  }}
+                  className="bg-gradient-to-r from-[#D4A017] to-[#FACC15] text-[#090909] font-black py-2.5 px-4 rounded-xl text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg active:scale-95 transition cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  নতুন প্রোডাক্ট এড করুন
+                </button>
+              </div>
+
+              {/* Products List Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {adminResellProducts.length === 0 ? (
+                  <div className="col-span-2 bg-[#151515] p-8 rounded-2xl border border-[#3D3215] text-center text-[#A3A3A3] font-bold text-xs">
+                    কোনো প্রোডাক্ট নেই। উপরে "নতুন প্রোডাক্ট এড করুন" বাটনে ক্লিক করে প্রথম প্রোডাক্ট তৈরি করুন।
+                  </div>
+                ) : (
+                  adminResellProducts.map((prod) => (
+                    <div key={prod.id} className="bg-[#151515] rounded-2xl p-4 border border-[#3D3215] flex gap-3 relative group hover:border-[#D4A017]/60 transition">
+                      <img
+                        src={prod.imageUrl || 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=300'}
+                        alt=""
+                        className="w-20 h-20 rounded-xl object-cover border border-[#3D3215] shrink-0"
+                      />
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[9px] font-black uppercase text-[#FACC15] bg-[#FACC15]/10 px-2 py-0.5 rounded-md border border-[#FACC15]/30">
+                            {prod.category || 'সাধারণ'}
+                          </span>
+                          <span className={`text-[9px] font-black px-2 py-0.5 rounded-md border ${
+                            (prod.stock || 0) > 0 ? 'bg-emerald-950/40 border-emerald-800 text-emerald-400' : 'bg-rose-950/40 border-rose-800 text-rose-400'
+                          }`}>
+                            স্টক: {prod.stock || 0}
+                          </span>
+                        </div>
+                        <h4 className="text-xs font-black text-white truncate">{prod.title}</h4>
+                        <p className="text-[10px] text-[#A3A3A3] line-clamp-1">{prod.description}</p>
+                        <div className="flex items-center gap-3 pt-1 text-[11px] font-black">
+                          <span className="text-white">রেগুলার: ৳{prod.minResalePrice || 0}</span>
+                          <span className="text-[#FACC15]">পাইকারি/রিসেলার: ৳{prod.wholesalePrice || 0}</span>
+                        </div>
+                      </div>
+
+                      {/* Action buttons */}
+                      <div className="flex flex-col gap-1 justify-center shrink-0 pl-2 border-l border-[#3D3215]">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingResellProductId(prod.id);
+                            setResellProductTitle(prod.title || '');
+                            setResellProductCategory(prod.category || 'গ্যাজেট');
+                            setResellProductDesc(prod.description || '');
+                            setResellProductWholesalePrice(prod.wholesalePrice || 350);
+                            setResellProductMinResalePrice(prod.minResalePrice || 500);
+                            setResellProductStock(prod.stock || 50);
+                            setResellProductImageUrl(prod.imageUrl || '');
+                            setIsResellProductModalOpen(true);
+                          }}
+                          className="p-2 text-[#FACC15] hover:bg-[#3D3215]/40 rounded-xl transition cursor-pointer"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (confirm("আপনি কি নিশ্চিত এই প্রোডাক্টটি মুছে ফেলতে চান?")) {
+                              try {
+                                await deleteDoc(doc(db, "reselling_products", prod.id));
+                                toast.success("প্রোডাক্ট মুছে ফেলা হয়েছে!");
+                              } catch (e: any) {
+                                toast.error("মুছতে সমস্যা হয়েছে");
+                              }
+                            }
+                          }}
+                          className="p-2 text-rose-400 hover:bg-rose-950/40 rounded-xl transition cursor-pointer"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Add / Edit Product Modal */}
+              <AnimatePresence>
+                {isResellProductModalOpen && (
+                  <>
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      onClick={() => setIsResellProductModalOpen(false)}
+                      className="fixed inset-0 bg-black/80 z-50 backdrop-blur-sm"
+                    />
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      className="fixed inset-x-4 top-12 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-lg bg-[#151515] border border-[#3D3215] rounded-3xl p-6 z-50 max-h-[85vh] overflow-y-auto shadow-2xl space-y-4"
+                    >
+                      <div className="flex items-center justify-between border-b border-[#3D3215] pb-3">
+                        <h3 className="font-black text-white text-sm uppercase tracking-tight flex items-center gap-2">
+                          <ShoppingBag className="w-4 h-4 text-[#FACC15]" />
+                          {editingResellProductId ? 'প্রোডাক্ট এডিট করুন' : 'নতুন রিসেলিং প্রোডাক্ট যুক্ত করুন'}
+                        </h3>
+                        <button
+                          onClick={() => setIsResellProductModalOpen(false)}
+                          className="w-7 h-7 rounded-full bg-[#101010] border border-[#3D3215] text-[#A3A3A3] hover:text-white flex items-center justify-center cursor-pointer"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      <form
+                        onSubmit={async (e) => {
+                          e.preventDefault();
+                          if (!resellProductTitle.trim()) {
+                            toast.error("প্রোডাক্টের নাম লিখুন");
+                            return;
+                          }
+                          try {
+                            const pData = {
+                              title: resellProductTitle.trim(),
+                              category: resellProductCategory.trim() || 'সাধারণ',
+                              description: resellProductDesc.trim(),
+                              wholesalePrice: Number(resellProductWholesalePrice) || 0,
+                              minResalePrice: Number(resellProductMinResalePrice) || 0,
+                              stock: Number(resellProductStock) || 0,
+                              imageUrl: resellProductImageUrl.trim() || 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=600',
+                              updatedAt: serverTimestamp()
+                            };
+
+                            if (editingResellProductId) {
+                              await updateDoc(doc(db, "reselling_products", editingResellProductId), pData);
+                              toast.success("প্রোডাক্ট সফলভাবে আপডেট হয়েছে!");
+                            } else {
+                              await addDoc(collection(db, "reselling_products"), {
+                                ...pData,
+                                createdAt: serverTimestamp()
+                              });
+                              toast.success("নতুন প্রোডাক্ট সফলভাবে যুক্ত হয়েছে!");
+                            }
+
+                            setIsResellProductModalOpen(false);
+                          } catch (err: any) {
+                            toast.error("সেভ করতে সমস্যা হয়েছে: " + err.message);
+                          }
+                        }}
+                        className="space-y-3 text-xs font-bold"
+                      >
+                        <div>
+                          <label className="text-[10px] text-[#A3A3A3] uppercase block mb-1">প্রোডাক্ট নাম/টাইটেল</label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="যেমন: স্মার্ট ওয়াচ T800"
+                            value={resellProductTitle}
+                            onChange={e => setResellProductTitle(e.target.value)}
+                            className="w-full bg-[#101010] border border-[#3D3215] px-3.5 py-2.5 rounded-xl text-white outline-none focus:border-[#FACC15]"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-[10px] text-[#A3A3A3] uppercase block mb-1">ক্যাটাগরি</label>
+                            <input
+                              type="text"
+                              required
+                              placeholder="যেমন: গ্যাজেট, হেডফোন"
+                              value={resellProductCategory}
+                              onChange={e => setResellProductCategory(e.target.value)}
+                              className="w-full bg-[#101010] border border-[#3D3215] px-3.5 py-2.5 rounded-xl text-white outline-none focus:border-[#FACC15]"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-[10px] text-[#A3A3A3] uppercase block mb-1">স্টক পরিমাণ</label>
+                            <input
+                              type="number"
+                              required
+                              min={0}
+                              value={resellProductStock}
+                              onChange={e => setResellProductStock(e.target.value === '' ? '' : Number(e.target.value))}
+                              className="w-full bg-[#101010] border border-[#3D3215] px-3.5 py-2.5 rounded-xl text-white outline-none focus:border-[#FACC15]"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-[10px] text-[#A3A3A3] uppercase block mb-1">পাইকারি / রিসেলার মূল্য (৳)</label>
+                            <input
+                              type="number"
+                              required
+                              min={0}
+                              value={resellProductWholesalePrice}
+                              onChange={e => setResellProductWholesalePrice(e.target.value === '' ? '' : Number(e.target.value))}
+                              className="w-full bg-[#101010] border border-[#3D3215] px-3.5 py-2.5 rounded-xl text-[#FACC15] outline-none focus:border-[#FACC15]"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-[10px] text-[#A3A3A3] uppercase block mb-1">রেগুলার বিক্রয়মূল্য (৳)</label>
+                            <input
+                              type="number"
+                              required
+                              min={0}
+                              value={resellProductMinResalePrice}
+                              onChange={e => setResellProductMinResalePrice(e.target.value === '' ? '' : Number(e.target.value))}
+                              className="w-full bg-[#101010] border border-[#3D3215] px-3.5 py-2.5 rounded-xl text-white outline-none focus:border-[#FACC15]"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] text-[#A3A3A3] uppercase block mb-1">প্রোডাক্ট বিবরণ (Description)</label>
+                          <textarea
+                            rows={3}
+                            placeholder="প্রোডাক্টের বৈশিষ্ট্য ও তথ্য..."
+                            value={resellProductDesc}
+                            onChange={e => setResellProductDesc(e.target.value)}
+                            className="w-full bg-[#101010] border border-[#3D3215] px-3.5 py-2.5 rounded-xl text-white outline-none focus:border-[#FACC15]"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] text-[#A3A3A3] uppercase block mb-1">ছবি লিংক (Image URL)</label>
+                          <input
+                            type="url"
+                            placeholder="https://images.unsplash.com/..."
+                            value={resellProductImageUrl}
+                            onChange={e => setResellProductImageUrl(e.target.value)}
+                            className="w-full bg-[#101010] border border-[#3D3215] px-3.5 py-2.5 rounded-xl text-white outline-none focus:border-[#FACC15]"
+                          />
+                        </div>
+
+                        <button
+                          type="submit"
+                          className="w-full py-3 bg-gradient-to-r from-[#D4A017] to-[#FACC15] text-[#090909] font-black uppercase tracking-wider rounded-xl shadow-lg mt-2 cursor-pointer hover:opacity-95"
+                        >
+                          {editingResellProductId ? 'প্রোডাক্ট আপডেট করুন' : 'প্রোডাক্ট সেভ করুন'}
+                        </button>
+                      </form>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
+
+          {/* SUB-TAB 2: RESELLING ORDERS LIST */}
+          {resellSubTab === 'orders' && (
+            <div className="space-y-4">
+              {/* Order Status Filters */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                {(['all', 'pending', 'processing', 'delivered', 'cancelled'] as const).map(st => (
+                  <button
+                    key={st}
+                    onClick={() => setResellOrderFilter(st)}
+                    className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider whitespace-nowrap cursor-pointer transition ${
+                      resellOrderFilter === st
+                        ? 'bg-[#FACC15] text-black shadow-md'
+                        : 'bg-[#151515] text-[#A3A3A3] border border-[#3D3215] hover:text-white'
+                    }`}
+                  >
+                    {st === 'all' ? 'সব অর্ডার' : st === 'pending' ? 'পেন্ডিং' : st === 'processing' ? 'প্রসেসিং' : st === 'delivered' ? 'ডেলিভার্ড' : 'ক্যানসেলড'}
+                    {st !== 'all' && (
+                      <span className="ml-1 opacity-70">
+                        ({adminResellOrders.filter(o => o.status === st).length})
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              {/* Orders List */}
+              <div className="space-y-3">
+                {adminResellOrders
+                  .filter(o => resellOrderFilter === 'all' || o.status === resellOrderFilter)
+                  .length === 0 ? (
+                    <div className="bg-[#151515] p-8 rounded-2xl border border-[#3D3215] text-center text-[#A3A3A3] font-bold text-xs">
+                      কোনো রিসেলিং অর্ডার পাওয়া যায়নি।
+                    </div>
+                  ) : (
+                    adminResellOrders
+                      .filter(o => resellOrderFilter === 'all' || o.status === resellOrderFilter)
+                      .map(order => (
+                        <div key={order.id} className="bg-[#151515] p-4 rounded-2xl border border-[#3D3215] space-y-3">
+                          {/* Order Header */}
+                          <div className="flex items-center justify-between border-b border-[#3D3215] pb-2 text-xs">
+                            <div className="flex items-center gap-2">
+                              <span className="font-black text-white">রিসেলার: {order.resellerName || 'User'}</span>
+                              <span className="text-[10px] text-[#A3A3A3]">({order.resellerEmail})</span>
+                            </div>
+                            <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase border ${
+                              order.status === 'delivered' ? 'bg-emerald-950/40 border-emerald-800 text-emerald-400' :
+                              order.status === 'processing' ? 'bg-blue-950/40 border-blue-800 text-blue-400' :
+                              order.status === 'cancelled' ? 'bg-rose-950/40 border-rose-800 text-rose-400' :
+                              'bg-amber-950/40 border-amber-800 text-amber-400'
+                            }`}>
+                              {order.status}
+                            </span>
+                          </div>
+
+                          {/* Product & Customer Details */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                            {/* Product Box */}
+                            <div className="bg-[#101010] p-3 rounded-xl border border-[#3D3215] flex gap-3">
+                              <img src={order.productImage || 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=150'} alt="" className="w-12 h-12 rounded-lg object-cover border border-[#3D3215] shrink-0" />
+                              <div>
+                                <h5 className="font-black text-white">{order.productTitle}</h5>
+                                <p className="text-[10px] text-[#A3A3A3]">পাইকারি: ৳{order.wholesalePrice} | কাস্টমার সেল: ৳{order.resalePrice}</p>
+                                <p className="text-[10px] text-emerald-400 font-bold">রিসেলার লাভ: +৳{order.profit}</p>
+                              </div>
+                            </div>
+
+                            {/* Customer Delivery Info */}
+                            <div className="bg-[#101010] p-3 rounded-xl border border-[#3D3215] space-y-1">
+                              <h5 className="text-[10px] font-black text-[#FACC15] uppercase">কাস্টমার তথ্য</h5>
+                              <p className="font-black text-white">{order.customerName} ({order.customerPhone})</p>
+                              <p className="text-[10px] text-[#A3A3A3] line-clamp-2">{order.customerAddress}</p>
+                              {order.customerNote && <p className="text-[9px] text-[#FACC15]">নোট: {order.customerNote}</p>}
+                            </div>
+                          </div>
+
+                          {/* Advance Fee Info */}
+                          {order.advanceFeePaid > 0 && (
+                            <div className="bg-[#201A08] border border-[#FACC15]/30 p-2.5 rounded-xl flex items-center justify-between text-xs">
+                              <div className="flex items-center gap-2 text-[#FACC15]">
+                                <DollarSign className="w-4 h-4" />
+                                <span className="font-black">অগ্রীম ডেলিভারি ফি: ৳{order.advanceFeePaid} ({order.paymentMethod?.toUpperCase()})</span>
+                              </div>
+                              <div className="flex items-center gap-1 font-mono text-white font-bold">
+                                <span>TrxID: {order.trxId || 'N/A'}</span>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Status Change Controls */}
+                          <div className="flex items-center justify-between pt-2 border-t border-[#3D3215] text-[10px] font-black">
+                            <span className="text-[#737373]">অর্ডার ক্রিয়েট: {new Date(order.createdAt?.seconds * 1000 || Date.now()).toLocaleDateString('bn-BD')}</span>
+                            <div className="flex items-center gap-2">
+                              {order.status !== 'processing' && (
+                                <button
+                                  onClick={async () => {
+                                    await updateDoc(doc(db, "reselling_orders", order.id), { status: 'processing', updatedAt: serverTimestamp() });
+                                    toast.success("অর্ডার প্রসেসিং চিহ্নিত করা হয়েছে!");
+                                  }}
+                                  className="px-2.5 py-1 bg-blue-950/60 border border-blue-800 text-blue-300 rounded-lg cursor-pointer hover:bg-blue-900"
+                                >
+                                  Mark Processing
+                                </button>
+                              )}
+                              {order.status !== 'delivered' && (
+                                <button
+                                  onClick={async () => {
+                                    await updateDoc(doc(db, "reselling_orders", order.id), { status: 'delivered', updatedAt: serverTimestamp() });
+                                    toast.success("অর্ডার ডেলিভার্ড চিহ্নিত করা হয়েছে!");
+                                  }}
+                                  className="px-2.5 py-1 bg-emerald-950/60 border border-emerald-800 text-emerald-300 rounded-lg cursor-pointer hover:bg-emerald-900"
+                                >
+                                  Mark Delivered
+                                </button>
+                              )}
+                              {order.status !== 'cancelled' && (
+                                <button
+                                  onClick={async () => {
+                                    await updateDoc(doc(db, "reselling_orders", order.id), { status: 'cancelled', updatedAt: serverTimestamp() });
+                                    toast.success("অর্ডার ক্যানসেল করা হয়েছে!");
+                                  }}
+                                  className="px-2.5 py-1 bg-rose-950/60 border border-rose-800 text-rose-300 rounded-lg cursor-pointer hover:bg-rose-900"
+                                >
+                                  Cancel
+                                </button>
+                              )}
+                              <button
+                                onClick={async () => {
+                                  if (confirm("আপনি কি নিশ্চিত এই রিসেলিং অর্ডার রেকর্ড মুছে ফেলতে চান?")) {
+                                    await deleteDoc(doc(db, "reselling_orders", order.id));
+                                    toast.success("অর্ডার রেকর্ড মুছে ফেলা হয়েছে!");
+                                  }
+                                }}
+                                className="p-1 text-rose-400 hover:bg-rose-950/40 rounded-lg cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                  )}
+              </div>
             </div>
           )}
         </div>
