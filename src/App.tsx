@@ -32,6 +32,7 @@ import { Payment } from './pages/Payment';
 import { Courses } from './pages/Courses';
 import { FAQ } from './pages/FAQ';
 import { PostJob } from './pages/PostJob';
+import { Reselling } from './pages/Reselling';
 
 import { FullPageLoader } from './components/LoadingSpinner';
 
@@ -180,6 +181,7 @@ export default function App() {
             <Route path="/gift" element={<ActiveGuard><GiftCode /></ActiveGuard>} />
             <Route path="/drive" element={<ActiveGuard><Drive /></ActiveGuard>} />
             <Route path="/courses" element={<Courses />} />
+            <Route path="/reselling" element={<Reselling />} />
             <Route path="/ads" element={<ActiveGuard><AdsView /></ActiveGuard>} />
             <Route path="/payment" element={<Payment />} />
             <Route path="/profile" element={<Profile />} />

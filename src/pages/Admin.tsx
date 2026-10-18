@@ -81,7 +81,7 @@ export function AdminPanel() {
     title: '🎮 RUSH TOP BD — NOW LIVE!',
     subtitle: '🔥 আপনার প্রিয় গেমের Top-Up এখন আরও সহজ!'
   });
-  const [siteSettings, setSiteSettings] = useState({ siteName: '', logoUrl: '', telegramUrl: '', apkUrl: 'https://www.mediafire.com/file/glio303il0rsfr4/app-release.apk/file', dailyTaskLimit: 0, driveOffersEnabled: true, coursesEnabled: true, adsViewEnabled: false, reviewsEnabled: true, adsViewLink: '', adsViewText: 'Watch Ads' });
+  const [siteSettings, setSiteSettings] = useState({ siteName: '', logoUrl: '', telegramUrl: '', apkUrl: 'https://www.mediafire.com/file/glio303il0rsfr4/app-release.apk/file', dailyTaskLimit: 0, driveOffersEnabled: true, coursesEnabled: true, adsViewEnabled: false, reviewsEnabled: true, adsViewLink: '', adsViewText: 'Watch Ads', adsterraSocialBarEnabled: false, adsterraBannerEnabled: true });
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [viewingScreenshot, setViewingScreenshot] = useState<string | null>(null);
   const [settingsSubTab, setSettingsSubTab] = useState<'identity' | 'gateways' | 'rewards' | 'security' | 'danger'>('identity');
@@ -271,7 +271,7 @@ export function AdminPanel() {
         fetchDoc("settings", "activation", d => setActivationSettings({ mode: d.mode || 'free', fee: d.fee || 50 })),
         fetchDoc("settings", "support", d => setSupportSettings({ email: d.email || 'support@example.com', whatsapp: d.whatsapp || '', telegram: d.telegram || '', facebook: d.facebook || '' })),
         fetchDoc("settings", "site", d => setSiteSettings({
-           siteName: d.siteName || '', logoUrl: d.logoUrl || '', telegramUrl: d.telegramUrl || '', apkUrl: d.apkUrl || 'https://www.mediafire.com/file/glio303il0rsfr4/app-release.apk/file', dailyTaskLimit: d.dailyTaskLimit || 0, driveOffersEnabled: d.driveOffersEnabled !== false, coursesEnabled: d.coursesEnabled !== false, adsViewEnabled: d.adsViewEnabled === true, reviewsEnabled: d.reviewsEnabled !== false, adsViewLink: d.adsViewLink || '', adsViewText: d.adsViewText || 'Watch Ads'
+           siteName: d.siteName || '', logoUrl: d.logoUrl || '', telegramUrl: d.telegramUrl || '', apkUrl: d.apkUrl || 'https://www.mediafire.com/file/glio303il0rsfr4/app-release.apk/file', dailyTaskLimit: d.dailyTaskLimit || 0, driveOffersEnabled: d.driveOffersEnabled !== false, coursesEnabled: d.coursesEnabled !== false, adsViewEnabled: d.adsViewEnabled === true, reviewsEnabled: d.reviewsEnabled !== false, adsViewLink: d.adsViewLink || '', adsViewText: d.adsViewText || 'Watch Ads', adsterraSocialBarEnabled: d.adsterraSocialBarEnabled === true, adsterraBannerEnabled: d.adsterraBannerEnabled !== false
         })),
         fetchDoc("settings", "faqs", d => setFaqsList(d.faqs || []))
       ]);
@@ -3954,6 +3954,44 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                     className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${siteSettings.reviewsEnabled !== false ? 'bg-[#FACC15]' : 'bg-[#262626] border border-[#3D3215]'}`}
                   >
                     <span className={`absolute top-1 left-1 w-4 h-4 rounded-full transition-transform ${siteSettings.reviewsEnabled !== false ? 'translate-x-6 bg-[#090909]' : 'bg-[#737373]'}`} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-4 bg-[#101010] rounded-2xl border border-[#3D3215] flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-black text-white uppercase tracking-tight">Social Bar Ads (Adsterra)</h4>
+                  <p className="text-[9px] text-[#A3A3A3] font-bold uppercase tracking-wider">Enable/Disable floating overlay ads staying on top</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={`text-[10px] font-black uppercase tracking-widest ${siteSettings.adsterraSocialBarEnabled ? 'text-[#FACC15]' : 'text-[#737373]'}`}>
+                    {siteSettings.adsterraSocialBarEnabled ? 'ON' : 'OFF'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSiteSettings(prev => ({ ...prev, adsterraSocialBarEnabled: !prev.adsterraSocialBarEnabled }))}
+                    className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${siteSettings.adsterraSocialBarEnabled ? 'bg-[#FACC15]' : 'bg-[#262626] border border-[#3D3215]'}`}
+                  >
+                    <span className={`absolute top-1 left-1 w-4 h-4 rounded-full transition-transform ${siteSettings.adsterraSocialBarEnabled ? 'translate-x-6 bg-[#090909]' : 'bg-[#737373]'}`} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-4 bg-[#101010] rounded-2xl border border-[#3D3215] flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-black text-white uppercase tracking-tight">Banner Ads (Adsterra)</h4>
+                  <p className="text-[9px] text-[#A3A3A3] font-bold uppercase tracking-wider">Enable/Disable native banner ads on website</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={`text-[10px] font-black uppercase tracking-widest ${siteSettings.adsterraBannerEnabled !== false ? 'text-[#FACC15]' : 'text-[#737373]'}`}>
+                    {siteSettings.adsterraBannerEnabled !== false ? 'ON' : 'OFF'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSiteSettings(prev => ({ ...prev, adsterraBannerEnabled: prev.adsterraBannerEnabled === false ? true : false }))}
+                    className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${siteSettings.adsterraBannerEnabled !== false ? 'bg-[#FACC15]' : 'bg-[#262626] border border-[#3D3215]'}`}
+                  >
+                    <span className={`absolute top-1 left-1 w-4 h-4 rounded-full transition-transform ${siteSettings.adsterraBannerEnabled !== false ? 'translate-x-6 bg-[#090909]' : 'bg-[#737373]'}`} />
                   </button>
                 </div>
               </div>

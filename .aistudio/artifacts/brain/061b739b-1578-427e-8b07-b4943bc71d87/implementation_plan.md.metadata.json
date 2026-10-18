@@ -1,6 +1,6 @@
 {
-  "summary": "Implementation plan to add Admin Panel controls for toggling Adsterra Social Bar (floating ads) and Banner Ads independently.",
-  "updatedAt": "2026-10-18T06:09:46.179494851Z",
+  "summary": "Implementation plan for adding Product Reselling (রিসেলিং) feature with custom pricing, order submission with delivery details, 120 BDT delivery charge on the first 2 orders per user, and Admin Panel management.",
+  "updatedAt": "2026-10-18T07:14:19.931770390Z",
   "requestFeedback": true,
   "userFacing": true
 }

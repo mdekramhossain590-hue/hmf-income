@@ -2,7 +2,7 @@ import { processRegistrationReferral } from "../lib/referral";
 import { useNavigate } from "react-router-dom";
 import {
   Clock, XCircle, User, Bell, Wallet, ListChecks, Target, Users, Send, MoreVertical, Settings, HelpCircle, LogOut, Award, Shield, FileText, Calculator, Megaphone, Trophy, Copy, Check, Link, Eye, EyeOff, Smartphone, BookOpen, Banknote, MonitorPlay, Wifi, Sun, Moon, X, Trash2, Activity, ArrowDownLeft, ArrowUpRight, CheckCircle, MessageCircle, Star, Gift, Download, Coins, Briefcase,
-  BadgeCheck, RotateCcw, Gamepad2} from "lucide-react";
+  BadgeCheck, RotateCcw, Gamepad2, ShoppingBag} from "lucide-react";
 import { useAuth } from "../components/AuthProvider";
 import React, { useState, useEffect } from "react";
 import { triggerRealisticConfetti } from "../lib/confetti";
@@ -1800,6 +1800,29 @@ export function Dashboard() {
               <span className="text-[9px] font-black text-[#FACC15] uppercase tracking-widest flex items-center gap-1 mt-0.5">
                 <div className="w-1.5 h-1.5 rounded-full bg-[#FACC15] animate-pulse"></div>
                 জব পোস্ট
+              </span>
+            </div>
+          </motion.div>
+
+          {/* Reselling Zone */}
+          <motion.div
+            whileTap={{ scale: 0.95 }}
+            onClick={() => {
+              playTapSound();
+              navigate("/reselling");
+            }}
+            className="relative flex items-center gap-3 p-3 sm:p-4 rounded-[24px] border border-[#D4A017]/60 bg-gradient-to-r from-[#1C1C1C] via-[#151515] to-[#1C1C1C] hover:border-[#FACC15] transition-all cursor-pointer group shadow-lg"
+          >
+            <div className="w-10 h-10 sm:w-12 sm:h-12 flex-shrink-0 rounded-[16px] flex items-center justify-center bg-gradient-to-br from-[#FFE082] via-[#D4A017] to-[#8A6508] text-[#090909] shadow-md shadow-[#D4A017]/30 group-hover:scale-105 transition-transform relative overflow-hidden">
+              <ShoppingBag className="w-5 h-5 sm:w-6 sm:h-6" strokeWidth={1.5} />
+            </div>
+            <div className="flex flex-col justify-center min-w-0 pr-2">
+              <span className="text-[11px] sm:text-[13px] font-bold truncate text-[#FFFFFF]">
+                রিসেলিং জোন
+              </span>
+              <span className="text-[9px] font-black text-[#FACC15] uppercase tracking-widest flex items-center gap-1 mt-0.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></div>
+                EARN PROFIT
               </span>
             </div>
           </motion.div>
