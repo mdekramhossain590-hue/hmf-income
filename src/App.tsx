@@ -35,9 +35,8 @@ import { PostJob } from './pages/PostJob';
 
 import { FullPageLoader } from './components/LoadingSpinner';
 
-import { ActivationPopup } from './components/ActivationPopup';
-
 import { MigrationDashboard } from './pages/MigrationDashboard';
+import { AdsterraAds } from './components/AdsterraAds';
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -127,6 +126,7 @@ function DynamicFavicon() {
 export default function App() {
   return (
     <AuthProvider>
+      <AdsterraAds />
       <DynamicFavicon />
       <Toaster 
         position="top-center" 
