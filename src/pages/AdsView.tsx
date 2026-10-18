@@ -15,7 +15,7 @@ import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'motion/react';
 import { triggerRealisticConfetti } from '../lib/confetti';
 
-export const AD_NETWORK_URL = "https://www.profitableratecpmnetwork.com/w19bpauxe?key=f99a0899146f2941c8a884a6c914d013";
+export const AD_NETWORK_URL = "https://thorpejoy.com/wkb4kx79d2?key=a0e507019197abd825d3de696587f4dd";
 const COOLDOWN_DURATION_MS = 24 * 60 * 60 * 1000; // 24 Hours in milliseconds
 
 interface AdSlot {
@@ -423,6 +423,32 @@ export function AdsView() {
           <ArrowRight className="w-4 h-4 stroke-[2.5]" />
         </div>
       </div>
+
+      {/* Special Direct Earning Smartlink Card */}
+      <a 
+        href="https://thorpejoy.com/wkb4kx79d2?key=a0e507019197abd825d3de696587f4dd"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="bg-gradient-to-r from-[#1C1C1C] via-[#151515] to-[#1C1C1C] border border-[#D4A017]/60 hover:border-[#FACC15] rounded-2xl p-4 mb-5 flex items-center justify-between shadow-lg transition-all active:scale-[0.99] cursor-pointer group block"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[#FACC15]/20 border border-[#FACC15]/40 text-[#FACC15] flex items-center justify-center shadow-md">
+            <Sparkles className="w-5 h-5 animate-pulse" />
+          </div>
+          <div>
+            <span className="font-black text-sm text-white group-hover:text-[#FACC15] transition-colors block leading-tight">
+              স্পেশাল ডাইরেক্ট বোনাস লিংক
+            </span>
+            <span className="text-[10px] text-[#A3A3A3] font-bold uppercase tracking-wider">
+              ক্লিক করে বোনাস অফার ডাইরেক্ট ভিসিট করুন
+            </span>
+          </div>
+        </div>
+        <div className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#8A6508] to-[#FACC15] text-[#090909] text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shrink-0 group-hover:scale-105 transition-transform">
+          <span>ভিসিট</span>
+          <ExternalLink className="w-3.5 h-3.5" />
+        </div>
+      </a>
 
       {/* Main "প্রিমিয়াম ইনকাম" Container Card in Dark Luxury Gold */}
       <div className="bg-[#151515] rounded-[32px] p-5 pt-6 pb-7 shadow-2xl border border-[#3D3215] relative overflow-hidden mb-6">
