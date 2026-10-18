@@ -1,53 +1,65 @@
-# Implementation Plan - Course Feature Simplification
+# Admin Controls for Adsterra Floating Ads & Banner Ads Plan
 
-Simplify the Course system across both the User Course Store (`src/pages/Courses.tsx`) and the Admin Panel (`src/pages/Admin.tsx`), keeping only essential fields: **Title (টাইটেল)**, **Description (বিবরণ)**, **Price (মূল্য)**, **Discount Price (ডিসকাউন্ট মূল্য)**, and **Course/Drive Link (কোর্স লিংক)**.
+Add Admin Panel toggles to independently enable or disable Adsterra Social Bar (floating ads that stay on screen) and Native/Banner Ads.
 
----
-
-## User Review Required
+## User Review & Critical Decisions
 
 > [!IMPORTANT]
-> All complex features such as nested video lessons/modules, video players, complex category chips, setup instructions, and app type distinctions will be removed from the UI and admin forms. Once unlocked, buyers will directly access their course via the provided course link.
+> The user confirmed wanting individual toggle switches in the Admin Panel so they can turn off the floating Social Bar ad while keeping banner ads active, or control both as needed.
+
+- **Confirmed Decision**: Add `adsterraSocialBarEnabled` (Social Bar Floating Ad) and `adsterraBannerEnabled` (Banner Ad) toggle controls under Admin Settings, defaulting `adsterraSocialBarEnabled` to OFF and `adsterraBannerEnabled` to ON.
 
 ---
 
-## Key Proposed Changes
+## 1. Overview & Core Concept
 
-### 1. Data Model Simplification (`src/pages/Courses.tsx` & `src/pages/Admin.tsx`)
-- Streamline `Course` interface:
-  - `id?: string`
-  - `title: string`
-  - `description: string`
-  - `price: number`
-  - `discountPrice?: number`
-  - `driveLink: string` (Course Link)
-  - `thumbnailUrl?: string`
-  - `status?: string`
-- Remove unused fields: `items` (lessons array), `setupInstructions`, `accessKey`, `videoLink`, `category` filters, etc.
-
-### 2. User Store UI (`src/pages/Courses.tsx`)
-- **Store Cards:** Clean card layout displaying thumbnail, title, brief description, regular price, discounted price, and "Buy" button.
-- **Course Unlocked View:** Once purchased/approved, display a prominent button to directly open the course link ("কোর্স এক্সেস করুন / ড্রাইভ লিংক").
-- **Minimal Filters:** Simple search input by course title/description without crowded category tags or complex tabs.
-
-### 3. Admin Management Panel (`src/pages/Admin.tsx`)
-- **Simplified Add/Edit Form:** Form with only 5 fields:
-  1. Course Title (কোর্সের নাম)
-  2. Description (বিবরণ)
-  3. Original Price (মূল দাম)
-  4. Discount Price (ডিসকাউন্ট মূল্য)
-  5. Course / Drive Link (কোর্স বা ড্রাইভ লিংক)
-- **Admin Course Table:** Streamlined list of courses with fast Edit, Delete, and Status Toggle controls.
+- **Goal**: Provide the admin full control over ad displays, allowing the floating Social Bar ad (`a2e3968480a6be43605303c400845909.js`) to be turned off while keeping native banner ads (`invoke.js` container) or Monetag running.
+- **User Impact**: Resolves intrusive floating overlay ads on the user screen while retaining monetization flexibility.
 
 ---
 
-## Verification Plan
+## 2. Technical Architecture & Component Changes
 
-### Automated Tests & Validation
-- Run `compile_applet` to verify TypeScript types and component compilation.
-- Run `lint_applet` to ensure clean code standards.
+```
+┌────────────────────────────────────────────────────────┐
+│                   Admin Panel Settings                 │
+│ ┌────────────────────────────────────────────────────┐ │
+│ │  • Toggle: Social Bar (Floating Ad) [ON / OFF]    │ │
+│ │  • Toggle: Native Banner Ads [ON / OFF]           │ │
+│ └────────────────────────────────────────────────────┘ │
+└──────────────────────────┬─────────────────────────────┘
+                           │ Saved to Firestore: settings/site
+                           ▼
+┌────────────────────────────────────────────────────────┐
+│                 src/components/AdsterraAds.tsx         │
+│ ┌────────────────────────────────────────────────────┐ │
+│ │  Check siteSettings:                              │ │
+│ │  - If socialBarEnabled -> Load Social Bar script   │ │
+│ │  - If bannerEnabled    -> Render Banner Container  │ │
+│ └────────────────────────────────────────────────────┘ │
+└────────────────────────────────────────────────────────┘
+```
 
-### Manual Verification
-- Test adding a course from the Admin panel with title, description, price, discount, and course link.
-- Test purchasing the simplified course from the user frontend with wallet and bKash.
-- Verify that clicking "কোর্স এক্সেস করুন" directly opens the saved course link.
+### Planned Steps:
+1. **Site Settings Schema Update (`src/components/AuthProvider.tsx`)**:
+   - Add `adsterraSocialBarEnabled` (boolean, default `false`).
+   - Add `adsterraBannerEnabled` (boolean, default `true`).
+2. **Admin Panel UI Update (`src/pages/Admin.tsx`)**:
+   - In Settings tab, add toggle switches for:
+     - **Social Bar (ভাসমান সোশ্যাল বার অ্যাড)**: Default OFF.
+     - **Native Banner Ads (নেটিভ ব্যানার অ্যাড)**: Default ON.
+   - Save preferences to `doc(db, "settings", "site")`.
+3. **Adsterra Component (`src/components/AdsterraAds.tsx`)**:
+   - Mount `<AdsterraAds />` in `App.tsx`.
+   - Read `siteSettings` from `useAuth()`.
+   - Only load `a2e3968480a6be43605303c400845909.js` when `adsterraSocialBarEnabled === true`.
+   - Only render `#container-414a5d86b5f07cccbde13ae727340b02` and load `invoke.js` when `adsterraBannerEnabled === true`.
+4. **Verification**:
+   - Run `compile_applet` and `lint_applet` to verify clean build.
+
+---
+
+## 3. Verification Plan
+
+- Run `compile_applet` to verify clean compilation.
+- Run `lint_applet` to verify syntax and imports.

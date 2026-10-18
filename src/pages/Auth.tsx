@@ -40,17 +40,23 @@ export function Auth() {
 
     try {
       if (isLogin) {
-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const cleanEmail = email.trim();
+        const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, password);
         const user = userCredential.user;
         const deviceId = getDeviceId();
         
         // Update device ID on login to track existing users or updated devices
-        await updateDoc(doc(db, "users", user.uid), {
-          deviceId: deviceId,
-          lastLoginAt: serverTimestamp()
-        }).catch(() => {/* ignore errors */});
+        try {
+          await updateDoc(doc(db, "users", user.uid), {
+            deviceId: deviceId,
+            lastLoginAt: serverTimestamp()
+          });
+        } catch (_) {}
 
-        await refreshProfile();
+        try {
+          await refreshProfile(user.uid);
+        } catch (_) {}
+
         toast.success("Logged In Successfully!");
         navigate('/');
       } else {

@@ -1,6 +1,6 @@
 {
-  "summary": "Implementation plan for simplifying Course schema and UI to only title, description, price, discount price, and course link.",
-  "updatedAt": "2026-10-18T04:40:03.200923961Z",
+  "summary": "Implementation plan to add Admin Panel controls for toggling Adsterra Social Bar (floating ads) and Banner Ads independently.",
+  "updatedAt": "2026-10-18T06:09:46.179494851Z",
   "requestFeedback": true,
   "userFacing": true
 }

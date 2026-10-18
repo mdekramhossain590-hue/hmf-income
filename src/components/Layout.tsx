@@ -9,6 +9,7 @@ import { Onboarding } from './Onboarding';
 import { WelcomePopup } from './WelcomePopup';
 import { AnimatePresence, motion } from 'motion/react';
 
+
 export function Layout() {
   const { user, siteSettings, isQuotaExceeded } = useAuth();
   const location = useLocation();
