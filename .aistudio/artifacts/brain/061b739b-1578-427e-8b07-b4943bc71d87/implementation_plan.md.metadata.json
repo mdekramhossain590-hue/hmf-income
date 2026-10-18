@@ -1,6 +1,6 @@
 {
-  "summary": "Implementation plan for selling Animation & Learning Courses and Premium Apps on the platform, including Admin management, bKash/Nagad & Wallet checkout, My Purchases access dashboard, and Firestore security rules.",
-  "updatedAt": "2026-10-16T13:31:27.091570242Z",
+  "summary": "Implementation plan for simplifying Course schema and UI to only title, description, price, discount price, and course link.",
+  "updatedAt": "2026-10-18T04:40:03.200923961Z",
   "requestFeedback": true,
   "userFacing": true
 }

@@ -22,6 +22,9 @@ export const clearPwaPrompt = () => {
 
 if (typeof window !== 'undefined') {
   registerSW({ immediate: true });
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
   
   window.addEventListener('beforeinstallprompt', (e) => {
     // Prevent the mini-infobar from appearing on mobile

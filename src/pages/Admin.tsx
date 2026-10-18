@@ -2948,8 +2948,8 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                 <form 
                   onSubmit={async (e) => {
                     e.preventDefault();
-                    if (!newCourseTitle || !newCourseDesc || !newCourseThumbnail) {
-                      toast.error("টাইটেল, থাম্বনেইল এবং ডেসক্রিপশন আবশ্যক");
+                    if (!newCourseTitle || !newCourseDesc || !newCourseDriveLink) {
+                      toast.error("টাইটেল, ডেসক্রিপশন এবং কোর্স লিংক আবশ্যক");
                       return;
                     }
                     
@@ -2957,38 +2957,26 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                       const id = editingCourseId || `course_${Date.now()}`;
                       await setDoc(doc(db, "courses", id), {
                         title: newCourseTitle,
-                        type: newCourseType,
                         description: newCourseDesc,
-                        thumbnailUrl: newCourseThumbnail,
-                        videoLink: newCourseLink || '',
-                        category: newCourseCategory,
                         price: Number(newCoursePrice) || 0,
                         discountPrice: newCourseDiscountPrice !== '' ? Number(newCourseDiscountPrice) : Number(newCoursePrice) || 0,
-                        driveLink: newCourseDriveLink || '',
-                        accessKey: newCourseAccessKey || '',
-                        setupInstructions: newCourseSetupInstructions || '',
+                        driveLink: newCourseDriveLink,
+                        thumbnailUrl: newCourseThumbnail || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=600&auto=format&fit=crop',
                         status: 'active',
-                        items: courseItems,
                         updatedAt: serverTimestamp()
                       }, { merge: true });
                       
-                      toast.success(editingCourseId ? "প্রডাক্ট সফলভাবে আপডেট হয়েছে!" : "কোর্স/অ্যাপ সফলভাবে পাবলিশ হয়েছে!");
+                      toast.success(editingCourseId ? "কোর্স সফলভাবে আপডেট হয়েছে!" : "কোর্স সফলভাবে পাবলিশ হয়েছে!");
                       clearCache();
                       await loadData(true);
                       
                       // Clear form
                       setNewCourseTitle('');
-                      setNewCourseType('course');
                       setNewCourseDesc('');
-                      setNewCourseThumbnail('');
-                      setNewCourseLink('');
-                      setNewCourseCategory('এনিমেশন');
                       setNewCoursePrice(500);
                       setNewCourseDiscountPrice(250);
                       setNewCourseDriveLink('');
-                      setNewCourseAccessKey('');
-                      setNewCourseSetupInstructions('');
-                      setCourseItems([]);
+                      setNewCourseThumbnail('');
                       setEditingCourseId(null);
                     } catch (err: any) {
                       toast.error("কোর্স সংরক্ষণ ব্যর্থ হয়েছে");
@@ -2997,74 +2985,39 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                   }}
                   className="space-y-4"
                 >
-                  {/* Product Type Selector */}
                   <div>
-                    <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1.5 block">
-                      প্রডাক্টের ধরণ নির্বাচন করুন (Product Type)
+                    <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">
+                      ১. কোর্সের নাম (Course Title)
                     </label>
-                    <div className="grid grid-cols-2 gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setNewCourseType('course')}
-                        className={`p-3 rounded-2xl border flex items-center justify-center gap-2 font-black text-xs uppercase tracking-wider transition-all cursor-pointer ${
-                          newCourseType === 'course'
-                            ? 'bg-[#1C1C1C] border-[#FACC15] text-[#FACC15] ring-1 ring-[#FACC15]'
-                            : 'bg-[#101010] border-[#3D3215] text-[#A3A3A3]'
-                        }`}
-                      >
-                        <BookOpen className="w-4 h-4" />
-                        অনলাইন কোর্স (Course)
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setNewCourseType('premium_app')}
-                        className={`p-3 rounded-2xl border flex items-center justify-center gap-2 font-black text-xs uppercase tracking-wider transition-all cursor-pointer ${
-                          newCourseType === 'premium_app'
-                            ? 'bg-[#1C1C1C] border-emerald-400 text-emerald-400 ring-1 ring-emerald-400'
-                            : 'bg-[#101010] border-[#3D3215] text-[#A3A3A3]'
-                        }`}
-                      >
-                        <Smartphone className="w-4 h-4" />
-                        প্রিমিয়াম অ্যাপস (Premium App)
-                      </button>
-                    </div>
+                    <input 
+                      type="text" 
+                      placeholder="যেমন: ডিজিটাল স্কিল ও ফ্রিল্যান্সিং গাইড" 
+                      required 
+                      value={newCourseTitle} 
+                      onChange={(e) => setNewCourseTitle(e.target.value)} 
+                      className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none transition-all" 
+                    />
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">কোর্সের / অ্যাপের নাম (Title)</label>
-                      <input 
-                        type="text" 
-                        placeholder="যেমন: মোবাইল কার্টুন এনিমেশন কোর্স বা KineMaster VIP" 
-                        required 
-                        value={newCourseTitle} 
-                        onChange={(e) => setNewCourseTitle(e.target.value)} 
-                        className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none transition-all" 
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">ক্যাটাগরি (Category)</label>
-                      <select 
-                        value={newCourseCategory} 
-                        onChange={(e) => setNewCourseCategory(e.target.value)} 
-                        className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white focus:border-[#D4A017] outline-none"
-                      >
-                        <option value="এনিমেশন" className="bg-[#151515] text-white">এনিমেশন (Animation)</option>
-                        <option value="প্রিমিয়াম অ্যাপস" className="bg-[#151515] text-white">প্রিমিয়াম অ্যাপস (Premium Apps)</option>
-                        <option value="গ্রাফিক্স ও ভিডিও" className="bg-[#151515] text-white">গ্রাফিক্স ও ভিডিও (Graphics & Video)</option>
-                        <option value="ডিজিটাল স্কিল" className="bg-[#151515] text-white">ডিজিটাল স্কিল (Digital Skills)</option>
-                        <option value="ইউটিউব ও ফেসবুক" className="bg-[#151515] text-white">ইউটিউব ও ফেসবুক মার্কেটিং</option>
-                        <option value="অন্যান্য" className="bg-[#151515] text-white">অন্যান্য (Others)</option>
-                      </select>
-                    </div>
+                  <div>
+                    <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">
+                      ২. কোর্সের বিবরণ (Description)
+                    </label>
+                    <textarea 
+                      placeholder="কোর্স সম্পর্কে বিস্তারিত তথ্য লিখুন..." 
+                      required 
+                      rows={3} 
+                      value={newCourseDesc} 
+                      onChange={(e) => setNewCourseDesc(e.target.value)} 
+                      className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none transition-all"
+                    />
                   </div>
 
                   {/* Pricing Fields */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">
-                        নিয়মিত মূল্য (Regular Price - ৳)
+                        ৩. মূল দাম (Regular Price - ৳)
                       </label>
                       <input 
                         type="number" 
@@ -3079,7 +3032,7 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
 
                     <div>
                       <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">
-                        অফার বা ডিসকাউন্ট মূল্য (Discount Price - ৳)
+                        ৪. ডিসকাউন্ট মূল্য (Discount Price - ৳)
                       </label>
                       <input 
                         type="number" 
@@ -3092,196 +3045,34 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                     </div>
                   </div>
 
-                  {/* Media Links */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">থাম্বনেইল লিংক (Thumbnail URL)</label>
-                      <input 
-                        type="url" 
-                        placeholder="https://images.unsplash.com/..." 
-                        required 
-                        value={newCourseThumbnail} 
-                        onChange={(e) => setNewCourseThumbnail(e.target.value)} 
-                        className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none transition-all" 
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">প্রিভিউ / পরিচিতি ভিডিও লিংক (Preview Video Link)</label>
-                      <input 
-                        type="url" 
-                        placeholder="https://youtube.com/watch?v=..." 
-                        value={newCourseLink} 
-                        onChange={(e) => setNewCourseLink(e.target.value)} 
-                        className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none transition-all" 
-                      />
-                    </div>
-                  </div>
-
-                  {/* Delivery Links (Drive & Access Key) */}
+                  {/* Links */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">
-                        গুগল ড্রাইভ / ডাউনলোড লিংক (Drive / Download Link)
+                        ৫. কোর্স / ড্রাইভ লিংক (Course / Drive Link)
                       </label>
                       <input 
                         type="url" 
-                        placeholder="https://drive.google.com/... (অ্যাপ ফাইল বা প্রজেক্ট এসেটস)" 
+                        placeholder="https://drive.google.com/..." 
+                        required
                         value={newCourseDriveLink} 
                         onChange={(e) => setNewCourseDriveLink(e.target.value)} 
                         className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none transition-all" 
                       />
                     </div>
+
                     <div>
                       <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">
-                        লাইসেন্স কোড / অ্যাক্টিভেশন কী (License / Activation Key)
+                        ৬. থাম্বনেইল ছবি লিংক (Thumbnail Image URL - ঐচ্ছিক)
                       </label>
                       <input 
-                        type="text" 
-                        placeholder="যেমন: VIP-APP-PRO-2026-UNLOCKED (ঐচ্ছিক)" 
-                        value={newCourseAccessKey} 
-                        onChange={(e) => setNewCourseAccessKey(e.target.value)} 
-                        className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none transition-all font-mono" 
+                        type="url" 
+                        placeholder="https://images.unsplash.com/..." 
+                        value={newCourseThumbnail} 
+                        onChange={(e) => setNewCourseThumbnail(e.target.value)} 
+                        className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none transition-all" 
                       />
                     </div>
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">
-                      ইনস্টলেশন গাইড বা নোটস (Setup Instructions / Tutor Notes)
-                    </label>
-                    <input 
-                      type="text" 
-                      placeholder="যেমন: ১. APK নামিয়ে ইনস্টল করুন। ২. প্রদত্ত কোড দিয়ে আনলক করুন।" 
-                      value={newCourseSetupInstructions} 
-                      onChange={(e) => setNewCourseSetupInstructions(e.target.value)} 
-                      className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none transition-all" 
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">বিস্তারিত বিবরণ (Detailed Description)</label>
-                    <textarea 
-                      placeholder="এই কোর্সে বা অ্যাপে কি কি সুবিধা ও ফিচার রয়েছে তা বিস্তারিত লিখুন..." 
-                      required 
-                      rows={3} 
-                      value={newCourseDesc} 
-                      onChange={(e) => setNewCourseDesc(e.target.value)} 
-                      className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-2xl text-sm font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none transition-all"
-                    />
-                  </div>
-
-                  {/* Course Lessons / Modules Builder */}
-                  <div className="bg-[#101010] p-5 rounded-[24px] border border-[#3D3215] space-y-4">
-                    <div className="flex items-center gap-1.5 border-b border-[#3D3215] pb-2">
-                      <Layers className="w-4 h-4 text-[#FACC15]" />
-                      <div className="flex-1">
-                        <h4 className="text-xs font-black text-white uppercase tracking-tight">কোর্স ক্লাস লেসন ও মডিউল বিল্ডার (Course Lessons Builder)</h4>
-                        <p className="text-[9px] text-[#A3A3A3] font-bold uppercase mt-0.5">কোর্সের জন্য আলাদা আলাদা ভিডিও ক্লাস বা চ্যাপ্টার যোগ করুন</p>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">লেসন টাইটেল (Lesson Title)</label>
-                        <input 
-                          type="text" 
-                          placeholder="যেমন: ক্লাস ১: ক্যারেক্টার ডিজাইন" 
-                          value={optTitle} 
-                          onChange={(e) => setOptTitle(e.target.value)} 
-                          className="w-full bg-[#151515] border border-[#3D3215] px-4 py-2.5 rounded-xl text-xs font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none" 
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">ক্লাসের ভিডিও লিংক (Lesson Video Link)</label>
-                        <input 
-                          type="url" 
-                          placeholder="https://youtube.com/watch?v=..." 
-                          value={optLink} 
-                          onChange={(e) => setOptLink(e.target.value)} 
-                          className="w-full bg-[#151515] border border-[#3D3215] px-4 py-2.5 rounded-xl text-xs font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none" 
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">লেসন সময়কাল (Duration)</label>
-                        <input 
-                          type="text" 
-                          placeholder="যেমন: ২৫ মিনিট" 
-                          value={optDuration} 
-                          onChange={(e) => setOptDuration(e.target.value)} 
-                          className="w-full bg-[#151515] border border-[#3D3215] px-4 py-2.5 rounded-xl text-xs font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none" 
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1 mb-1 block">সংক্ষিপ্ত নোট (Description)</label>
-                        <input 
-                          type="text" 
-                          placeholder="লেসনে কি দেখানো হয়েছে" 
-                          value={optDesc} 
-                          onChange={(e) => setOptDesc(e.target.value)} 
-                          className="w-full bg-[#151515] border border-[#3D3215] px-4 py-2.5 rounded-xl text-xs font-bold text-white placeholder:text-[#737373] focus:border-[#D4A017] outline-none" 
-                        />
-                      </div>
-                    </div>
-
-                    <button 
-                      type="button"
-                      onClick={() => {
-                        if (!optTitle || !optLink) {
-                          toast.error("লেসনের টাইটেল এবং ভিডিও লিংক আবশ্যক");
-                          return;
-                        }
-                        const newItem = {
-                          title: optTitle,
-                          description: optDesc || 'ভিডিও লেসন',
-                          videoLink: optLink,
-                          duration: optDuration || ''
-                        };
-                        setCourseItems(prev => [...prev, newItem]);
-                        setOptTitle('');
-                        setOptDesc('');
-                        setOptLink('');
-                        setOptDuration('');
-                        toast.success("লেসন যুক্ত হয়েছে!");
-                      }}
-                      className="bg-[#1C1C1C] hover:bg-[#252525] border border-[#3D3215] text-[#FACC15] font-black px-5 py-2.5 rounded-xl text-[10px] uppercase tracking-wider flex items-center gap-1 active:scale-95 transition-all cursor-pointer"
-                    >
-                      + লেসন যোগ করুন (Add Lesson)
-                    </button>
-
-                    {/* Added lessons list */}
-                    {courseItems.length > 0 && (
-                      <div className="space-y-2 pt-2 border-t border-[#3D3215]">
-                        <p className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-widest pl-1">যুক্ত লেসনসমূহ ({courseItems.length})</p>
-                        <div className="grid gap-2 max-h-[200px] overflow-y-auto pr-1">
-                          {courseItems.map((item, index) => (
-                            <div key={index} className="bg-[#151515] p-2.5 rounded-xl border border-[#3D3215] flex items-center justify-between gap-3">
-                              <div className="flex items-center gap-2.5 min-w-0">
-                                <span className="w-5 h-5 rounded-full bg-[#1C1C1C] border border-[#3D3215] text-[#FACC15] text-[9px] font-black flex items-center justify-center shrink-0">
-                                  {index + 1}
-                                </span>
-                                <div className="min-w-0">
-                                  <h5 className="text-xs font-black text-white truncate max-w-[200px]">{item.title}</h5>
-                                  <p className="text-[9px] text-[#A3A3A3] truncate max-w-[200px]">{item.videoLink}</p>
-                                </div>
-                              </div>
-                              <button 
-                                type="button" 
-                                onClick={() => {
-                                  setCourseItems(prev => prev.filter((_, idx) => idx !== index));
-                                  toast.success("লেসন মুছে ফেলা হয়েছে!");
-                                }}
-                                className="text-[9px] font-black uppercase text-rose-400 hover:text-rose-300 shrink-0 cursor-pointer"
-                              >
-                                মুছুন
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </div>
 
                   <div className="flex gap-2.5 pt-2">
@@ -3289,7 +3080,7 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                       type="submit" 
                       className="flex-1 bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] font-black uppercase tracking-[0.2em] py-3.5 rounded-2xl shadow-lg transition-all text-xs cursor-pointer hover:opacity-95"
                     >
-                      {editingCourseId ? 'আপডেট করুন (Save Changes)' : 'পাবলিশ করুন (Publish Product)'}
+                      {editingCourseId ? 'আপডেট করুন (Save Changes)' : 'পাবলিশ করুন (Publish Course)'}
                     </button>
                     
                     {editingCourseId && (
@@ -3297,17 +3088,11 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                         type="button"
                         onClick={() => {
                           setNewCourseTitle('');
-                          setNewCourseType('course');
                           setNewCourseDesc('');
-                          setNewCourseThumbnail('');
-                          setNewCourseLink('');
-                          setNewCourseCategory('এনিমেশন');
                           setNewCoursePrice(500);
                           setNewCourseDiscountPrice(250);
                           setNewCourseDriveLink('');
-                          setNewCourseAccessKey('');
-                          setNewCourseSetupInstructions('');
-                          setCourseItems([]);
+                          setNewCourseThumbnail('');
                           setEditingCourseId(null);
                         }}
                         className="bg-[#1C1C1C] border border-[#3D3215] text-[#A3A3A3] hover:text-white font-bold px-6 py-3.5 rounded-2xl text-xs cursor-pointer"
