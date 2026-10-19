@@ -189,6 +189,24 @@ export function Courses() {
     const uid = auth.currentUser.uid;
     let isMounted = true;
 
+    // Fetch from backend persistent storage
+    fetch(`/api/course-orders?userId=${encodeURIComponent(uid)}`)
+      .then(r => r.json())
+      .then(data => {
+        if (!isMounted || !data?.orders) return;
+        const apiList: CourseOrder[] = data.orders;
+        setMyOrders(prev => {
+          const map = new Map<string, CourseOrder>();
+          prev.forEach(o => map.set(o.id, o));
+          apiList.forEach(o => map.set(o.id, o));
+          const merged = Array.from(map.values());
+          merged.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+          return merged;
+        });
+        setOrdersLoading(false);
+      })
+      .catch(() => {});
+
     // Listen to user subcollection
     const userOrdersRef = collection(db, "users", uid, "course_orders");
     const unsubUserOrders = onSnapshot(userOrdersRef, (snap) => {
@@ -363,16 +381,42 @@ export function Courses() {
         // Save order
         batch.set(userOrderRef, orderData);
 
-        await batch.commit();
+        const localOrderObj: CourseOrder = {
+          ...orderData,
+          createdAt: { seconds: Math.floor(Date.now() / 1000) }
+        } as any;
 
         try {
-          await setDoc(topOrderRef, orderData);
+          await fetch('/api/course-orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(localOrderObj)
+          });
+        } catch (_) {}
+
+        try {
+          await Promise.race([
+            batch.commit(),
+            new Promise((resolve) => setTimeout(resolve, 3500))
+          ]);
+        } catch (_bErr) {}
+
+        try {
+          await Promise.race([
+            setDoc(topOrderRef, orderData),
+            new Promise((resolve) => setTimeout(resolve, 2500))
+          ]);
         } catch (_sync) {}
 
         try {
           const courseRef = doc(db, 'courses', purchasingCourse.id);
-          await updateDoc(courseRef, { salesCount: increment(1) });
+          await Promise.race([
+            updateDoc(courseRef, { salesCount: increment(1) }),
+            new Promise((resolve) => setTimeout(resolve, 2000))
+          ]);
         } catch (_sc) {}
+
+        setMyOrders(prev => [localOrderObj, ...prev.filter(o => o.id !== orderId)]);
 
         if (setProfile && profile) {
           setProfile({
@@ -392,11 +436,34 @@ export function Courses() {
         orderData.senderNumber = senderNumber.trim();
         orderData.trxId = trxId.trim();
 
-        await setDoc(userOrderRef, orderData);
+        const localOrderObj: CourseOrder = {
+          ...orderData,
+          createdAt: { seconds: Math.floor(Date.now() / 1000) }
+        } as any;
 
         try {
-          await setDoc(topOrderRef, orderData);
+          await fetch('/api/course-orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(localOrderObj)
+          });
+        } catch (_) {}
+
+        try {
+          await Promise.race([
+            setDoc(userOrderRef, orderData),
+            new Promise((resolve) => setTimeout(resolve, 3500))
+          ]);
+        } catch (_subErr) {}
+
+        try {
+          await Promise.race([
+            setDoc(topOrderRef, orderData),
+            new Promise((resolve) => setTimeout(resolve, 2500))
+          ]);
         } catch (_sync) {}
+
+        setMyOrders(prev => [localOrderObj, ...prev.filter(o => o.id !== orderId)]);
 
         toast.success("অর্ডার জমা হয়েছে! এডমিন TrxID যাচাই করে দ্রুত অনুমোদন করবেন।");
         setPurchasingCourse(null);
@@ -718,17 +785,17 @@ export function Courses() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => !isSubmittingOrder && setPurchasingCourse(null)}
-              className="fixed inset-0 bg-black/85 z-50 backdrop-blur-md"
+              className="fixed inset-0 bg-black/85 z-[100] backdrop-blur-md"
             />
             
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="fixed inset-x-4 bottom-6 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:top-1/2 md:-translate-y-1/2 md:bottom-auto md:w-full md:max-w-md bg-[#151515] rounded-[30px] overflow-hidden shadow-2xl z-50 border border-[#3D3215] max-h-[90vh] flex flex-col"
+              className="fixed inset-x-4 top-1/2 -translate-y-1/2 mx-auto w-[calc(100%-2rem)] max-w-md bg-[#151515] rounded-[30px] overflow-hidden shadow-2xl z-[110] border border-[#3D3215] max-h-[85vh] flex flex-col"
             >
               {/* Modal Header */}
-              <div className="p-4 border-b border-[#3D3215] flex items-center justify-between bg-[#101010]">
+              <div className="p-4 border-b border-[#3D3215] flex items-center justify-between bg-[#101010] shrink-0">
                 <div className="flex items-center gap-2">
                   <ShoppingBag className="w-4 h-4 text-[#FACC15]" />
                   <h3 className="text-xs font-black text-white uppercase tracking-wider">
@@ -745,7 +812,8 @@ export function Courses() {
               </div>
 
               {/* Form Body */}
-              <form onSubmit={handleCheckoutSubmit} className="p-5 overflow-y-auto space-y-4">
+              <form onSubmit={handleCheckoutSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                <div className="p-5 overflow-y-auto space-y-4 flex-1">
                 {/* Course Summary Item */}
                 <div className="bg-[#101010] p-3 rounded-2xl border border-[#3D3215] flex items-center justify-between">
                   <div className="flex items-center gap-3 min-w-0">
@@ -947,9 +1015,10 @@ export function Courses() {
                     </div>
                   </div>
                 )}
+                </div>
 
-                {/* Submit Button */}
-                <div className="pt-2">
+                {/* Sticky Submit Button Footer */}
+                <div className="p-4 bg-[#101010] border-t border-[#3D3215] shrink-0">
                   <button
                     type="submit"
                     disabled={isSubmittingOrder || (checkoutMethod === 'wallet' && (profile?.balances?.main ?? 0) < (purchasingCourse.discountPrice ?? purchasingCourse.price ?? 0))}

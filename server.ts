@@ -63,10 +63,15 @@ try {
       });
       console.log("Firebase Admin Initialized successfully.");
     } catch (parseError) {
-      console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT. Make sure it is a valid JSON object, not a code snippet.");
+      console.warn("Failed to parse FIREBASE_SERVICE_ACCOUNT as JSON. Initializing with projectId fallback.");
+      if (admin.apps.length === 0) {
+        firebaseAdminApp = admin.initializeApp({ projectId: "hmf-income-app" });
+      }
     }
   } else {
-    console.warn("FIREBASE_SERVICE_ACCOUNT env variable is missing. Push notifications won't work.");
+    if (admin.apps.length === 0) {
+      firebaseAdminApp = admin.initializeApp({ projectId: "hmf-income-app" });
+    }
   }
 } catch (error) {
   console.error("Failed to initialize Firebase Admin:", error);
@@ -500,6 +505,170 @@ app.post("/api/uddoktapay/webhook", async (req, res) => {
     } catch (err) {
       console.error("Webhook Error:", err);
       return res.status(500).json({ error: "Internal Error" });
+    }
+  });
+
+  const dataDir = path.join(process.cwd(), 'data');
+  if (!fs.existsSync(dataDir)) {
+    try {
+      fs.mkdirSync(dataDir, { recursive: true });
+    } catch (_) {}
+  }
+
+  const resellingOrdersFile = path.join(dataDir, 'reselling_orders.json');
+  const courseOrdersFile = path.join(dataDir, 'course_orders.json');
+
+  const readOrdersFromFile = (filePath: string): any[] => {
+    try {
+      if (fs.existsSync(filePath)) {
+        const raw = fs.readFileSync(filePath, 'utf-8');
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (err) {
+      console.error(`Error reading ${filePath}:`, err);
+    }
+    return [];
+  };
+
+  const writeOrdersToFile = (filePath: string, list: any[]) => {
+    try {
+      fs.writeFileSync(filePath, JSON.stringify(list, null, 2), 'utf-8');
+    } catch (err) {
+      console.error(`Error writing ${filePath}:`, err);
+    }
+  };
+
+  // Reselling Orders API (Persistent JSON Storage)
+  app.get("/api/reselling-orders", (req, res) => {
+    try {
+      const orders = readOrdersFromFile(resellingOrdersFile);
+      const { userId, resellerId } = req.query;
+      let filtered = orders;
+      if (userId) {
+        filtered = filtered.filter(o => o.userId === userId || o.resellerId === userId);
+      } else if (resellerId) {
+        filtered = filtered.filter(o => o.resellerId === resellerId || o.userId === resellerId);
+      }
+      return res.json({ success: true, orders: filtered });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/reselling-orders", (req, res) => {
+    try {
+      const payload = req.body;
+      if (!payload) return res.status(400).json({ error: "No body" });
+      const orders = readOrdersFromFile(resellingOrdersFile);
+      
+      const toAdd = Array.isArray(payload) ? payload : [payload];
+      for (const item of toAdd) {
+        if (!item.id) item.id = 'resell_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+        const idx = orders.findIndex(o => o.id === item.id);
+        if (idx >= 0) {
+          orders[idx] = { ...orders[idx], ...item, updatedAt: item.updatedAt || new Date().toISOString() };
+        } else {
+          orders.unshift({ ...item, createdAt: item.createdAt || new Date().toISOString() });
+        }
+      }
+      writeOrdersToFile(resellingOrdersFile, orders);
+      return res.json({ success: true, count: orders.length });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.patch("/api/reselling-orders/:id", (req, res) => {
+    try {
+      const { id } = req.params;
+      const updates = req.body;
+      const orders = readOrdersFromFile(resellingOrdersFile);
+      const idx = orders.findIndex(o => o.id === id);
+      if (idx >= 0) {
+        orders[idx] = { ...orders[idx], ...updates, updatedAt: new Date().toISOString() };
+        writeOrdersToFile(resellingOrdersFile, orders);
+      }
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.delete("/api/reselling-orders/:id", (req, res) => {
+    try {
+      const { id } = req.params;
+      let orders = readOrdersFromFile(resellingOrdersFile);
+      orders = orders.filter(o => o.id !== id);
+      writeOrdersToFile(resellingOrdersFile, orders);
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Course Orders API (Persistent JSON Storage)
+  app.get("/api/course-orders", (req, res) => {
+    try {
+      const orders = readOrdersFromFile(courseOrdersFile);
+      const { userId } = req.query;
+      let filtered = orders;
+      if (userId) {
+        filtered = filtered.filter(o => o.userId === userId);
+      }
+      return res.json({ success: true, orders: filtered });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/course-orders", (req, res) => {
+    try {
+      const payload = req.body;
+      if (!payload) return res.status(400).json({ error: "No body" });
+      const orders = readOrdersFromFile(courseOrdersFile);
+      const toAdd = Array.isArray(payload) ? payload : [payload];
+      for (const item of toAdd) {
+        if (!item.id) item.id = 'course_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+        const idx = orders.findIndex(o => o.id === item.id);
+        if (idx >= 0) {
+          orders[idx] = { ...orders[idx], ...item, updatedAt: item.updatedAt || new Date().toISOString() };
+        } else {
+          orders.unshift({ ...item, createdAt: item.createdAt || new Date().toISOString() });
+        }
+      }
+      writeOrdersToFile(courseOrdersFile, orders);
+      return res.json({ success: true, count: orders.length });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.patch("/api/course-orders/:id", (req, res) => {
+    try {
+      const { id } = req.params;
+      const updates = req.body;
+      const orders = readOrdersFromFile(courseOrdersFile);
+      const idx = orders.findIndex(o => o.id === id);
+      if (idx >= 0) {
+        orders[idx] = { ...orders[idx], ...updates, updatedAt: new Date().toISOString() };
+        writeOrdersToFile(courseOrdersFile, orders);
+      }
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.delete("/api/course-orders/:id", (req, res) => {
+    try {
+      const { id } = req.params;
+      let orders = readOrdersFromFile(courseOrdersFile);
+      orders = orders.filter(o => o.id !== id);
+      writeOrdersToFile(courseOrdersFile, orders);
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
     }
   });
 

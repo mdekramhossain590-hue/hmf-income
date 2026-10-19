@@ -3,13 +3,13 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../components/AuthProvider';
 import { File as FileIcon } from 'lucide-react';
 import QRCode from 'react-qr-code';
-import { collection, query, onSnapshot, doc, writeBatch, serverTimestamp, setDoc, orderBy, deleteDoc, increment, updateDoc, getDocs, deleteField, getDoc, limit, FieldPath, where } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, writeBatch, serverTimestamp, setDoc, orderBy, deleteDoc, increment, updateDoc, getDocs, deleteField, getDoc, limit, FieldPath, where, addDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { getCachedDoc, getCachedQuery, clearCache } from '../lib/cache';
 import { uploadImageOrFallback } from '../lib/imageUpload';
 import { processReferralCommission, processRegistrationReferral } from '../lib/referral';
 import { getDefaultCategoryPhoto } from '../lib/taskPhotos';
-import { Trash2, CheckCircle, XCircle, Users, ShieldAlert, ShieldCheck, Wallet, ListChecks, Settings, User, Eye, Calculator, MessageSquare, Globe, Coins, Megaphone, Gamepad2, CreditCard, Lock, BellRing, RefreshCw, Smartphone, Mail, Camera, MessageCircle, Send, BookOpen, Layers, Copy, HelpCircle, Database, Search, Download, Gift, Sparkles, RotateCcw, Play } from 'lucide-react';
+import { Trash2, CheckCircle, XCircle, Users, ShieldAlert, ShieldCheck, Wallet, ListChecks, Settings, User, Eye, Calculator, MessageSquare, Globe, Coins, Megaphone, Gamepad2, CreditCard, Lock, BellRing, RefreshCw, Smartphone, Mail, Camera, MessageCircle, Send, BookOpen, Layers, Copy, HelpCircle, Database, Search, Download, Gift, Sparkles, RotateCcw, Play, ShoppingBag, Package, Truck, Plus, Edit, X, DollarSign } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
@@ -68,6 +68,7 @@ export function AdminPanel() {
   const [resellProductMinResalePrice, setResellProductMinResalePrice] = useState<number | ''>(500);
   const [resellProductStock, setResellProductStock] = useState<number | ''>(50);
   const [resellProductImageUrl, setResellProductImageUrl] = useState('');
+  const [isRefreshingOrders, setIsRefreshingOrders] = useState(false);
   
   const [jobs, setJobs] = useState<any[]>([]);
   const [userList, setUserList] = useState<any[]>([]);
@@ -294,6 +295,117 @@ export function AdminPanel() {
     } catch(err) { console.warn("Error loading settings:", err?.message || "Unknown Error"); }
   }, []);
 
+  const syncAndRefreshResellingOrders = useCallback(async () => {
+    setIsRefreshingOrders(true);
+    try {
+      // 1. Fetch from server API
+      const apiRes = await fetch('/api/reselling-orders').then(r => r.json()).catch(() => null);
+      const apiOrders: any[] = (apiRes?.success && Array.isArray(apiRes.orders)) ? apiRes.orders : [];
+
+      // 2. Discover from user subcollections
+      const foundOrders: any[] = [];
+      try {
+        const usersSnap = await getDocs(query(collection(db, "users"), limit(100)));
+        const userIds = usersSnap.docs.map(d => d.id);
+        
+        await Promise.all(userIds.map(async (uid) => {
+          try {
+            const subSnap = await getDocs(collection(db, "users", uid, "reselling_orders"));
+            subSnap.forEach(d => {
+              foundOrders.push({ id: d.id, ...d.data(), userId: uid });
+            });
+          } catch (_) {}
+        }));
+      } catch (scanErr) {
+        console.warn("Subcollection scan warning:", scanErr);
+      }
+
+      // 3. Persist newly found orders to server API
+      if (foundOrders.length > 0) {
+        try {
+          await fetch('/api/reselling-orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(foundOrders)
+          });
+        } catch (_) {}
+      }
+
+      // 4. Merge all orders
+      setAdminResellOrders(prev => {
+        const map = new Map<string, any>();
+        prev.forEach(o => map.set(o.id, o));
+        apiOrders.forEach((o: any) => map.set(o.id, o));
+        foundOrders.forEach((o: any) => map.set(o.id, o));
+        const merged = Array.from(map.values());
+        merged.sort((a, b) => {
+          const aTime = a.createdAt?.seconds || a.createdAt?.toMillis?.() || (typeof a.createdAt === 'string' ? new Date(a.createdAt).getTime() / 1000 : 0);
+          const bTime = b.createdAt?.seconds || b.createdAt?.toMillis?.() || (typeof b.createdAt === 'string' ? new Date(b.createdAt).getTime() / 1000 : 0);
+          return bTime - aTime;
+        });
+        return merged;
+      });
+    } catch (err: any) {
+      console.warn("syncAndRefreshResellingOrders error:", err);
+    } finally {
+      setIsRefreshingOrders(false);
+    }
+  }, []);
+
+  const syncAndRefreshCourseOrders = useCallback(async () => {
+    try {
+      // 1. Fetch from server API
+      const apiRes = await fetch('/api/course-orders').then(r => r.json()).catch(() => null);
+      const apiOrders: any[] = (apiRes?.success && Array.isArray(apiRes.orders)) ? apiRes.orders : [];
+
+      // 2. Discover from user subcollections
+      const foundOrders: any[] = [];
+      try {
+        const usersSnap = await getDocs(query(collection(db, "users"), limit(100)));
+        const userIds = usersSnap.docs.map(d => d.id);
+        
+        await Promise.all(userIds.map(async (uid) => {
+          try {
+            const subSnap = await getDocs(collection(db, "users", uid, "course_orders"));
+            subSnap.forEach(d => {
+              foundOrders.push({ id: d.id, ...d.data(), userId: uid });
+            });
+          } catch (_) {}
+        }));
+      } catch (scanErr) {
+        console.warn("Course subcollection scan warning:", scanErr);
+      }
+
+      // 3. Persist newly found orders to server API
+      if (foundOrders.length > 0) {
+        try {
+          await fetch('/api/course-orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(foundOrders)
+          });
+        } catch (_) {}
+      }
+
+      // 4. Merge all orders
+      setCourseOrders(prev => {
+        const map = new Map<string, any>();
+        prev.forEach(o => map.set(o.id, o));
+        apiOrders.forEach((o: any) => map.set(o.id, o));
+        foundOrders.forEach((o: any) => map.set(o.id, o));
+        const merged = Array.from(map.values());
+        merged.sort((a, b) => {
+          const aTime = a.createdAt?.seconds || a.createdAt?.toMillis?.() || (typeof a.createdAt === 'string' ? new Date(a.createdAt).getTime() / 1000 : 0);
+          const bTime = b.createdAt?.seconds || b.createdAt?.toMillis?.() || (typeof b.createdAt === 'string' ? new Date(b.createdAt).getTime() / 1000 : 0);
+          return bTime - aTime;
+        });
+        return merged;
+      });
+    } catch (err: any) {
+      console.warn("syncAndRefreshCourseOrders error:", err);
+    }
+  }, []);
+
   const loadData = useCallback(async (forceRef = false) => {
     // Left empty since we will use onSnapshot
   }, []);
@@ -335,7 +447,7 @@ export function AdminPanel() {
       }, logErr));
     }
     
-    if (['drives', 'courses'].includes(activeTab)) {
+    if (['drives', 'courses', 'dashboard'].includes(activeTab)) {
       unsubs.push(onSnapshot(query(collection(db, "drive_offers"), limit(50)), (snap) => {
         setAdminOffers(snap.docs.map(d => ({id: d.id, ...d.data()} as any)));
       }, logErr));
@@ -344,9 +456,16 @@ export function AdminPanel() {
       }, logErr));
       unsubs.push(onSnapshot(query(collection(db, "course_orders"), limit(100)), (snap) => {
         const list = snap.docs.map(d => ({id: d.id, ...d.data()} as any));
-        list.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-        setCourseOrders(list);
+        setCourseOrders(prev => {
+          const map = new Map<string, any>();
+          prev.forEach(o => map.set(o.id, o));
+          list.forEach(o => map.set(o.id, o));
+          const merged = Array.from(map.values());
+          merged.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+          return merged;
+        });
       }, logErr));
+      syncAndRefreshCourseOrders();
     }
 
     if (['products', 'dashboard'].includes(activeTab)) {
@@ -355,9 +474,16 @@ export function AdminPanel() {
       }, logErr));
       unsubs.push(onSnapshot(query(collection(db, "reselling_orders"), limit(100)), (snap) => {
         const list = snap.docs.map(d => ({id: d.id, ...d.data()} as any));
-        list.sort((a, b) => (b.createdAt?.seconds || b.createdAt?.toMillis?.() || 0) - (a.createdAt?.seconds || a.createdAt?.toMillis?.() || 0));
-        setAdminResellOrders(list);
+        setAdminResellOrders(prev => {
+          const map = new Map<string, any>();
+          prev.forEach(o => map.set(o.id, o));
+          list.forEach(o => map.set(o.id, o));
+          const merged = Array.from(map.values());
+          merged.sort((a, b) => (b.createdAt?.seconds || b.createdAt?.toMillis?.() || 0) - (a.createdAt?.seconds || a.createdAt?.toMillis?.() || 0));
+          return merged;
+        });
       }, logErr));
+      syncAndRefreshResellingOrders();
     }
     
     if (activeTab === 'gifts') {
@@ -367,7 +493,7 @@ export function AdminPanel() {
     }
     
     return () => unsubs.forEach(u => u());
-  }, [isAdmin, activeTab]);
+  }, [isAdmin, activeTab, syncAndRefreshResellingOrders, syncAndRefreshCourseOrders]);
 
   useEffect(() => {
     loadSettings();
@@ -1738,7 +1864,50 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
       {activeTab === 'dashboard' && (
         <div className="space-y-6">
           <div className="flex items-center justify-between px-1">
-            <h3 className="font-black text-white uppercase tracking-tight text-sm">Financial Overview</h3>
+            <h3 className="font-black text-white uppercase tracking-tight text-sm">Financial & Orders Overview</h3>
+          </div>
+
+          {/* Quick Orders Overview */}
+          <div className="grid grid-cols-2 gap-3">
+            <div 
+              onClick={() => { setActiveTab('products'); setResellSubTab('orders'); }}
+              className="bg-[#151515] p-4 rounded-3xl border border-[#3D3215] hover:border-[#D4A017] transition cursor-pointer group"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-[#FACC15] uppercase tracking-wider flex items-center gap-1.5">
+                  <Truck className="w-3.5 h-3.5" /> রিসেলিং অর্ডার
+                </span>
+                <span className="text-[10px] text-[#A3A3A3] group-hover:text-white">দেখুন →</span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-black text-white">{adminResellOrders.length}</span>
+                {adminResellOrders.filter(o => o.status === 'pending').length > 0 && (
+                  <span className="text-[10px] font-black bg-amber-400 text-black px-2 py-0.5 rounded-full animate-pulse">
+                    {adminResellOrders.filter(o => o.status === 'pending').length} পেন্ডিং
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div 
+              onClick={() => { setActiveTab('courses'); setCourseSubTab('orders'); }}
+              className="bg-[#151515] p-4 rounded-3xl border border-[#3D3215] hover:border-[#D4A017] transition cursor-pointer group"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <BookOpen className="w-3.5 h-3.5" /> কোর্স ও অ্যাপ অর্ডার
+                </span>
+                <span className="text-[10px] text-[#A3A3A3] group-hover:text-white">দেখুন →</span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-black text-white">{courseOrders.length}</span>
+                {courseOrders.filter(o => o.status === 'pending').length > 0 && (
+                  <span className="text-[10px] font-black bg-amber-400 text-black px-2 py-0.5 rounded-full animate-pulse">
+                    {courseOrders.filter(o => o.status === 'pending').length} পেন্ডিং
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
           
           <div className="grid grid-cols-2 gap-3">
@@ -3288,8 +3457,8 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                 </div>
               </div>
 
-              {/* Status Filter Chips */}
-              <div className="flex gap-2">
+              {/* Status Filter Chips & Refresh Button */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-1">
                 {[
                   { id: 'all', label: 'সকল অর্ডার' },
                   { id: 'pending', label: 'পেন্ডিং (যাচাই প্রয়োজন)' },
@@ -3302,7 +3471,7 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                       key={f.id}
                       type="button"
                       onClick={() => setCourseOrderFilter(f.id as any)}
-                      className={`px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all border cursor-pointer ${
+                      className={`px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all border whitespace-nowrap cursor-pointer ${
                         isActive
                           ? 'bg-[#1C1C1C] text-[#FACC15] border-[#FACC15]'
                           : 'bg-[#151515] text-[#A3A3A3] border-[#3D3215] hover:text-white'
@@ -3312,6 +3481,17 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                     </button>
                   );
                 })}
+
+                <button
+                  type="button"
+                  onClick={() => syncAndRefreshCourseOrders()}
+                  disabled={isRefreshingOrders}
+                  className="px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all border cursor-pointer bg-[#1C1C1C] text-[#FACC15] border-[#D4A017]/40 hover:bg-[#D4A017]/20 ml-auto flex items-center gap-1.5 whitespace-nowrap active:scale-95 disabled:opacity-50"
+                  title="কোর্স অর্ডার রিলোড ও সিঙ্ক করুন"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingOrders ? 'animate-spin' : ''}`} />
+                  {isRefreshingOrders ? 'রিফ্রেশ হচ্ছে...' : 'রিফ্রেশ'}
+                </button>
               </div>
 
               {/* Order Cards List */}
@@ -3409,18 +3589,24 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                                         status: 'approved',
                                         approvedAt: serverTimestamp()
                                       });
-                                      if (order.userId) {
-                                        try {
-                                          await updateDoc(doc(db, "users", order.userId, "course_orders", order.id), {
-                                            status: 'approved',
-                                            approvedAt: serverTimestamp()
-                                          });
-                                        } catch (_) {}
-                                      }
-                                      toast.success("অর্ডারটি সফলভাবে অনুমোদন করা হয়েছে!");
-                                    } catch (err: any) {
-                                      toast.error("অনুমোদন ব্যর্থ হয়েছে");
+                                    } catch (_) {}
+                                    if (order.userId) {
+                                      try {
+                                        await updateDoc(doc(db, "users", order.userId, "course_orders", order.id), {
+                                          status: 'approved',
+                                          approvedAt: serverTimestamp()
+                                        });
+                                      } catch (_) {}
                                     }
+                                    try {
+                                      await fetch(`/api/course-orders/${order.id}`, {
+                                        method: 'PATCH',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ status: 'approved' })
+                                      });
+                                    } catch (_) {}
+                                    setCourseOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'approved' } : o));
+                                    toast.success("অর্ডারটি সফলভাবে অনুমোদন করা হয়েছে!");
                                   }}
                                   className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer shadow-md"
                                 >
@@ -3436,18 +3622,24 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                                         status: 'rejected',
                                         rejectedAt: serverTimestamp()
                                       });
-                                      if (order.userId) {
-                                        try {
-                                          await updateDoc(doc(db, "users", order.userId, "course_orders", order.id), {
-                                            status: 'rejected',
-                                            rejectedAt: serverTimestamp()
-                                          });
-                                        } catch (_) {}
-                                      }
-                                      toast.success("অর্ডারটি বাতিল করা হয়েছে!");
-                                    } catch (err: any) {
-                                      toast.error("বাতিলকরণ ব্যর্থ হয়েছে");
+                                    } catch (_) {}
+                                    if (order.userId) {
+                                      try {
+                                        await updateDoc(doc(db, "users", order.userId, "course_orders", order.id), {
+                                          status: 'rejected',
+                                          rejectedAt: serverTimestamp()
+                                        });
+                                      } catch (_) {}
                                     }
+                                    try {
+                                      await fetch(`/api/course-orders/${order.id}`, {
+                                        method: 'PATCH',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ status: 'rejected' })
+                                      });
+                                    } catch (_) {}
+                                    setCourseOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'rejected' } : o));
+                                    toast.success("অর্ডারটি বাতিল করা হয়েছে!");
                                   }}
                                   className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer"
                                 >
@@ -3462,12 +3654,22 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                                 type="button"
                                 onClick={async () => {
                                   if (confirm("আপনি কি অনুমোদন বাতিল করতে চান?")) {
-                                    await updateDoc(doc(db, "course_orders", order.id), { status: 'rejected' });
+                                    try {
+                                      await updateDoc(doc(db, "course_orders", order.id), { status: 'rejected' });
+                                    } catch (_) {}
                                     if (order.userId) {
                                       try {
                                         await updateDoc(doc(db, "users", order.userId, "course_orders", order.id), { status: 'rejected' });
                                       } catch (_) {}
                                     }
+                                    try {
+                                      await fetch(`/api/course-orders/${order.id}`, {
+                                        method: 'PATCH',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ status: 'rejected' })
+                                      });
+                                    } catch (_) {}
+                                    setCourseOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'rejected' } : o));
                                     toast.success("অর্ডার বাতিল করা হয়েছে!");
                                   }
                                 }}
@@ -3481,12 +3683,22 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                               <button
                                 type="button"
                                 onClick={async () => {
-                                  await updateDoc(doc(db, "course_orders", order.id), { status: 'approved' });
+                                  try {
+                                    await updateDoc(doc(db, "course_orders", order.id), { status: 'approved' });
+                                  } catch (_) {}
                                   if (order.userId) {
                                     try {
                                       await updateDoc(doc(db, "users", order.userId, "course_orders", order.id), { status: 'approved' });
                                     } catch (_) {}
                                   }
+                                  try {
+                                    await fetch(`/api/course-orders/${order.id}`, {
+                                      method: 'PATCH',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ status: 'approved' })
+                                    });
+                                  } catch (_) {}
+                                  setCourseOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'approved' } : o));
                                   toast.success("অর্ডারটি পুনরায় অনুমোদন করা হয়েছে!");
                                 }}
                                 className="px-3 py-1 rounded-xl bg-[#1C1C1C] border border-emerald-900/40 text-emerald-400 hover:bg-emerald-950/40 text-[9px] font-bold uppercase cursor-pointer"
@@ -3501,15 +3713,17 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                                 if (confirm("আপনি কি নিশ্চিত এই অর্ডার রেকর্ডটি মুছে ফেলতে চান?")) {
                                   try {
                                     await deleteDoc(doc(db, "course_orders", order.id));
-                                    if (order.userId) {
-                                      try {
-                                        await deleteDoc(doc(db, "users", order.userId, "course_orders", order.id));
-                                      } catch (_) {}
-                                    }
-                                    toast.success("অর্ডার মুছে ফেলা হয়েছে!");
-                                  } catch (err: any) {
-                                    toast.error("মুছতে সমস্যা হয়েছে");
+                                  } catch (_) {}
+                                  if (order.userId) {
+                                    try {
+                                      await deleteDoc(doc(db, "users", order.userId, "course_orders", order.id));
+                                    } catch (_) {}
                                   }
+                                  try {
+                                    await fetch(`/api/course-orders/${order.id}`, { method: 'DELETE' });
+                                  } catch (_) {}
+                                  setCourseOrders(prev => prev.filter(o => o.id !== order.id));
+                                  toast.success("অর্ডার মুছে ফেলা হয়েছে!");
                                 }
                               }}
                               className="p-1.5 text-rose-400 hover:bg-rose-950/40 rounded-lg cursor-pointer"
@@ -3838,7 +4052,7 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
           {/* SUB-TAB 2: RESELLING ORDERS LIST */}
           {resellSubTab === 'orders' && (
             <div className="space-y-4">
-              {/* Order Status Filters */}
+              {/* Order Status Filters & Refresh Button */}
               <div className="flex items-center gap-2 overflow-x-auto pb-1">
                 {(['all', 'pending', 'processing', 'delivered', 'cancelled'] as const).map(st => (
                   <button
@@ -3858,6 +4072,17 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                     )}
                   </button>
                 ))}
+
+                <button
+                  type="button"
+                  onClick={() => syncAndRefreshResellingOrders()}
+                  disabled={isRefreshingOrders}
+                  className="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 whitespace-nowrap cursor-pointer transition bg-[#1C1C1C] border border-[#D4A017]/40 text-[#FACC15] hover:bg-[#D4A017]/20 ml-auto active:scale-95 disabled:opacity-50"
+                  title="অর্ডার রিলোড ও সিঙ্ক করুন"
+                >
+                  <RefreshCw className={`w-3 h-3 ${isRefreshingOrders ? 'animate-spin' : ''}`} />
+                  {isRefreshingOrders ? 'রিফ্রেশ হচ্ছে...' : 'রিফ্রেশ অর্ডার'}
+                </button>
               </div>
 
               {/* Orders List */}
@@ -3865,8 +4090,15 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                 {adminResellOrders
                   .filter(o => resellOrderFilter === 'all' || o.status === resellOrderFilter)
                   .length === 0 ? (
-                    <div className="bg-[#151515] p-8 rounded-2xl border border-[#3D3215] text-center text-[#A3A3A3] font-bold text-xs">
-                      কোনো রিসেলিং অর্ডার পাওয়া যায়নি।
+                    <div className="bg-[#151515] p-8 rounded-2xl border border-[#3D3215] text-center text-[#A3A3A3] font-bold text-xs space-y-2">
+                      <p>কোনো রিসেলিং অর্ডার পাওয়া যায়নি।</p>
+                      <button
+                        type="button"
+                        onClick={() => syncAndRefreshResellingOrders()}
+                        className="px-3 py-1.5 bg-[#1C1C1C] border border-[#D4A017]/50 text-[#FACC15] rounded-xl text-[10px] font-black uppercase inline-flex items-center gap-1.5 hover:bg-[#D4A017]/20 transition"
+                      >
+                        <RefreshCw className="w-3 h-3" /> পুনরায় অর্ডার চেক করুন
+                      </button>
                     </div>
                   ) : (
                     adminResellOrders
@@ -3930,7 +4162,23 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                               {order.status !== 'processing' && (
                                 <button
                                   onClick={async () => {
-                                    await updateDoc(doc(db, "reselling_orders", order.id), { status: 'processing', updatedAt: serverTimestamp() });
+                                    try {
+                                      await updateDoc(doc(db, "reselling_orders", order.id), { status: 'processing', updatedAt: serverTimestamp() });
+                                    } catch (_) {}
+                                    const targetUid = order.userId || order.resellerId;
+                                    if (targetUid) {
+                                      try {
+                                        await updateDoc(doc(db, "users", targetUid, "reselling_orders", order.id), { status: 'processing', updatedAt: serverTimestamp() });
+                                      } catch (_) {}
+                                    }
+                                    try {
+                                      await fetch(`/api/reselling-orders/${order.id}`, {
+                                        method: 'PATCH',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ status: 'processing' })
+                                      });
+                                    } catch (_) {}
+                                    setAdminResellOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'processing' } : o));
                                     toast.success("অর্ডার প্রসেসিং চিহ্নিত করা হয়েছে!");
                                   }}
                                   className="px-2.5 py-1 bg-blue-950/60 border border-blue-800 text-blue-300 rounded-lg cursor-pointer hover:bg-blue-900"
@@ -3941,7 +4189,23 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                               {order.status !== 'delivered' && (
                                 <button
                                   onClick={async () => {
-                                    await updateDoc(doc(db, "reselling_orders", order.id), { status: 'delivered', updatedAt: serverTimestamp() });
+                                    try {
+                                      await updateDoc(doc(db, "reselling_orders", order.id), { status: 'delivered', updatedAt: serverTimestamp() });
+                                    } catch (_) {}
+                                    const targetUid = order.userId || order.resellerId;
+                                    if (targetUid) {
+                                      try {
+                                        await updateDoc(doc(db, "users", targetUid, "reselling_orders", order.id), { status: 'delivered', updatedAt: serverTimestamp() });
+                                      } catch (_) {}
+                                    }
+                                    try {
+                                      await fetch(`/api/reselling-orders/${order.id}`, {
+                                        method: 'PATCH',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ status: 'delivered' })
+                                      });
+                                    } catch (_) {}
+                                    setAdminResellOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'delivered' } : o));
                                     toast.success("অর্ডার ডেলিভার্ড চিহ্নিত করা হয়েছে!");
                                   }}
                                   className="px-2.5 py-1 bg-emerald-950/60 border border-emerald-800 text-emerald-300 rounded-lg cursor-pointer hover:bg-emerald-900"
@@ -3952,7 +4216,23 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                               {order.status !== 'cancelled' && (
                                 <button
                                   onClick={async () => {
-                                    await updateDoc(doc(db, "reselling_orders", order.id), { status: 'cancelled', updatedAt: serverTimestamp() });
+                                    try {
+                                      await updateDoc(doc(db, "reselling_orders", order.id), { status: 'cancelled', updatedAt: serverTimestamp() });
+                                    } catch (_) {}
+                                    const targetUid = order.userId || order.resellerId;
+                                    if (targetUid) {
+                                      try {
+                                        await updateDoc(doc(db, "users", targetUid, "reselling_orders", order.id), { status: 'cancelled', updatedAt: serverTimestamp() });
+                                      } catch (_) {}
+                                    }
+                                    try {
+                                      await fetch(`/api/reselling-orders/${order.id}`, {
+                                        method: 'PATCH',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ status: 'cancelled' })
+                                      });
+                                    } catch (_) {}
+                                    setAdminResellOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'cancelled' } : o));
                                     toast.success("অর্ডার ক্যানসেল করা হয়েছে!");
                                   }}
                                   className="px-2.5 py-1 bg-rose-950/60 border border-rose-800 text-rose-300 rounded-lg cursor-pointer hover:bg-rose-900"
@@ -3963,7 +4243,20 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                               <button
                                 onClick={async () => {
                                   if (confirm("আপনি কি নিশ্চিত এই রিসেলিং অর্ডার রেকর্ড মুছে ফেলতে চান?")) {
-                                    await deleteDoc(doc(db, "reselling_orders", order.id));
+                                    try {
+                                      await updateDoc(doc(db, "reselling_orders", order.id), { status: 'cancelled' });
+                                      await deleteDoc(doc(db, "reselling_orders", order.id));
+                                    } catch (_) {}
+                                    const targetUid = order.userId || order.resellerId;
+                                    if (targetUid) {
+                                      try {
+                                        await deleteDoc(doc(db, "users", targetUid, "reselling_orders", order.id));
+                                      } catch (_) {}
+                                    }
+                                    try {
+                                      await fetch(`/api/reselling-orders/${order.id}`, { method: 'DELETE' });
+                                    } catch (_) {}
+                                    setAdminResellOrders(prev => prev.filter(o => o.id !== order.id));
                                     toast.success("অর্ডার রেকর্ড মুছে ফেলা হয়েছে!");
                                   }
                                 }}

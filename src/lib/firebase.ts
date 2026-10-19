@@ -1,8 +1,20 @@
-import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { 
+  initializeAuth, 
+  getAuth, 
+  browserLocalPersistence, 
+  browserSessionPersistence, 
+  indexedDBLocalPersistence, 
+  inMemoryPersistence 
+} from 'firebase/auth';
+import { getFirestore, initializeFirestore, setLogLevel } from 'firebase/firestore';
 import { getMessaging, isSupported } from 'firebase/messaging';
 import toast from "react-hot-toast";
+
+// Suppress internal Firestore WebChannel transient error logs
+try {
+  setLogLevel('silent');
+} catch (_) {}
 
 const firebaseConfig = {
   projectId: "hmf-income-app",
@@ -14,16 +26,39 @@ const firebaseConfig = {
   measurementId: "G-WJX5EBBL41"
 };
 
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db = getFirestore(app);
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+
+export const auth = (() => {
+  try {
+    return initializeAuth(app, {
+      persistence: [
+        indexedDBLocalPersistence,
+        browserLocalPersistence,
+        browserSessionPersistence,
+        inMemoryPersistence
+      ]
+    });
+  } catch (e) {
+    return getAuth(app);
+  }
+})();
+
+export const db = (() => {
+  try {
+    return initializeFirestore(app, {
+      experimentalAutoDetectLongPolling: true,
+    });
+  } catch (e) {
+    return getFirestore(app);
+  }
+})();
 
 let messaging: any = null;
 isSupported().then((supported) => {
   if (supported) {
     messaging = getMessaging(app);
   }
-});
+}).catch(() => {});
 export { messaging };
 
 export enum OperationType {
@@ -40,9 +75,15 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   if (error instanceof Error) {
     userFriendlyMessage = error.message;
   }
+  if (
+    userFriendlyMessage.includes('unavailable') ||
+    userFriendlyMessage.includes('offline') ||
+    userFriendlyMessage.includes('Could not reach Cloud Firestore')
+  ) {
+    return;
+  }
   console.warn(`Firestore Error [${operationType}] on ${path}:`, userFriendlyMessage);
   if ([OperationType.CREATE, OperationType.UPDATE, OperationType.DELETE, OperationType.WRITE].includes(operationType)) {
     toast.error(userFriendlyMessage);
   }
-  throw new Error(userFriendlyMessage);
 }

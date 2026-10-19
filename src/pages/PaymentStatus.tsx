@@ -52,6 +52,9 @@ useEffect(() => {
                    if (unsubscribe) unsubscribe();
                 }
              }
+           }, (err) => {
+             console.warn("Payment status snapshot error handled:", err?.message);
+             setLoading(false);
            });
         });
         

@@ -64,7 +64,7 @@ export function Layout() {
         <>
           <WelcomePopup />
           <Onboarding />
-          <div className="fixed bottom-[90px] right-5 z-50 sm:right-[calc(50%-220px)] pointer-events-auto flex flex-col gap-3">
+          <div className="fixed bottom-[90px] right-5 z-30 sm:right-[calc(50%-220px)] pointer-events-auto flex flex-col gap-3">
             <button
               onClick={() => navigate('/support')}
               className="w-14 h-14 bg-gradient-to-tr from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] rounded-full flex items-center justify-center shadow-[0_8px_30px_rgba(212,160,23,0.45)] hover:scale-110 hover:-translate-y-1 active:scale-95 transition-all duration-300 ring-4 ring-[#3D3215]"
@@ -79,7 +79,7 @@ export function Layout() {
             onValueChange={(val) => {
               if (val) navigate(val);
             }} 
-            className="fixed bottom-0 left-0 right-0 mx-auto w-full sm:max-w-[480px] bg-[#151515]/95 backdrop-blur-2xl rounded-t-[28px] z-50 shadow-[0_-12px_44px_rgba(0,0,0,0.6)] border-t border-[#3D3215] transition-colors select-none"
+            className="fixed bottom-0 left-0 right-0 mx-auto w-full sm:max-w-[480px] bg-[#151515]/95 backdrop-blur-2xl rounded-t-[28px] z-30 shadow-[0_-12px_44px_rgba(0,0,0,0.6)] border-t border-[#3D3215] transition-colors select-none"
           >
             <Tabs.List className="flex justify-between items-center px-4 py-2" aria-label="Main navigation tabs">
               {navItems.map((item) => {

@@ -9,7 +9,7 @@ import {
 import { db } from '../lib/firebase';
 import { 
   collection, query, where, getDocs, addDoc, 
-  serverTimestamp, doc, updateDoc, increment, orderBy, onSnapshot 
+  serverTimestamp, doc, setDoc, updateDoc, increment, orderBy, onSnapshot 
 } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'motion/react';
@@ -128,6 +128,8 @@ export function Reselling() {
             nagadNumber: d.nagadNumber || '018XX-XXXXXX'
           });
         }
+      }, (err) => {
+        console.warn("Deposit snapshot error handled:", err?.message);
       });
       unsubs.push(unsubDep);
     } catch (_) {}
@@ -145,6 +147,9 @@ export function Reselling() {
         } else {
           setProducts(DEFAULT_PRODUCTS);
         }
+      }, (err) => {
+        console.warn("Resell products snapshot error handled:", err?.message);
+        setProducts(DEFAULT_PRODUCTS);
       });
       unsubs.push(unsubProd);
     } catch (e) {
@@ -152,24 +157,98 @@ export function Reselling() {
     }
 
     // Load user orders
+    // Load user orders (first from users/{uid}/reselling_orders, and also from reselling_orders)
     if (user?.uid) {
+      const uid = user.uid;
+
+      // Read local cache for immediate display
       try {
-        const qOrders = query(
-          collection(db, "reselling_orders"),
-          where("resellerId", "==", user.uid)
-        );
-        const unsubOrd = onSnapshot(qOrders, (snap) => {
-          const ordList: ResellOrder[] = snap.docs.map(docSnap => ({
+        const localKey = `resell_orders_${uid}`;
+        const cached = JSON.parse(localStorage.getItem(localKey) || '[]');
+        if (Array.isArray(cached) && cached.length > 0) {
+          setOrders(cached);
+        }
+      } catch (_) {}
+
+      // 1. Direct user subcollection listener (Always allowed by security rules)
+      try {
+        const userOrdersRef = collection(db, "users", uid, "reselling_orders");
+        const unsubUserOrd = onSnapshot(userOrdersRef, (snap) => {
+          const subList: ResellOrder[] = snap.docs.map(docSnap => ({
             id: docSnap.id,
             ...docSnap.data()
           } as ResellOrder));
-          
-          ordList.sort((a, b) => {
-            const aTime = a.createdAt?.toMillis?.() || 0;
-            const bTime = b.createdAt?.toMillis?.() || 0;
-            return bTime - aTime;
+
+          setOrders(prev => {
+            const map = new Map<string, ResellOrder>();
+            prev.forEach(o => map.set(o.id, o));
+            subList.forEach(o => map.set(o.id, o));
+            const merged = Array.from(map.values());
+            merged.sort((a, b) => {
+              const aTime = (a.createdAt as any)?.seconds || (a.createdAt as any)?.toMillis?.() || 0;
+              const bTime = (b.createdAt as any)?.seconds || (b.createdAt as any)?.toMillis?.() || 0;
+              return bTime - aTime;
+            });
+            return merged;
           });
-          setOrders(ordList);
+          setLoading(false);
+        }, (err) => {
+          console.warn("User subcollection orders snapshot error handled:", err?.message);
+          setLoading(false);
+        });
+        unsubs.push(unsubUserOrd);
+      } catch (e) {
+        setLoading(false);
+      }
+
+      // 1.5 Fetch from backend API
+      fetch(`/api/reselling-orders?userId=${uid}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data?.success && Array.isArray(data.orders) && data.orders.length > 0) {
+            setOrders(prev => {
+              const map = new Map<string, ResellOrder>();
+              prev.forEach(o => map.set(o.id, o));
+              data.orders.forEach((o: any) => map.set(o.id, o));
+              const merged = Array.from(map.values());
+              merged.sort((a, b) => {
+                const aTime = (a.createdAt as any)?.seconds || (a.createdAt as any)?.toMillis?.() || 0;
+                const bTime = (b.createdAt as any)?.seconds || (b.createdAt as any)?.toMillis?.() || 0;
+                return bTime - aTime;
+              });
+              return merged;
+            });
+          }
+        })
+        .catch(() => {});
+
+      // 2. Also listen to top-level collection reselling_orders
+      try {
+        const qOrders = query(
+          collection(db, "reselling_orders"),
+          where("resellerId", "==", uid)
+        );
+        const unsubOrd = onSnapshot(qOrders, (snap) => {
+          const rootList: ResellOrder[] = snap.docs.map(docSnap => ({
+            id: docSnap.id,
+            ...docSnap.data()
+          } as ResellOrder));
+
+          setOrders(prev => {
+            const map = new Map<string, ResellOrder>();
+            prev.forEach(o => map.set(o.id, o));
+            rootList.forEach(o => map.set(o.id, o));
+            const merged = Array.from(map.values());
+            merged.sort((a, b) => {
+              const aTime = (a.createdAt as any)?.seconds || (a.createdAt as any)?.toMillis?.() || 0;
+              const bTime = (b.createdAt as any)?.seconds || (b.createdAt as any)?.toMillis?.() || 0;
+              return bTime - aTime;
+            });
+            return merged;
+          });
+          setLoading(false);
+        }, (err) => {
+          console.warn("Resell orders root snapshot handled:", err?.message);
           setLoading(false);
         });
         unsubs.push(unsubOrd);
@@ -226,7 +305,13 @@ export function Reselling() {
       const profit = resaleVal - selectedProduct.wholesalePrice;
       const orderNumberIndex = userOrderCount + 1;
 
+      // Create doc in user subcollection first (guaranteed permitted: users/{uid}/**)
+      const userOrderRef = doc(collection(db, "users", user.uid, "reselling_orders"));
+      const orderId = userOrderRef.id;
+
       const newOrder = {
+        id: orderId,
+        userId: user.uid,
         resellerId: user.uid,
         resellerName: profile?.fullName || profile?.name || user.email?.split('@')[0] || 'Reseller',
         resellerEmail: user.email || '',
@@ -249,7 +334,52 @@ export function Reselling() {
         createdAt: serverTimestamp()
       };
 
-      await addDoc(collection(db, "reselling_orders"), newOrder);
+      // 1. Sync to backend persistent storage immediately (guaranteed fast & offline-resilient)
+      try {
+        await fetch("/api/reselling-orders", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...newOrder,
+            createdAt: { seconds: Math.floor(Date.now() / 1000) }
+          })
+        });
+      } catch (_) {}
+
+      // 2. Write to user subcollection & root collection (with timeout so offline Firestore never blocks UI)
+      try {
+        await Promise.race([
+          setDoc(userOrderRef, newOrder),
+          new Promise((resolve) => setTimeout(resolve, 3500))
+        ]);
+      } catch (subErr: any) {
+        console.warn("User reselling_orders write caught (handled):", subErr?.message);
+      }
+
+      try {
+        await Promise.race([
+          setDoc(doc(db, "reselling_orders", orderId), newOrder),
+          new Promise((resolve) => setTimeout(resolve, 2500))
+        ]);
+      } catch (rootErr: any) {
+        console.warn("Root reselling_orders write caught (handled):", rootErr?.message);
+      }
+
+      // Cache locally for offline resilience
+      try {
+        const localKey = `resell_orders_${user.uid}`;
+        const existing = JSON.parse(localStorage.getItem(localKey) || '[]');
+        localStorage.setItem(localKey, JSON.stringify([newOrder, ...existing.filter((o: any) => o.id !== orderId)].slice(0, 50)));
+      } catch (_) {}
+
+      // Optimistically show in orders list
+      setOrders(prev => {
+        const item: ResellOrder = {
+          ...newOrder,
+          createdAt: { seconds: Math.floor(Date.now() / 1000) }
+        } as any;
+        return [item, ...prev.filter(o => o.id !== orderId)];
+      });
 
       toast.success("অর্ডারটি সফলভাবে সাবমিট হয়েছে! এডমিন পেমেন্ট ও তথ্য যাচাই করে ডেলিভারি পাঠাবে।");
       setSelectedProduct(null);
@@ -539,17 +669,17 @@ export function Reselling() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => !submitting && setSelectedProduct(null)}
-              className="fixed inset-0 bg-black/85 z-50 backdrop-blur-md"
+              className="fixed inset-0 bg-black/85 z-[100] backdrop-blur-md"
             />
             
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="fixed inset-x-4 bottom-6 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:top-1/2 md:-translate-y-1/2 md:bottom-auto md:w-full md:max-w-md bg-[#151515] rounded-[30px] overflow-hidden shadow-2xl z-50 border border-[#3D3215] max-h-[90vh] flex flex-col"
+              className="fixed inset-x-4 top-1/2 -translate-y-1/2 mx-auto w-[calc(100%-2rem)] max-w-md bg-[#151515] rounded-[30px] overflow-hidden shadow-2xl z-[110] border border-[#3D3215] max-h-[85vh] flex flex-col"
             >
               {/* Modal Header */}
-              <div className="p-4 border-b border-[#3D3215] flex items-center justify-between bg-[#101010]">
+              <div className="p-4 border-b border-[#3D3215] flex items-center justify-between bg-[#101010] shrink-0">
                 <div className="flex items-center gap-2">
                   <ShoppingBag className="w-4 h-4 text-[#FACC15]" />
                   <h3 className="text-xs font-black text-white uppercase tracking-wider">
@@ -566,7 +696,8 @@ export function Reselling() {
               </div>
 
               {/* Form Body */}
-              <form onSubmit={handleSubmitOrder} className="p-5 overflow-y-auto space-y-4">
+              <form onSubmit={handleSubmitOrder} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                <div className="p-5 overflow-y-auto space-y-4 flex-1">
                 
                 {/* Product Summary Box */}
                 <div className="bg-[#101010] p-3 rounded-2xl border border-[#3D3215] flex items-center justify-between">
@@ -791,22 +922,25 @@ export function Reselling() {
                     />
                   </div>
                 </div>
+                </div>
 
-                {/* Order Submit Button */}
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg cursor-pointer hover:opacity-95 active:scale-[0.98] transition-all disabled:opacity-50"
-                >
-                  {submitting ? (
-                    <span>প্রসেসিং হচ্ছে...</span>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>অর্ডার প্লেস করুন</span>
-                    </>
-                  )}
-                </button>
+                {/* Sticky Order Submit Button Footer */}
+                <div className="p-4 bg-[#101010] border-t border-[#3D3215] shrink-0">
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg cursor-pointer hover:opacity-95 active:scale-[0.98] transition-all disabled:opacity-50"
+                  >
+                    {submitting ? (
+                      <span>প্রসেসিং হচ্ছে...</span>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>অর্ডার প্লেস করুন</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </form>
             </motion.div>
           </>

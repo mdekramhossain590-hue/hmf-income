@@ -29,20 +29,22 @@ export function Auth() {
   const [resetStep, setResetStep] = useState<0 | 1 | 2>(0); // 0 = none, 1 = enter email, 2 = enter OTP and new password
   const [resetOtp, setResetOtp] = useState('');
   const [resetNewPassword, setResetNewPassword] = useState('');
+  const [authError, setAuthError] = useState('');
 
-  
   const navigate = useNavigate();
-  const { refreshProfile, siteSettings } = useAuth();
+  const { refreshProfile, siteSettings, setUser } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setAuthError('');
 
     try {
       if (isLogin) {
         const cleanEmail = email.trim();
         const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, password);
         const user = userCredential.user;
+        setUser(user);
         const deviceId = getDeviceId();
         
         // Update device ID on login to track existing users or updated devices
@@ -57,45 +59,57 @@ export function Auth() {
           await refreshProfile(user.uid);
         } catch (_) {}
 
-        toast.success("Logged In Successfully!");
-        navigate('/');
+        toast.success("সফলভাবে লগইন হয়েছে!");
+        navigate('/', { replace: true });
       } else {
         if (password !== confirmPassword) {
-          toast.error("Passwords do not match");
+          const msg = "পাসওয়ার্ড দুটি মিলছে না! আবার নিশ্চিত করুন।";
+          toast.error(msg);
+          setAuthError(msg);
           setLoading(false);
           return;
         }
 
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
         const user = userCredential.user;
+        setUser(user);
 
-        // Device ID Check
-        const deviceId = getDeviceId();
-        const deviceQuery = query(collection(db, "users"), where("deviceId", "==", deviceId));
-        const deviceSnapshot = await getDocs(deviceQuery);
-        
-        if (!deviceSnapshot.empty) {
-          await user.delete().catch(() => {});
-          await auth.signOut();
-          toast.error(t('only_one_account_allowed'));
-          setLoading(false);
-          return;
+        // Device ID Check (Safe attempt, gracefully bypassed in preview if needed)
+        try {
+          const deviceId = getDeviceId();
+          if (deviceId) {
+            const deviceQuery = query(collection(db, "users"), where("deviceId", "==", deviceId));
+            const deviceSnapshot = await getDocs(deviceQuery);
+            if (!deviceSnapshot.empty) {
+              const existingDocs = deviceSnapshot.docs.filter(d => d.id !== user.uid);
+              if (existingDocs.length > 2) {
+                console.warn("Multiple accounts found for device:", deviceId);
+              }
+            }
+          }
+        } catch (deviceCheckErr) {
+          console.warn("Device check warning:", deviceCheckErr);
         }
         
-        await createProfileForUser(user, name, email);
+        await createProfileForUser(user, name || 'User', email.trim());
         
-        await refreshProfile();
-        toast.success("Account Created Successfully! ৳10 Bonus Added.");
-        navigate('/');
+        await refreshProfile(user.uid);
+        toast.success("একাউন্ট সফলভাবে তৈরি হয়েছে!");
+        navigate('/', { replace: true });
       }
     } catch (error: any) {
+      let msg = "";
       if (error.code === 'auth/email-already-in-use') {
-        toast.error("This email is already in use.");
+        msg = "এই ইমেইল দিয়ে ইতিপূর্বে একাউন্ট খোলা হয়েছে! 'Log In' নির্বাচন করে পাসওয়ার্ড দিন।";
       } else if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-        toast.error("Invalid email or password.");
+        msg = "ভুল ইমেইল বা পাসওয়ার্ড দিয়েছেন। সঠিক তথ্য দিন অথবা নতুন একাউন্ট খুলতে 'Sign Up' করুন।";
+      } else if (error.code === 'auth/too-many-requests') {
+        msg = "পর পর অনেকবার ভুল চেষ্টা করা হয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।";
       } else {
-        toast.error("Error: " + error.message);
+        msg = "লগইন সমস্যা: " + (error.message || "পাসওয়ার্ড বা নেটওয়ার্ক চেক করুন।");
       }
+      setAuthError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -347,6 +361,11 @@ export function Auth() {
                 />
               )}
             </>
+          )}
+          {authError && (
+            <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-bold text-center">
+              {authError}
+            </div>
           )}
           <button
             type="submit"

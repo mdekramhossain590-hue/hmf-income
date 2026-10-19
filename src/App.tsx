@@ -35,6 +35,8 @@ import { PostJob } from './pages/PostJob';
 import { Reselling } from './pages/Reselling';
 
 import { FullPageLoader } from './components/LoadingSpinner';
+import { ActivationPopup } from './components/ActivationPopup';
+import { auth } from './lib/firebase';
 
 import { MigrationDashboard } from './pages/MigrationDashboard';
 import { ExternalScriptLoader } from './components/ExternalScriptLoader';
@@ -51,12 +53,13 @@ function ScrollToTop() {
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
+  const currentUser = user || auth.currentUser;
   
-  if (loading) {
+  if (loading && !currentUser) {
     return <FullPageLoader />;
   }
   
-  if (!user) {
+  if (!currentUser) {
     return <Navigate to="/login" replace />;
   }
   
@@ -87,12 +90,13 @@ function ActiveGuard({ children }: { children: React.ReactNode }) {
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
+  const currentUser = user || auth.currentUser;
   
-  if (loading) {
+  if (loading && !currentUser) {
     return <FullPageLoader />;
   }
   
-  if (user) {
+  if (currentUser) {
     return <Navigate to="/" replace />;
   }
   

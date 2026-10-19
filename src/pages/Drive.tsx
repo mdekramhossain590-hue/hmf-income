@@ -425,15 +425,15 @@ export function Drive() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setSelectedOffer(null)}
-              className="fixed inset-0 bg-black/80 z-50 backdrop-blur-sm"
+              className="fixed inset-0 bg-black/80 z-[100] backdrop-blur-sm"
             />
 
             {/* Dialog Card Sheet */}
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 50 }}
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 50 }}
-              className="fixed inset-x-4 bottom-6 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:top-1/2 md:-translate-y-1/2 md:bottom-auto md:w-full md:max-w-md bg-[#151515] rounded-[32px] p-6 shadow-2xl z-55 border border-[#3D3215]"
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="fixed inset-x-4 top-1/2 -translate-y-1/2 mx-auto w-[calc(100%-2rem)] max-w-md bg-[#151515] rounded-[32px] p-6 shadow-2xl z-[110] border border-[#3D3215] max-h-[85vh] overflow-y-auto"
             >
               <h3 className="text-xl font-display font-black tracking-tight text-white flex items-center gap-2 mb-1">
                 <Gift className="w-5 h-5 text-[#FACC15]" /> Confirm Purchase

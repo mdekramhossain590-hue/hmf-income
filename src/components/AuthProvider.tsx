@@ -83,6 +83,7 @@ export interface SiteSettings {
 
 interface AuthContextType {
   user: User | null;
+  setUser: React.Dispatch<React.SetStateAction<User | null>>;
   profile: UserProfile | null;
   setProfile: React.Dispatch<React.SetStateAction<UserProfile | null>>;
   loading: boolean;
@@ -96,6 +97,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
+  setUser: () => {},
   profile: null,
   setProfile: () => {},
   loading: true,
@@ -200,7 +202,7 @@ const normalizeProfileData = (targetUid: string, rawData: any): UserProfile => {
 };
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(() => auth.currentUser);
   const [profile, setProfile] = useState<UserProfile | null>(() => {
     try {
       if (typeof window !== 'undefined') {
@@ -377,6 +379,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             localStorage.setItem('siteSettings', safeStringify(data));
           } catch (e: any) {}
         }
+      }, (err) => {
+        console.warn("Settings snapshot error handled:", err?.message);
       });
     } catch (e: any) {
       console.warn("Could not setup settings snapshot");
@@ -409,6 +413,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 localStorage.setItem(`profile_${user.uid}`, safeStringify(data));
               } catch (e: any) {}
             }
+          }, (err) => {
+            console.warn("Profile snapshot error handled:", err?.message);
           });
         } catch (e: any) {
           console.warn("Could not setup profile snapshot");
@@ -429,7 +435,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (loading) {
         setLoading(false);
       }
-    }, 10000);
+    }, 3000);
 
     return () => {
       unsubscribeAuth();
@@ -443,29 +449,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  if (isQuotaExceeded) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
-          <div className="w-16 h-16 bg-rose-100 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-6">
-            <ShieldAlert className="w-8 h-8" />
-          </div>
-          <h2 className="text-2xl font-bold text-slate-800 mb-2">{t('quota_exceeded')}</h2>
-          <p className="text-slate-600 mb-8">{t('quota_exceeded_desc')}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold hover:bg-slate-800 transition-colors"
-          >
-            {t('retry')}
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <AuthContext.Provider value={{
       user,
+      setUser,
       profile,
       setProfile,
       loading,

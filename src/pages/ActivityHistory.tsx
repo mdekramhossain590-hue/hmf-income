@@ -87,15 +87,24 @@ export function ActivityHistory() {
       const unsubTx = onSnapshot(query(collection(db, "users", auth.currentUser!.uid, "transactions"), orderBy("createdAt", "desc"), limit(100)), (snap) => {
         txList = snap.docs.map(d => ({ id: d.id, type: "transaction", ...d.data() }));
         updateCombined();
+      }, (err) => {
+        console.warn("Tx snapshot error handled:", err?.message);
+        updateCombined();
       });
 
       const unsubSub = onSnapshot(query(collection(db, "submissions"), where("userId", "==", auth.currentUser!.uid), limit(100)), (snap) => {
         subList = snap.docs.map(d => ({ id: d.id, type: "task", ...d.data() }));
         updateCombined();
+      }, (err) => {
+        console.warn("Submissions snapshot error handled:", err?.message);
+        updateCombined();
       });
 
       const unsubRef = onSnapshot(query(collection(db, "users", auth.currentUser!.uid, "referrals"), orderBy("createdAt", "desc"), limit(100)), (snap) => {
         refList = snap.docs.map(d => ({ id: d.id, type: "referral", ...d.data() }));
+        updateCombined();
+      }, (err) => {
+        console.warn("Referrals snapshot error handled:", err?.message);
         updateCombined();
       });
 
