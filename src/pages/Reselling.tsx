@@ -56,8 +56,8 @@ const DEFAULT_PRODUCTS: ResellProduct[] = [
     id: 'prod_1',
     title: 'স্মার্ট ওয়াচ ও ফিটনেস ট্র্যাকার (Smart Watch T800)',
     description: 'এইচডি টাচ স্ক্রিন, হার্ট রেট ও স্লিপ মনিটর, কলিং সুবিধা ও রিয়েলটাইম নোটিফিকেশন সহ ওয়াটারপ্রুফ স্মার্ট ওয়াচ।',
-    wholesalePrice: 450,
-    minResalePrice: 650,
+    wholesalePrice: 350,
+    minResalePrice: 500,
     imageUrl: 'https://images.unsplash.com/photo-1546868871-7041f2a55e12?q=80&w=600&auto=format&fit=crop',
     images: [
       'https://images.unsplash.com/photo-1546868871-7041f2a55e12?q=80&w=600&auto=format&fit=crop',
@@ -71,8 +71,8 @@ const DEFAULT_PRODUCTS: ResellProduct[] = [
     id: 'prod_2',
     title: 'ওয়্যারলেস এয়ারপডস ও ব্লুটুথ হেডফোন (AirPods Pro)',
     description: 'নয়েজ ক্যানসেলেশন, টাচ কন্ট্রোল, ক্রিস্টাল ক্লিয়ার বেস সাউন্ড ও অতিরিক্ত ৩ দিন ব্যাটারি ব্যাকআপ কেস।',
-    wholesalePrice: 380,
-    minResalePrice: 550,
+    wholesalePrice: 350,
+    minResalePrice: 500,
     imageUrl: 'https://images.unsplash.com/photo-1600294037681-c80b4cb5b434?q=80&w=600&auto=format&fit=crop',
     images: [
       'https://images.unsplash.com/photo-1600294037681-c80b4cb5b434?q=80&w=600&auto=format&fit=crop',
@@ -99,7 +99,7 @@ const DEFAULT_PRODUCTS: ResellProduct[] = [
     title: 'প্রিমিয়াম ওয়াটারপ্রুফ ব্যাকপ্যাক (Laptop Travel Bag)',
     description: 'ইউএসবি পোর্ট, অ্যান্টি-থেফট জিপার, ওয়াটারপ্রুফ অক্সফোর্ড ফেব্রিক ও ১৫.৬ ইঞ্চি ল্যাপটপ রাখার সুবিধা।',
     wholesalePrice: 620,
-    minResalePrice: 890,
+    minResalePrice: 850,
     imageUrl: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?q=80&w=600&auto=format&fit=crop',
     images: [
       'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?q=80&w=600&auto=format&fit=crop',
@@ -142,6 +142,45 @@ export function Reselling() {
   const [trxId, setTrxId] = useState('');
   const [depositNumbers, setDepositNumbers] = useState({ bkashNumber: '017XX-XXXXXX', nagadNumber: '018XX-XXXXXX' });
   const [submitting, setSubmitting] = useState(false);
+
+  // Per-product selling price state (defaults to Admin's suggested selling price, e.g. 500)
+  const [productCustomPrices, setProductCustomPrices] = useState<Record<string, number | ''>>(() => {
+    try {
+      const saved = localStorage.getItem('reseller_custom_prices_v1');
+      return saved ? JSON.parse(saved) : {};
+    } catch (_) {
+      return {};
+    }
+  });
+
+  const getMaxResalePrice = (product: ResellProduct): number => {
+    return Math.max(product.minResalePrice || product.wholesalePrice, product.wholesalePrice);
+  };
+
+  const getEffectiveResalePrice = (product: ResellProduct): number => {
+    const maxPrice = getMaxResalePrice(product);
+    const customPrice = productCustomPrices[product.id];
+    if (typeof customPrice === 'number' && !isNaN(customPrice) && customPrice > 0) {
+      return Math.round(customPrice);
+    }
+    return maxPrice;
+  };
+
+  const handleSetProductResalePrice = (product: ResellProduct, rawValue: string) => {
+    if (rawValue === '') {
+      setProductCustomPrices(prev => ({ ...prev, [product.id]: '' }));
+      return;
+    }
+    const numVal = Math.max(0, Math.round(Number(rawValue)));
+    const next = {
+      ...productCustomPrices,
+      [product.id]: numVal
+    };
+    setProductCustomPrices(next);
+    try {
+      localStorage.setItem('reseller_custom_prices_v1', JSON.stringify(next));
+    } catch (_) {}
+  };
 
   const getProductImages = (product: ResellProduct): string[] => {
     if (Array.isArray(product.images) && product.images.length > 0) {
@@ -212,9 +251,10 @@ export function Reselling() {
   };
 
   const handleCopyProductDetails = (product: ResellProduct) => {
-    const detailsText = `✨ প্রোডাক্ট: ${product.title}\n📦 ক্যাটাগরি: ${product.category}\n📝 বিবরণ:\n${product.description}\n\n💰 মূল্য: ৳${product.minResalePrice}\n🚚 সারা বাংলাদেশে হোম ডেলিভারি সুবিধা রয়েছে। অর্ডার করতে আপনার নাম, মোবাইল নম্বর ও সম্পূর্ণ ঠিকানা ইনবক্স করুন!`;
+    const finalCustomerPrice = getEffectiveResalePrice(product);
+    const detailsText = `✨ প্রোডাক্ট: ${product.title}\n📦 ক্যাটাগরি: ${product.category}\n📝 বিবরণ:\n${product.description}\n\n💰 মূল্য: ৳${finalCustomerPrice}\n🚚 সারা বাংলাদেশে হোম ডেলিভারি সুবিধা রয়েছে। অর্ডার করতে আপনার নাম, মোবাইল নম্বর ও সম্পূর্ণ ঠিকানা ইনবক্স করুন!`;
     navigator.clipboard.writeText(detailsText);
-    toast.success("প্রোডাক্টের নাম ও বিস্তারিত বিবরণ কপি হয়েছে!");
+    toast.success(`কাস্টমার মূল্য (৳${finalCustomerPrice}) সহ বিবরণ কপি হয়েছে!`);
   };
 
   // Load products, user's reseller orders & deposit numbers
@@ -398,9 +438,10 @@ export function Reselling() {
   const deliveryFee = isEligibleFor120Delivery ? 120 : 0;
 
   const handleOpenOrderModal = (product: ResellProduct) => {
+    const effectivePrice = getEffectiveResalePrice(product);
     setSelectedProduct(product);
     setModalSlideIndex(cardSlideIndex[product.id] || 0);
-    setCustomResalePrice(product.minResalePrice);
+    setCustomResalePrice(effectivePrice);
     setCustomerName('');
     setCustomerPhone('');
     setCustomerAddress('');
@@ -418,9 +459,14 @@ export function Reselling() {
     e.preventDefault();
     if (!selectedProduct || !user) return;
 
+    const maxPrice = getMaxResalePrice(selectedProduct);
     const resaleVal = Number(customResalePrice);
     if (!resaleVal || resaleVal < selectedProduct.wholesalePrice) {
-      toast.error(`কাস্টম রিসেল দাম অন্তত পাইকারি মূল্য ৳${selectedProduct.wholesalePrice} এর বেশি হতে হবে!`);
+      toast.error(`বিক্রয়মূল্য আমাদের দেওয়া প্রাইস (৳${selectedProduct.wholesalePrice}) এর কম হতে পারবে না!`);
+      return;
+    }
+    if (resaleVal > maxPrice) {
+      toast.error(`বিক্রয়মূল্য সর্বোচ্চ ৳${maxPrice} এর বেশি হতে পারবে না (সীমা: ৳${selectedProduct.wholesalePrice} - ৳${maxPrice})!`);
       return;
     }
 
@@ -634,7 +680,11 @@ export function Reselling() {
           {/* Product Cards Grid */}
           <div className="space-y-5">
             {filteredProducts.map((product) => {
-              const estProfit = product.minResalePrice - product.wholesalePrice;
+              const maxSellingPrice = getMaxResalePrice(product);
+              const rawCustomPrice = productCustomPrices[product.id];
+              const inputSellingPrice = rawCustomPrice !== undefined ? rawCustomPrice : maxSellingPrice;
+              const effectiveResalePrice = getEffectiveResalePrice(product);
+              const estProfit = Math.max(0, effectiveResalePrice - product.wholesalePrice);
               const prodImages = getProductImages(product);
               const activeIdx = Math.min(cardSlideIndex[product.id] || 0, prodImages.length - 1);
               const currentImage = prodImages[activeIdx] || prodImages[0];
@@ -736,8 +786,8 @@ export function Reselling() {
                     )}
                   </div>
 
-                  {/* Product Title, Description & Pricing */}
-                  <div className="space-y-2">
+                  {/* Product Title, Description & Simple 3-Box Price + Auto Profit Display */}
+                  <div className="space-y-2.5">
                     <h3 className="text-sm font-black text-white leading-snug">
                       {product.title}
                     </h3>
@@ -745,18 +795,53 @@ export function Reselling() {
                       {product.description}
                     </p>
 
-                    <div className="grid grid-cols-3 gap-2 pt-1 bg-[#101010] p-2.5 rounded-xl border border-[#3D3215]">
-                      <div>
-                        <span className="text-[9px] text-[#A3A3A3] font-bold block uppercase">পাইকারি মূল্য</span>
-                        <span className="text-sm font-black text-[#FACC15]">৳{product.wholesalePrice}</span>
+                    {/* Clean 3-Column Price Box: Admin Fixed Price (350) -> Reseller Selling Price (350-500) -> Auto Profit (150) */}
+                    <div className="bg-[#101010] p-3.5 rounded-2xl border border-[#3D3215] space-y-2.5">
+                      <div className="grid grid-cols-3 gap-2 items-center">
+                        {/* 1. Admin Fixed Price */}
+                        <div className="bg-[#151515] p-2.5 rounded-xl border border-[#3D3215] text-center">
+                          <span className="text-[9px] text-[#A3A3A3] font-black block uppercase">আমাদের প্রাইস</span>
+                          <span className="text-sm font-black text-white mt-0.5 block">৳{product.wholesalePrice}</span>
+                        </div>
+
+                        {/* 2. Reseller Selling Price Input (350 - 500) */}
+                        <div className="bg-[#151515] p-2 rounded-xl border border-[#FACC15]/50 text-center">
+                          <span className="text-[9px] text-[#FACC15] font-black block uppercase">
+                            বিক্রয়মূল্য (৳{product.wholesalePrice}-{maxSellingPrice})
+                          </span>
+                          <div className="flex items-center justify-center gap-0.5 mt-0.5">
+                            <span className="text-xs font-black text-[#FACC15]">৳</span>
+                            <input
+                              type="number"
+                              min={product.wholesalePrice}
+                              max={maxSellingPrice}
+                              value={inputSellingPrice}
+                              onChange={(e) => handleSetProductResalePrice(product, e.target.value)}
+                              onBlur={() => {
+                                const val = Number(inputSellingPrice);
+                                if (!val || val < product.wholesalePrice) {
+                                  handleSetProductResalePrice(product, String(product.wholesalePrice));
+                                } else if (val > maxSellingPrice) {
+                                  handleSetProductResalePrice(product, String(maxSellingPrice));
+                                }
+                              }}
+                              className="w-16 bg-[#090909] border border-[#3D3215] focus:border-[#FACC15] px-1.5 py-0.5 rounded-lg text-xs font-black text-[#FACC15] text-center outline-none"
+                              title={`৳${product.wholesalePrice} থেকে ৳${maxSellingPrice} এর মধ্যে বিক্রয়মূল্য লিখুন`}
+                            />
+                          </div>
+                        </div>
+
+                        {/* 3. Auto Profit Display */}
+                        <div className="bg-emerald-950/25 p-2.5 rounded-xl border border-emerald-500/40 text-center">
+                          <span className="text-[9px] text-emerald-400 font-black block uppercase">আপনার প্রফিট</span>
+                          <span className="text-sm font-black text-emerald-400 mt-0.5 block">+৳{estProfit}</span>
+                        </div>
                       </div>
-                      <div className="border-x border-[#3D3215] px-2">
-                        <span className="text-[9px] text-[#A3A3A3] font-bold block uppercase">সাজেস্টেড দাম</span>
-                        <span className="text-sm font-black text-white">৳{product.minResalePrice}</span>
-                      </div>
-                      <div className="pl-1">
-                        <span className="text-[9px] text-[#A3A3A3] font-bold block uppercase">সম্ভাব্য লাভ</span>
-                        <span className="text-sm font-black text-emerald-400">+৳{estProfit}</span>
+
+                      <div className="flex items-center justify-between pt-1.5 border-t border-[#3D3215]/60 text-[10px]">
+                        <span className="text-[#A3A3A3] font-bold">
+                          বিক্রয় সীমা: <strong className="text-[#FACC15]">৳{product.wholesalePrice} – ৳{maxSellingPrice}</strong> (যা বেশিতে বিক্রি করবেন সেটাই লাভ)
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -785,7 +870,7 @@ export function Reselling() {
                       className="py-2.5 px-3 rounded-xl bg-[#1C1C1C] hover:bg-[#262626] border border-[#3D3215] hover:border-[#FACC15]/50 text-white text-[11px] font-black flex items-center justify-center gap-1.5 transition cursor-pointer active:scale-95"
                     >
                       <Copy className="w-3.5 h-3.5 text-[#FACC15]" />
-                      <span>বিবরণ কপি করুন</span>
+                      <span>বিবরণ কপি (৳{effectiveResalePrice})</span>
                     </button>
                   </div>
 
@@ -796,7 +881,7 @@ export function Reselling() {
                     className="w-full py-3 rounded-xl bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-md cursor-pointer hover:opacity-95 active:scale-[0.98] transition-all"
                   >
                     <ShoppingBag className="w-4 h-4" />
-                    কাস্টমারের জন্য সেল করুন (Order Now)
+                    কাস্টমারের জন্য সেল করুন (৳{effectiveResalePrice})
                   </button>
                 </div>
               );
@@ -1018,26 +1103,70 @@ export function Reselling() {
                     )}
                   </div>
 
-                  {/* Resale Price Input & Live Profit Calculator */}
-                  <div className="bg-[#101010] p-4 rounded-2xl border border-[#3D3215] space-y-2">
-                    <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-wider block pl-0.5">
-                      আপনার কাস্টমার বিক্রয়মূল্য (৳)
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      min={selectedProduct.wholesalePrice}
-                      placeholder={`যেমন: ${selectedProduct.minResalePrice}`}
-                      value={customResalePrice}
-                      onChange={(e) => setCustomResalePrice(e.target.value === '' ? '' : Number(e.target.value))}
-                      className="w-full bg-[#151515] border border-[#3D3215] px-4 py-3 rounded-xl text-sm font-black text-[#FACC15] focus:border-[#FACC15] outline-none"
-                    />
+                  {/* Simple Fixed Price -> Selling Price (350-500) -> Auto Profit Box inside Order Modal */}
+                  <div className="bg-[#101010] p-4 rounded-2xl border border-[#3D3215] space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-black text-[#FACC15] uppercase tracking-wider">
+                        প্রোডাক্ট প্রাইসিং ও আপনার প্রফিট
+                      </span>
+                      <span className="text-[10px] font-black text-[#A3A3A3]">
+                        বিক্রয় সীমা: ৳{selectedProduct.wholesalePrice} – ৳{getMaxResalePrice(selectedProduct)}
+                      </span>
+                    </div>
 
-                    {/* Calculated Profit Display */}
-                    <div className="flex items-center justify-between pt-1 text-xs">
-                      <span className="text-[#A3A3A3] font-bold">আপনার অর্জিত লাভ (Profit):</span>
-                      <span className="font-black text-emerald-400 text-sm">
-                        +৳{Math.max(0, (Number(customResalePrice) || 0) - selectedProduct.wholesalePrice)}
+                    <div className="grid grid-cols-3 gap-2 items-stretch">
+                      {/* 1. Admin Fixed Price */}
+                      <div className="bg-[#151515] p-2.5 rounded-xl border border-[#3D3215] flex flex-col justify-center text-center">
+                        <span className="text-[9px] font-black text-[#A3A3A3] uppercase block mb-1">
+                          আমাদের প্রাইস
+                        </span>
+                        <span className="text-sm font-black text-white">
+                          ৳{selectedProduct.wholesalePrice}
+                        </span>
+                      </div>
+
+                      {/* 2. Reseller Selling Price Input */}
+                      <div className="bg-[#151515] p-2.5 rounded-xl border border-[#FACC15]/60 flex flex-col justify-center text-center">
+                        <label className="text-[9px] font-black text-[#FACC15] uppercase block mb-1">
+                          বিক্রয়মূল্য (৳)
+                        </label>
+                        <input
+                          type="number"
+                          required
+                          min={selectedProduct.wholesalePrice}
+                          max={getMaxResalePrice(selectedProduct)}
+                          placeholder={`${getMaxResalePrice(selectedProduct)}`}
+                          value={customResalePrice}
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            const val = raw === '' ? '' : Number(raw);
+                            setCustomResalePrice(val);
+                            handleSetProductResalePrice(selectedProduct, raw);
+                          }}
+                          className="w-full bg-[#090909] border border-[#3D3215] focus:border-[#FACC15] px-2 py-1 rounded-lg text-sm font-black text-[#FACC15] text-center outline-none"
+                        />
+                      </div>
+
+                      {/* 3. Auto Profit */}
+                      <div className="bg-emerald-950/30 p-2.5 rounded-xl border border-emerald-500/40 flex flex-col justify-center text-center">
+                        <span className="text-[9px] font-black text-emerald-400 uppercase block mb-1">
+                          আপনার প্রফিট
+                        </span>
+                        <span className="text-sm font-black text-emerald-400">
+                          +৳{Math.max(0, (Number(customResalePrice) || 0) - selectedProduct.wholesalePrice)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <p className="text-[10px] text-[#A3A3A3] font-bold">
+                      * আমাদের দেওয়া দাম <strong className="text-white">৳{selectedProduct.wholesalePrice}</strong> ফিক্সড। আপনি <strong className="text-[#FACC15]">৳{selectedProduct.wholesalePrice} – ৳{getMaxResalePrice(selectedProduct)}</strong> এর ভেতর যত টাকায় বিক্রি করবেন সেটাই আপনার প্রফিট।
+                    </p>
+
+                    {/* Customer Final Payable Summary */}
+                    <div className="flex items-center justify-between pt-2 border-t border-[#3D3215] text-xs">
+                      <span className="text-[#A3A3A3] font-bold">ডেলিভারিসহ কাস্টমারের মোট বিল:</span>
+                      <span className="font-black text-white text-sm">
+                        ৳{(Number(customResalePrice) || 0) + deliveryFee}
                       </span>
                     </div>
                   </div>

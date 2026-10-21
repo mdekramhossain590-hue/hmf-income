@@ -3914,9 +3914,12 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                           </div>
                           <h4 className="text-xs font-black text-white truncate">{prod.title}</h4>
                           <p className="text-[10px] text-[#A3A3A3] line-clamp-1">{prod.description}</p>
-                          <div className="flex items-center gap-3 pt-1 text-[11px] font-black">
-                            <span className="text-white">রেগুলার: ৳{prod.minResalePrice || 0}</span>
-                            <span className="text-[#FACC15]">পাইকারি/রিসেলার: ৳{prod.wholesalePrice || 0}</span>
+                          <div className="flex flex-wrap items-center gap-2 pt-1 text-[10px] font-black">
+                            <span className="text-[#FACC15]">আমাদের প্রাইস: ৳{prod.wholesalePrice || 0}</span>
+                            <span className="text-white">বিক্রয়মূল্য: ৳{prod.minResalePrice || 0}</span>
+                            <span className="text-emerald-400 bg-emerald-950/40 border border-emerald-800/60 px-1.5 py-0.5 rounded">
+                              প্রফিট: +৳{Math.max(0, (prod.minResalePrice || 0) - (prod.wholesalePrice || 0))}
+                            </span>
                           </div>
                         </div>
 
@@ -4216,29 +4219,46 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="text-[10px] text-[#A3A3A3] uppercase block mb-1">পাইকারি / রিসেলার মূল্য (৳)</label>
-                            <input
-                              type="number"
-                              required
-                              min={0}
-                              value={resellProductWholesalePrice}
-                              onChange={e => setResellProductWholesalePrice(e.target.value === '' ? '' : Number(e.target.value))}
-                              className="w-full bg-[#101010] border border-[#3D3215] px-3.5 py-2.5 rounded-xl text-[#FACC15] outline-none focus:border-[#FACC15]"
-                            />
+                        <div className="bg-[#101010] p-3.5 rounded-2xl border border-[#3D3215] space-y-3">
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="text-[10px] text-[#A3A3A3] uppercase block mb-1">
+                                আমাদের দেওয়া প্রাইস (৳)
+                              </label>
+                              <input
+                                type="number"
+                                required
+                                min={0}
+                                placeholder="যেমন: 350"
+                                value={resellProductWholesalePrice}
+                                onChange={e => setResellProductWholesalePrice(e.target.value === '' ? '' : Number(e.target.value))}
+                                className="w-full bg-[#151515] border border-[#3D3215] px-3.5 py-2.5 rounded-xl text-[#FACC15] outline-none focus:border-[#FACC15]"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="text-[10px] text-[#A3A3A3] uppercase block mb-1">
+                                সর্বোচ্চ বিক্রয়মূল্য (৳)
+                              </label>
+                              <input
+                                type="number"
+                                required
+                                min={0}
+                                placeholder="যেমন: 500"
+                                value={resellProductMinResalePrice}
+                                onChange={e => setResellProductMinResalePrice(e.target.value === '' ? '' : Number(e.target.value))}
+                                className="w-full bg-[#151515] border border-[#3D3215] px-3.5 py-2.5 rounded-xl text-white outline-none focus:border-[#FACC15]"
+                              />
+                            </div>
                           </div>
 
-                          <div>
-                            <label className="text-[10px] text-[#A3A3A3] uppercase block mb-1">রেগুলার বিক্রয়মূল্য (৳)</label>
-                            <input
-                              type="number"
-                              required
-                              min={0}
-                              value={resellProductMinResalePrice}
-                              onChange={e => setResellProductMinResalePrice(e.target.value === '' ? '' : Number(e.target.value))}
-                              className="w-full bg-[#101010] border border-[#3D3215] px-3.5 py-2.5 rounded-xl text-white outline-none focus:border-[#FACC15]"
-                            />
+                          <div className="flex items-center justify-between pt-2 border-t border-[#3D3215]/70 text-[11px]">
+                            <span className="text-[#A3A3A3] font-bold">
+                              রিসেলার বিক্রয় সীমা: <strong className="text-white">৳{Number(resellProductWholesalePrice) || 0} – ৳{Number(resellProductMinResalePrice) || 0}</strong>
+                            </span>
+                            <span className="text-emerald-400 font-black">
+                              অটো প্রফিট: +৳{Math.max(0, (Number(resellProductMinResalePrice) || 0) - (Number(resellProductWholesalePrice) || 0))}
+                            </span>
                           </div>
                         </div>
 

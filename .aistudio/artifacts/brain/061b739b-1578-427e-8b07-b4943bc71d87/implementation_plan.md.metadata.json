@@ -1,6 +1,6 @@
 {
-  "summary":  "Implementation plan for adding direct multi-image file upload (up to 10 photos per product with automatic client-side compression), interactive slider/thumbnail gallery with fullscreen zoom lightbox, and reseller one-click photo download & product detail copy features in the Reselling module.",
-  "updatedAt":  "2026-10-21T05:05:49.186582278Z",
+  "summary":  "Implementation plan for simplifying the Reselling pricing & profit system: removing the complex top global calculator panel, displaying Admin's fixed wholesale price (e.g., ৳350), suggested/max resale price (e.g., ৳500), and auto-calculated profit (e.g., ৳150), and allowing resellers to set any selling price within the range (e.g., ৳350–৳500) where the difference is automatically shown as their profit.",
+  "updatedAt":  "2026-10-21T05:43:22.043554468Z",
   "requestFeedback":  true,
   "userFacing":  true
 }
