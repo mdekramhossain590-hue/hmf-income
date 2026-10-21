@@ -1,6 +1,6 @@
 import { toast } from "react-hot-toast";
 
-export async function fileToBase64AndCompress(file: File, maxDim: number = 600): Promise<string> {
+export async function fileToBase64AndCompress(file: File, maxDim: number = 720, quality: number = 0.72): Promise<string> {
   try {
     if (typeof window !== 'undefined' && 'createImageBitmap' in window) {
       const img = await createImageBitmap(file);
@@ -22,8 +22,10 @@ export async function fileToBase64AndCompress(file: File, maxDim: number = 600):
       canvas.height = height;
       const ctx = canvas.getContext('2d');
       if (ctx) {
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, width, height);
         ctx.drawImage(img, 0, 0, width, height);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        const dataUrl = canvas.toDataURL('image/jpeg', quality);
         return dataUrl;
       }
     }
@@ -36,11 +38,6 @@ export async function fileToBase64AndCompress(file: File, maxDim: number = 600):
     reader.readAsDataURL(file);
     reader.onload = (event) => {
       const result = event.target?.result as string;
-      const sizeMb = (result.length * (3/4)) / (1024 * 1024);
-      if (sizeMb < 0.5) {
-        resolve(result);
-        return;
-      }
       const img = new Image();
       img.src = result;
       img.onload = () => {
@@ -66,20 +63,21 @@ export async function fileToBase64AndCompress(file: File, maxDim: number = 600):
             resolve(result);
             return;
           }
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(0, 0, width, height);
           ctx.drawImage(img, 0, 0, width, height);
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+          const dataUrl = canvas.toDataURL('image/jpeg', quality);
           resolve(dataUrl);
         } catch (e: any) {
           console.error("Canvas compression failed", e?.message || "Unknown Error");
           resolve(result);
         }
       };
-      img.onerror = (err) => {
-        console.error("Image loading failed");
+      img.onerror = () => {
         resolve(result);
       };
     };
-    reader.onerror = (err) => {
+    reader.onerror = () => {
       reject(new Error("FileReader failed: " + (reader.error?.message || "Unknown error")));
     };
   });

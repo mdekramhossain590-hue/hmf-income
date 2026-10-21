@@ -1,127 +1,100 @@
-# Admin Product Management & Reseller Order Form Implementation Plan
+# প্রোডাক্ট রিসেলিং মাল্টি-ফটো ডাইরেক্ট আপলোড ও গ্যালারি সিস্টেম
 
-Add a full Admin Product Management suite (Add/Edit/Delete products with title, category, description, regular price, reseller price, image, and stock) and enhance the Reseller Order Form with customer delivery details and an advance delivery fee payment workflow (120 BDT for first 2 orders).
+এই প্ল্যানের মাধ্যমে প্রোডাক্ট রিসেলিং সেকশনে লিংক দেওয়ার পরিবর্তে সরাসরি ডিভাইস থেকে একাধিক ছবি (সর্বোচ্চ ১০টি) আপলোড করার সুবিধা, কাস্টমার ও রিসেলারদের জন্য আকর্ষণীয় ফটো স্লাইডার ও জুম গ্যালারি এবং এক ক্লিকে ছবি ডাউনলোড ও বিবরণ কপি করার ফিচার যুক্ত করা হবে।
 
 ## User Review & Critical Decisions
 
 > [!IMPORTANT]
-> The user confirmed the following specific rules:
-> 1. **Product Fields in Admin Panel**: Name, Category, Description, Regular Price, Reseller Price, Image URL, and Stock Quantity.
-> 2. **Reseller Order Delivery Fee Rule**: Fixed 120 BDT advance delivery fee required for the user's **first 2 orders**. A dedicated payment number (Bkash/Nagad) and transaction ID input will be displayed in the order form. From order 3 onwards, standard charge applies.
+> আপনার দেওয়া উত্তর অনুযায়ী নিচের সিদ্ধান্তগুলো চূড়ান্ত করা হয়েছে। অনুগ্রহ করে প্ল্যানটি রিভিউ করে **Proceed** বাটনে ক্লিক করুন।
+
+- **Confirmed Decision 1 (সর্বোচ্চ ছবির সংখ্যা ও সরাসরি আপলোড)**: প্রতিটি রিসেলিং প্রোডাক্টে এডমিন সরাসরি গ্যালারি বা ফাইল পিকার থেকে সর্বোচ্চ **১০টি ছবি** একসাথে বা আলাদাভাবে সিলেক্ট করে আপলোড করতে পারবেন (কোনো এক্সটার্নাল লিংক দেওয়ার প্রয়োজন হবে না, তবে ঐচ্ছিক হিসেবে পুরনো প্রোডাক্টের সাথে সামঞ্জস্য বজায় থাকবে)।
+- **Confirmed Decision 2 (স্লাইডার, থাম্বনেইল গ্যালারি ও ফুলস্ক্রিন জুম)**: রিসেলিং ক্যাটালগ ও অর্ডার মডিউলে ইউজাররা প্রোডাক্টের একাধিক ছবি **ইন্টারেক্টিভ স্লাইডার**, নিচে **থাম্বনেইল গ্যালারি** এবং ছবিতে ক্লিক করলে **ফুলস্ক্রিন জুম ভিউ (Lightbox)** আকারে দেখতে পাবেন।
+- **Confirmed Decision 3 (রিসেলারদের জন্য ডাউনলোড ও কপি টুলস)**: রিসেলাররা যাতে সহজেই ফেসবুক, হোয়াটসঅ্যাপ বা মেসেঞ্জারে কাস্টমারের কাছে প্রোডাক্ট শেয়ার করতে পারেন, সেজন্য প্রতিটি প্রোডাক্টে **"সব ছবি ডাউনলোড করুন"** এবং **"বিবরণ কপি করুন"** বাটন যুক্ত থাকবে।
 
 ---
 
 ## 1. Overview & Core Concept
 
-- **Admin Product Management**:
-  - A dedicated "Products" tab in `Admin.tsx` allowing admins to list, add, edit, and delete products available for reselling.
-  - Full support for storing product details in Firestore (`products` collection).
-
-- **Reseller Order Form (`OrderModal` / `ResellOrderModal`)**:
-  - Resellers click "Resell" / "Order for Customer" on any course or product.
-  - A modal/form collects Customer Name, Phone, Full Address, Reseller Selling Price (showing calculated profit = Selling Price - Reseller Cost).
-  - Automatically calculates completed order count for the user. If `completedOrdersCount < 2`, requires **120 BDT Advance Delivery Fee** via Bkash/Nagad with dedicated payment numbers and Transaction ID verification.
+- **What It Does**:
+  - **এডমিন প্যানেল**: এডমিন যখন নতুন রিসেলিং প্রোডাক্ট যোগ করবেন বা এডিট করবেন, তখন সরাসরি মোবাইল বা কম্পিউটার থেকে একসাথে সর্বোচ্চ ১০টি ছবি আপলোড করতে পারবেন। আপলোডের সময় ছবিগুলো স্বয়ংক্রিয়ভাবে অপ্টিমাইজড ও কমপ্রেসড হবে যাতে দ্রুত লোড হয় এবং ডাটাবেস লিমিট অতিক্রম না করে। এডমিন চাইলে যেকোনো ছবি রিমুভ বা প্রথম ছবিটিকে মূল ছবি (Cover Photo) হিসেবে সাজাতে পারবেন।
+  - **রিসেলার ক্যাটালগ ও বিস্তারিত ভিউ**: রিসেলিং পেজে প্রতিটি প্রোডাক্ট কার্ডে একাধিক ছবির ব্যাজ, নেক্সট/প্রিভিয়াস স্লাইডার অ্যারো, ডট ইন্ডিকেটর এবং থাম্বনেইল প্রিভিউ থাকবে। ছবিতে ট্যাপ করলে বড় ফুলস্ক্রিন জুম গ্যালারি ওপেন হবে।
+  - **রিসেলার মার্কেটিং টুলকিট**: প্রোডাক্ট কার্ড ও অর্ডার মডালে এক ক্লিকে প্রোডাক্টের সব ছবি ডিভাইসে ডাউনলোড করা এবং প্রোডাক্টের নাম ও বিস্তারিত বিবরণ ক্লিপবোর্ডে কপি করার বাটন থাকবে।
+- **Target Audience / Persona**: প্ল্যাটফর্মের এডমিন (যিনি প্রোডাক্ট ক্যাটালগ ম্যানেজ করেন) এবং রিসেলার ইউজারগণ (যারা প্রোডাক্টের ছবি ও তথ্য সংগ্রহ করে নিজস্ব কাস্টমারদের কাছে বিক্রি করেন)।
+- **Key Value**: এক্সটার্নাল ইমেজ হোস্টিং সাইটে ছবি আপলোড করে লিংক কপি-পেস্ট করার ঝামেলা সম্পূর্ণ দূর হবে এবং রিসেলাররা কাস্টমারকে প্রোডাক্টের সব অ্যাঙ্গেলের ছবি দেখিয়ে আরও বেশি অর্ডার জেনারেট করতে পারবেন।
 
 ---
 
 ## 2. User Experience & Visual Design
 
-- **Admin Products View**:
-  - Grid & table view of all products with stock status badges (In Stock / Out of Stock).
-  - "Add New Product" modal with clean form fields:
-    - Product Title / Name
-    - Category (e.g., Electronics, Fashion, Digital Courses, Software)
-    - Description
-    - Regular Retail Price (৳)
-    - Reseller Price (৳)
-    - Stock Quantity
-    - Image URL
-  - Quick action buttons: Edit, Delete, Toggle Availability.
-
-- **Reseller Order Flow**:
-  - **Product Selection**: Reseller selects a product/course.
-  - **Profit Calculator**: Input "Customer Selling Price". Shows real-time estimated profit: `Profit = Selling Price - Reseller Price`.
-  - **Customer Details**: Form inputs for Customer Name, Mobile Number, Full Delivery Address, District/City, and Special Notes.
-  - **Advance Fee Payment Banner (First 2 Orders)**:
-    - Highlighted banner explaining: *"Your 1st/2nd Reseller Order requires BDT 120 advance delivery fee payment."*
-    - Displays Bkash & Nagad personal/agent numbers provided in site settings.
-    - Transaction ID / Payment proof input field.
-  - **Submission & Toast**: Order is saved to `orders` collection in Firestore with status `pending`, tagged with `isResellOrder: true`, advance payment details, reseller profit, and customer information.
+- **Key User Flows**:
+  1. **এডমিন মাল্টি-ফটো আপলোড ফ্লো**:
+     - এডমিন প্যানেল $\to$ রিসেলিং প্রোডাক্ট ট্যাব $\to$ **"নতুন প্রোডাক্ট যোগ করুন"** বা এডিট বাটনে ক্লিক।
+     - **"প্রোডাক্টের ছবি আপলোড করুন (সর্বোচ্চ ১০টি)"** ড্রপজোনে ট্যাপ করে গ্যালারি থেকে একাধিক ছবি সিলেক্ট করা।
+     - তাৎক্ষণিক গ্রিড প্রিভিউতে আপলোড হওয়া ছবিগুলো দেখা, সাথে ১ম ছবিতে `মূল ছবি` ট্যাগ এবং প্রতিটি ছবির কোণায় ডিলিট (`×`) বাটন ও ক্রম পরিবর্তনের সুবিধা।
+  2. **রিসেলার গ্যালারি ও জুম ভিউ ফ্লো**:
+     - রিসেলিং পেজে প্রোডাক্ট কার্ডে প্রথম ছবিটি দেখাবে এবং একাধিক ছবি থাকলে উপরে ডানপাশে ছবির সংখ্যা (যেমন: `1/5`) ও বামে/ডানে স্লাইড বাটন দেখাবে।
+     - কার্ডের নিচে বা অর্ডার মডালে ছোট থাম্বনেইল সারি থাকবে; যেকোনো থাম্বনেইলে ক্লিক করলে সেই ছবিটি সামনে আসবে।
+     - মূল ছবিতে ক্লিক করলে ফুলস্ক্রিন ডার্ক লাইটবক্স (Zoom View) ওপেন হবে, যেখানে জুম ইন/আউট এবং সবগুলো ছবি সোয়াইপ/স্লাইড করে দেখা যাবে।
+  3. **ছবি ডাউনলোড ও বিবরণ কপি ফ্লো**:
+     - প্রোডাক্ট কার্ডে ও অর্ডার মডালে **"ছবি ডাউনলোড"** বাটনে ক্লিক করলে বর্তমান ছবি বা সবগুলো ছবি একত্রে ডিভাইসে ডাউনলোড হয়ে যাবে এবং একটি টোস্ট মেসেজ (`সবগুলো ছবি ডাউনলোড হয়েছে!`) দেখাবে।
+     - **"বিবরণ কপি"** বাটনে ক্লিক করলে প্রোডাক্টের নাম, ক্যাটাগরি ও বিস্তারিত বিবরণ সুন্দরভাবে ফরম্যাট হয়ে কপি হবে।
+- **Visual Identity & Theme**:
+  - *Aesthetic Direction*: মডার্ন ই-কমার্স ও রিটেইল ক্যাটালগ ডিজাইন—পরিষ্কার ফটো গ্যালারি, প্রিমিয়াম কার্ড শ্যাডো এবং স্পষ্ট অ্যাকশন বাটন।
+  - *Color Palette & Mood*: বর্তমান অ্যাপের ডার্ক/লাইট ও ইন্ডিগো-ভায়োলেট থিমের সাথে সামঞ্জস্য রেখে গ্যালারি ব্যাকড্রপে `bg-slate-900/95` এবং অ্যাকশন বাটনে `indigo-600`, `emerald-600` ও `amber-500` অ্যাকসেন্ট ব্যবহার করা হবে।
+  - *Typography & Hierarchy*: প্রোডাক্টের নাম স্পষ্ট সেমি-বোল্ড ফন্টে, দাম ট্যাবুলার নাম্বারে এবং রিসেলার টুল বাটনগুলো আইকনসহ সহজে পাঠযোগ্য বাংলা লেবেলে থাকবে।
+- **Interactive Feedback & Motion**:
+  - ছবি আপলোডের সময় স্মুথ প্রগ্রেস ইন্ডিকেটর এবং অপ্টিমাইজেশন স্ট্যাটাস।
+  - স্লাইডারে ছবি পরিবর্তনের সময় ফ্রেমার মোশন (`motion`) অ্যানিমেশন।
+  - কপি ও ডাউনলোড সম্পন্ন হলে তাৎক্ষণিক ভিজ্যুয়াল কনফার্মেশন ও টোস্ট নোটিফিকেশন।
 
 ---
 
 ## 3. Key Product Decisions & Trade-Offs
 
-- **Decision 1: Firestore Collection for Products**:
-  - *Chosen Approach*: Store products in a top-level Firestore collection `products`.
-  - *Why*: Allows fast real-time synchronization (`onSnapshot`), direct admin manipulation, and instant loading on reseller catalog pages.
-
-- **Decision 2: Order Count Tracking for Advance Fee Rule**:
-  - *Chosen Approach*: Count existing orders for `user.uid` where `isResellOrder: true` and `status !== 'cancelled'`. If count < 2, mandate the 120 BDT advance payment step.
-  - *Why*: Automated, tamper-proof check tied to the reseller's account history in Firestore.
+- **Decision 1: ক্লায়েন্ট-সাইড স্মার্ট ইমেজ কমপ্রেশন ও মাল্টি-স্টোরেজ সিঙ্ক**
+  - *Chosen Approach*: ব্রাউজারের HTML5 Canvas ব্যবহার করে প্রতিটি আপলোড করা ছবিকে স্বয়ংক্রিয়ভাবে অপ্টিমাইজড ওয়েব-ফ্রেন্ডলি রেজোলিউশনে (যেমন: সর্বোচ্চ `800px` প্রস্থ ও JPEG `0.72` কোয়ালিটি) রূপান্তর করা হবে। এর ফলে ১০টি ছবির মোট সাইজও মাত্র ৪০০–৬০০ কিলোবাইটের মধ্যে থাকবে, যা ফায়ারস্টোর (`reselling_products`) এবং সার্ভার API—উভয় জায়গায় কোনো এরর ছাড়াই দ্রুত সেভ হবে।
+  - *Why*: কোনো এক্সটার্নাল পেইড ক্লাউড স্টোরেজ বা থার্ড-পার্টি API কী ছাড়াই সরাসরি ফাইল আপলোড শতভাগ নির্ভরযোগ্য ও দ্রুত কাজ করবে।
+  - *Alternatives Considered*: কমপ্রেশন ছাড়া সরাসরি কয়েক মেগাবাইটের ছবি ডাটাবেসে পাঠানো—এতে ১ মেগাবাইট ডকুমেন্ট লিমিট অতিক্রম করে আপলোড ফেইল হওয়ার ঝুঁকি থাকে।
+- **Decision 2: ব্যাকওয়ার্ড কমপ্যাটিবিলিটি (`imageUrl` + `images: string[]`)**
+  - *Chosen Approach*: প্রোডাক্ট ডাটা মডেলে নতুন `images: string[]` অ্যারে যুক্ত করা হবে এবং প্রথম ছবিটিকে স্বয়ংক্রিয়ভাবে `imageUrl` ফিল্ডেও রাখা হবে।
+  - *Why*: আগে থেকে থাকা পুরনো প্রোডাক্টগুলো এবং অর্ডারের হিস্ট্রি কোনো পরিবর্তন ছাড়াই নির্বিঘ্নে কাজ করবে।
 
 ---
 
-## 4. Technical Architecture & Data Strategy
+## 4. Technical Architecture & Data Strategy *(Technical Reference)*
+
+- **Architecture & Component Diagram**:
 
 ```
-┌────────────────────────────────────────────────────────┐
-│                   Admin Panel                           │
-│  - Products Tab (Add / Edit / Delete / Stock)           │
-└───────────────────────────┬────────────────────────────┘
-                            │
-                            ▼
-               ┌─────────────────────────┐
-               │   Firestore Collection  │
-               │   - /products           │
-               │   - /orders             │
-               │   - /settings/deposit   │
-               └────────────┬────────────┘
-                            │
-                            ▼
-┌────────────────────────────────────────────────────────┐
-│                Reseller Catalog & Modal                 │
-│  - Customer Info Form                                   │
-│  - Real-time Profit Calculation                         │
-│  - Advance 120 BDT Payment Step (First 2 Orders)        │
-└────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        ADMIN PRODUCT MANAGEMENT                         │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │ Multi-Image Uploader (Up to 10 files)                             │  │
+│  │  ├─ File Input (multiple, accept="image/*")                       │  │
+│  │  ├─ Client Canvas Optimizer (Resize <=800px, JPEG 0.72 quality)   │  │
+│  │  └─ Preview Grid (Set Primary, Reorder, Remove Image)             │  │
+│  └───────────────┬───────────────────────────────────────────────────┘  │
+└──────────────────┼──────────────────────────────────────────────────────┘
+                   ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                   DATA PERSISTENCE & SECURITY RULES                     │
+│  ├─ Firestore `reselling_products` (imageUrl: cover, images: string[])  │
+│  └─ Security Rules Update (Allow optional `images` list up to 10 items) │
+└──────────────────┬──────────────────────────────────────────────────────┘
+                   ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                      RESELLER CATALOG & GALLERY UI                      │
+│  ├─ Product Card Carousel (Prev/Next Controls, Counter Badge, Dots)     │
+│  ├─ Reseller Toolkit Bar (Download All Photos, Copy Product Details)    │
+│  ├─ Order Modal Thumbnail Strip (Interactive Image Switcher)            │
+│  └─ Fullscreen Zoom Lightbox Modal (Pinch/Click Zoom, Slide Navigation) │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Data Models
-
-**Product Item (`products` collection)**:
-```ts
-interface ProductItem {
-  id: string;
-  title: string;
-  category: string;
-  description: string;
-  regularPrice: number;
-  resellerPrice: number;
-  stock: number;
-  imageUrl: string;
-  isActive: boolean;
-  createdAt: any;
-}
-```
-
-**Resell Order (`orders` collection)**:
-```ts
-interface ResellOrder {
-  id: string;
-  resellerUid: string;
-  resellerEmail: string;
-  productId: string;
-  productTitle: string;
-  resellerPrice: number;
-  customerSellingPrice: number;
-  resellerProfit: number;
-  customerName: string;
-  customerPhone: string;
-  customerAddress: string;
-  advanceFeePaid: number; // 120 BDT for first 2 orders, 0 otherwise
-  trxId?: string;
-  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
-  createdAt: any;
-}
-```
+- **Data Model & State**:
+  - `ResellingProduct` ইন্টারফেসে `imageUrl: string` (কভার ছবি) এর পাশাপাশি `images?: string[]` (সর্বোচ্চ ১০টি ছবির তালিকা) যুক্ত হবে।
+  - ফায়ারস্টোর সিকিউরিটি রুলসে (`isValidResellingProduct`) ঐচ্ছিক `images` ফিল্ড (`request.resource.data.images is list && request.resource.data.images.size() <= 10`) অনুমোদন করা হবে।
+- **Interactive Component & State Mapping**:
+  - **এডমিন আপলোড হ্যান্ডলার**: একাধিক ফাইল সিলেক্ট করলে লুপ চালিয়ে কমপ্রেস করবে, ১০টির বেশি হলে সতর্কবার্তা দেবে এবং `newResellProduct.images` ও `newResellProduct.imageUrl` আপডেট করবে।
+  - **ক্যাটালগ স্লাইডার ও লাইটবক্স স্টেট**: প্রতিটি কার্ডের জন্য বর্তমান ছবির ইনডেক্স ট্র্যাকিং, ফুলস্ক্রিন জুম মডালের জন্য `lightboxProduct` ও `lightboxIndex` এবং জুম লেভেল (`1x` থেকে `2.5x`) টগল।
+  - **ডাউনলোড ও কপি হ্যান্ডলার**: এক ক্লিকে প্রোডাক্টের সব ছবি ডাউনলোড (`<a>` ডাউনলোড অ্যাট্রিবিউট বা ব্লব কনভার্সনের মাধ্যমে) এবং প্রোডাক্টের বিস্তারিত তথ্য ক্লিপবোর্ডে কপি।

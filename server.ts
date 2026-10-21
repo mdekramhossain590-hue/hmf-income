@@ -81,7 +81,8 @@ async function startServer() {
 
   const app = express();
   const PORT = process.env.PORT || 3000;
-  app.use(express.json());
+  app.use(express.json({ limit: '25mb' }));
+  app.use(express.urlencoded({ limit: '25mb', extended: true }));
 
   
   app.get("/api/mysql-reviews", async (req, res) => {
@@ -515,6 +516,7 @@ app.post("/api/uddoktapay/webhook", async (req, res) => {
     } catch (_) {}
   }
 
+  const resellingProductsFile = path.join(dataDir, 'reselling_products.json');
   const resellingOrdersFile = path.join(dataDir, 'reselling_orders.json');
   const courseOrdersFile = path.join(dataDir, 'course_orders.json');
 
@@ -538,6 +540,54 @@ app.post("/api/uddoktapay/webhook", async (req, res) => {
       console.error(`Error writing ${filePath}:`, err);
     }
   };
+
+  // Reselling Products API (Persistent JSON Storage for multi-image products)
+  app.get("/api/reselling-products", (_req, res) => {
+    try {
+      const products = readOrdersFromFile(resellingProductsFile);
+      return res.json({ success: true, products });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/reselling-products", (req, res) => {
+    try {
+      const payload = req.body;
+      if (!payload) return res.status(400).json({ error: "No body" });
+      const products = readOrdersFromFile(resellingProductsFile);
+      const toAdd = Array.isArray(payload) ? payload : [payload];
+      let savedItem: any = null;
+      for (const item of toAdd) {
+        if (!item.id) item.id = 'prod_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+        const idx = products.findIndex(p => p.id === item.id);
+        if (idx >= 0) {
+          products[idx] = { ...products[idx], ...item, updatedAt: new Date().toISOString() };
+          savedItem = products[idx];
+        } else {
+          const created = { ...item, createdAt: item.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() };
+          products.unshift(created);
+          savedItem = created;
+        }
+      }
+      writeOrdersToFile(resellingProductsFile, products);
+      return res.json({ success: true, product: savedItem, products });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.delete("/api/reselling-products/:id", (req, res) => {
+    try {
+      const { id } = req.params;
+      let products = readOrdersFromFile(resellingProductsFile);
+      products = products.filter(p => p.id !== id);
+      writeOrdersToFile(resellingProductsFile, products);
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
 
   // Reselling Orders API (Persistent JSON Storage)
   app.get("/api/reselling-orders", (req, res) => {

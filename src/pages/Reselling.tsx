@@ -3,13 +3,14 @@ import { useAuth } from '../components/AuthProvider';
 import { useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, ShoppingBag, Truck, CheckCircle2, Clock, 
-  AlertCircle, DollarSign, User, Phone, MapPin, Search, 
-  Sparkles, Package, ShieldCheck, ChevronRight, X, Plus, Info, ExternalLink, Copy, CreditCard 
+  AlertCircle, User, MapPin, Search, 
+  Package, ChevronRight, ChevronLeft, X, Copy, CreditCard,
+  Download, Maximize2, ZoomIn, ZoomOut, Camera
 } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { 
-  collection, query, where, getDocs, addDoc, 
-  serverTimestamp, doc, setDoc, updateDoc, increment, orderBy, onSnapshot 
+  collection, query, where, 
+  serverTimestamp, doc, setDoc, onSnapshot 
 } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'motion/react';
@@ -21,6 +22,7 @@ export interface ResellProduct {
   wholesalePrice: number;
   minResalePrice: number;
   imageUrl: string;
+  images?: string[];
   category: string;
   stock: number;
 }
@@ -57,6 +59,11 @@ const DEFAULT_PRODUCTS: ResellProduct[] = [
     wholesalePrice: 450,
     minResalePrice: 650,
     imageUrl: 'https://images.unsplash.com/photo-1546868871-7041f2a55e12?q=80&w=600&auto=format&fit=crop',
+    images: [
+      'https://images.unsplash.com/photo-1546868871-7041f2a55e12?q=80&w=600&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1579586337278-3befd40fd17a?q=80&w=600&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?q=80&w=600&auto=format&fit=crop'
+    ],
     category: 'গ্যাজেট',
     stock: 50
   },
@@ -67,6 +74,10 @@ const DEFAULT_PRODUCTS: ResellProduct[] = [
     wholesalePrice: 380,
     minResalePrice: 550,
     imageUrl: 'https://images.unsplash.com/photo-1600294037681-c80b4cb5b434?q=80&w=600&auto=format&fit=crop',
+    images: [
+      'https://images.unsplash.com/photo-1600294037681-c80b4cb5b434?q=80&w=600&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1588423771073-b8903fbb85b5?q=80&w=600&auto=format&fit=crop'
+    ],
     category: 'হেডফোন',
     stock: 80
   },
@@ -77,6 +88,9 @@ const DEFAULT_PRODUCTS: ResellProduct[] = [
     wholesalePrice: 290,
     minResalePrice: 450,
     imageUrl: 'https://images.unsplash.com/photo-1621607512214-68297480165e?q=80&w=600&auto=format&fit=crop',
+    images: [
+      'https://images.unsplash.com/photo-1621607512214-68297480165e?q=80&w=600&auto=format&fit=crop'
+    ],
     category: 'পার্সোনাল কেয়ার',
     stock: 45
   },
@@ -87,6 +101,10 @@ const DEFAULT_PRODUCTS: ResellProduct[] = [
     wholesalePrice: 620,
     minResalePrice: 890,
     imageUrl: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?q=80&w=600&auto=format&fit=crop',
+    images: [
+      'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?q=80&w=600&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1581605405669-fcdf81165afa?q=80&w=600&auto=format&fit=crop'
+    ],
     category: 'লাইফস্টাইল',
     stock: 30
   }
@@ -101,6 +119,17 @@ export function Reselling() {
   const [orders, setOrders] = useState<ResellOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Per-card active image slide index
+  const [cardSlideIndex, setCardSlideIndex] = useState<Record<string, number>>({});
+  // Order modal active image slide index
+  const [modalSlideIndex, setModalSlideIndex] = useState(0);
+
+  // Fullscreen Zoom Lightbox state
+  const [lightboxProduct, setLightboxProduct] = useState<ResellProduct | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [zoomScale, setZoomScale] = useState(1);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   
   // Order Modal
   const [selectedProduct, setSelectedProduct] = useState<ResellProduct | null>(null);
@@ -114,9 +143,97 @@ export function Reselling() {
   const [depositNumbers, setDepositNumbers] = useState({ bkashNumber: '017XX-XXXXXX', nagadNumber: '018XX-XXXXXX' });
   const [submitting, setSubmitting] = useState(false);
 
+  const getProductImages = (product: ResellProduct): string[] => {
+    if (Array.isArray(product.images) && product.images.length > 0) {
+      return product.images.filter(Boolean);
+    }
+    if (product.imageUrl) {
+      return [product.imageUrl];
+    }
+    return ['https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=600'];
+  };
+
+  const downloadSingleImage = async (imgUrl: string, fileName: string) => {
+    try {
+      if (imgUrl.startsWith('data:')) {
+        const a = document.createElement('a');
+        a.href = imgUrl;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        return;
+      }
+      const response = await fetch(imgUrl, { mode: 'cors' });
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
+    } catch (_) {
+      // Fallback: draw via canvas or direct anchor
+      const a = document.createElement('a');
+      a.href = imgUrl;
+      a.download = fileName;
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  };
+
+  const handleDownloadProductPhotos = async (product: ResellProduct, specificIndex?: number) => {
+    const imgs = getProductImages(product);
+    const safeTitle = (product.title || 'product').replace(/[^a-zA-Z0-9\u0980-\u09FF_-]/g, '_').slice(0, 30);
+    setDownloadingId(product.id);
+    try {
+      if (typeof specificIndex === 'number' && imgs[specificIndex]) {
+        await downloadSingleImage(imgs[specificIndex], `${safeTitle}_${specificIndex + 1}.jpg`);
+        toast.success("ছবি ডাউনলোড সম্পন্ন হয়েছে!");
+      } else {
+        toast.loading(`${imgs.length}টি ছবি ডাউনলোড হচ্ছে...`, { id: 'dl_photos' });
+        for (let i = 0; i < imgs.length; i++) {
+          await downloadSingleImage(imgs[i], `${safeTitle}_${i + 1}.jpg`);
+          if (imgs.length > 1) {
+            await new Promise(res => setTimeout(res, 250));
+          }
+        }
+        toast.success(`প্রোডাক্টের ${imgs.length}টি ছবি ডাউনলোড সম্পন্ন হয়েছে!`, { id: 'dl_photos' });
+      }
+    } catch (err) {
+      toast.error("ছবি ডাউনলোড করতে সমস্যা হয়েছে", { id: 'dl_photos' });
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  const handleCopyProductDetails = (product: ResellProduct) => {
+    const detailsText = `✨ প্রোডাক্ট: ${product.title}\n📦 ক্যাটাগরি: ${product.category}\n📝 বিবরণ:\n${product.description}\n\n💰 মূল্য: ৳${product.minResalePrice}\n🚚 সারা বাংলাদেশে হোম ডেলিভারি সুবিধা রয়েছে। অর্ডার করতে আপনার নাম, মোবাইল নম্বর ও সম্পূর্ণ ঠিকানা ইনবক্স করুন!`;
+    navigator.clipboard.writeText(detailsText);
+    toast.success("প্রোডাক্টের নাম ও বিস্তারিত বিবরণ কপি হয়েছে!");
+  };
+
   // Load products, user's reseller orders & deposit numbers
   useEffect(() => {
     let unsubs: (() => void)[] = [];
+    let apiLoadedProducts: ResellProduct[] = [];
+    let firestoreLoadedProducts: ResellProduct[] = [];
+
+    const mergeAndSetProducts = () => {
+      const map = new Map<string, ResellProduct>();
+      apiLoadedProducts.forEach(p => map.set(p.id, p));
+      firestoreLoadedProducts.forEach(p => map.set(p.id, p));
+      const combined = Array.from(map.values());
+      if (combined.length > 0) {
+        setProducts(combined);
+      } else {
+        setProducts(DEFAULT_PRODUCTS);
+      }
+    };
 
     // Load deposit numbers for advance fee
     try {
@@ -134,30 +251,40 @@ export function Reselling() {
       unsubs.push(unsubDep);
     } catch (_) {}
 
-    // Load products
+    // Load products from Backend Persistent API
+    fetch('/api/reselling-products')
+      .then(res => res.json())
+      .then(data => {
+        if (data?.success && Array.isArray(data.products) && data.products.length > 0) {
+          apiLoadedProducts = data.products;
+          mergeAndSetProducts();
+        }
+      })
+      .catch(() => {});
+
+    // Load products from Firestore
     try {
       const q = query(collection(db, "reselling_products"));
       const unsubProd = onSnapshot(q, (snap) => {
         if (!snap.empty) {
-          const list: ResellProduct[] = snap.docs.map(docSnap => ({
+          firestoreLoadedProducts = snap.docs.map(docSnap => ({
             id: docSnap.id,
             ...docSnap.data()
           } as ResellProduct));
-          setProducts(list);
-        } else {
+          mergeAndSetProducts();
+        } else if (apiLoadedProducts.length === 0) {
           setProducts(DEFAULT_PRODUCTS);
         }
       }, (err) => {
         console.warn("Resell products snapshot error handled:", err?.message);
-        setProducts(DEFAULT_PRODUCTS);
+        mergeAndSetProducts();
       });
       unsubs.push(unsubProd);
     } catch (e) {
-      setProducts(DEFAULT_PRODUCTS);
+      mergeAndSetProducts();
     }
 
     // Load user orders
-    // Load user orders (first from users/{uid}/reselling_orders, and also from reselling_orders)
     if (user?.uid) {
       const uid = user.uid;
 
@@ -170,7 +297,7 @@ export function Reselling() {
         }
       } catch (_) {}
 
-      // 1. Direct user subcollection listener (Always allowed by security rules)
+      // 1. Direct user subcollection listener
       try {
         const userOrdersRef = collection(db, "users", uid, "reselling_orders");
         const unsubUserOrd = onSnapshot(userOrdersRef, (snap) => {
@@ -272,12 +399,19 @@ export function Reselling() {
 
   const handleOpenOrderModal = (product: ResellProduct) => {
     setSelectedProduct(product);
+    setModalSlideIndex(cardSlideIndex[product.id] || 0);
     setCustomResalePrice(product.minResalePrice);
     setCustomerName('');
     setCustomerPhone('');
     setCustomerAddress('');
     setCustomerNote('');
     setTrxId('');
+  };
+
+  const handleOpenLightbox = (product: ResellProduct, startIndex: number = 0) => {
+    setLightboxProduct(product);
+    setLightboxIndex(startIndex);
+    setZoomScale(1);
   };
 
   const handleSubmitOrder = async (e: React.FormEvent) => {
@@ -304,6 +438,7 @@ export function Reselling() {
     try {
       const profit = resaleVal - selectedProduct.wholesalePrice;
       const orderNumberIndex = userOrderCount + 1;
+      const prodImages = getProductImages(selectedProduct);
 
       // Create doc in user subcollection first (guaranteed permitted: users/{uid}/**)
       const userOrderRef = doc(collection(db, "users", user.uid, "reselling_orders"));
@@ -317,7 +452,7 @@ export function Reselling() {
         resellerEmail: user.email || '',
         productId: selectedProduct.id,
         productTitle: selectedProduct.title,
-        productImage: selectedProduct.imageUrl,
+        productImage: prodImages[0] || selectedProduct.imageUrl,
         wholesalePrice: selectedProduct.wholesalePrice,
         resalePrice: resaleVal,
         profit: profit,
@@ -394,8 +529,8 @@ export function Reselling() {
   };
 
   const filteredProducts = products.filter(p => 
-    p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.category.toLowerCase().includes(searchQuery.toLowerCase())
+    (p.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (p.category || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -497,53 +632,166 @@ export function Reselling() {
           </div>
 
           {/* Product Cards Grid */}
-          <div className="space-y-4">
+          <div className="space-y-5">
             {filteredProducts.map((product) => {
               const estProfit = product.minResalePrice - product.wholesalePrice;
+              const prodImages = getProductImages(product);
+              const activeIdx = Math.min(cardSlideIndex[product.id] || 0, prodImages.length - 1);
+              const currentImage = prodImages[activeIdx] || prodImages[0];
+
               return (
                 <div 
                   key={product.id}
-                  className="bg-[#151515] rounded-[24px] p-4 border border-[#3D3215] hover:border-[#D4A017]/60 transition-all shadow-xl flex flex-col justify-between gap-3 relative overflow-hidden"
+                  className="bg-[#151515] rounded-[24px] p-4 border border-[#3D3215] hover:border-[#D4A017]/60 transition-all shadow-xl flex flex-col justify-between gap-3.5 relative overflow-hidden"
                 >
-                  <div className="flex gap-3">
-                    <img 
-                      src={product.imageUrl} 
-                      alt={product.title} 
-                      className="w-24 h-24 rounded-2xl object-cover bg-[#101010] border border-[#3D3215] shrink-0" 
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="px-2 py-0.5 rounded-md bg-[#3D3215]/60 text-[#FACC15] text-[9px] font-black uppercase">
+                  {/* Multi-Photo Interactive Slider & Gallery */}
+                  <div className="space-y-2">
+                    <div className="relative w-full h-52 sm:h-60 rounded-2xl overflow-hidden bg-[#101010] border border-[#3D3215] group">
+                      <img 
+                        src={currentImage} 
+                        alt={product.title}
+                        onClick={() => handleOpenLightbox(product, activeIdx)}
+                        className="w-full h-full object-cover cursor-zoom-in transition-transform duration-300 group-hover:scale-[1.02]" 
+                      />
+
+                      {/* Category & Stock Top Left Overlay */}
+                      <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
+                        <span className="px-2.5 py-1 rounded-lg bg-black/75 backdrop-blur-md border border-[#FACC15]/40 text-[#FACC15] text-[10px] font-black uppercase">
                           {product.category}
                         </span>
-                        <span className="text-[9px] text-emerald-400 font-bold">
+                        <span className="px-2.5 py-1 rounded-lg bg-black/75 backdrop-blur-md border border-emerald-500/30 text-emerald-400 text-[10px] font-black">
                           স্টক: {product.stock} টি
                         </span>
                       </div>
-                      
-                      <h3 className="text-xs font-black text-white leading-tight line-clamp-2">
-                        {product.title}
-                      </h3>
-                      <p className="text-[10px] text-[#A3A3A3] line-clamp-2 mt-1 leading-snug">
-                        {product.description}
-                      </p>
 
-                      <div className="flex items-center gap-3 mt-2">
-                        <div>
-                          <span className="text-[9px] text-[#A3A3A3] font-bold block uppercase">পাইকারি দাম</span>
-                          <span className="text-sm font-black text-[#FACC15]">৳{product.wholesalePrice}</span>
-                        </div>
-                        <div className="h-6 w-px bg-[#3D3215]"></div>
-                        <div>
-                          <span className="text-[9px] text-[#A3A3A3] font-bold block uppercase">অনুমোদিত লাভ</span>
-                          <span className="text-xs font-black text-emerald-400">৳{estProfit}+</span>
-                        </div>
+                      {/* Photo Count & Fullscreen Zoom Button Top Right */}
+                      <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5">
+                        {prodImages.length > 1 && (
+                          <span className="px-2 py-1 rounded-lg bg-black/75 backdrop-blur-md border border-white/15 text-white text-[10px] font-black flex items-center gap-1">
+                            <Camera className="w-3 h-3 text-[#FACC15]" />
+                            {activeIdx + 1}/{prodImages.length}
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleOpenLightbox(product, activeIdx)}
+                          className="w-7 h-7 rounded-lg bg-black/75 hover:bg-[#FACC15] text-white hover:text-black border border-white/20 flex items-center justify-center transition cursor-pointer"
+                          title="ফুলস্ক্রিন জুম ভিউ"
+                        >
+                          <Maximize2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      {/* Prev / Next Slider Arrows (When multiple photos exist) */}
+                      {prodImages.length > 1 && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCardSlideIndex(prev => ({
+                                ...prev,
+                                [product.id]: (activeIdx - 1 + prodImages.length) % prodImages.length
+                              }));
+                            }}
+                            className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/75 hover:bg-[#FACC15] text-white hover:text-black border border-white/20 flex items-center justify-center transition cursor-pointer shadow-lg"
+                          >
+                            <ChevronLeft className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCardSlideIndex(prev => ({
+                                ...prev,
+                                [product.id]: (activeIdx + 1) % prodImages.length
+                              }));
+                            }}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/75 hover:bg-[#FACC15] text-white hover:text-black border border-white/20 flex items-center justify-center transition cursor-pointer shadow-lg"
+                          >
+                            <ChevronRight className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Thumbnail Gallery Strip (When > 1 image) */}
+                    {prodImages.length > 1 && (
+                      <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+                        {prodImages.map((img, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => setCardSlideIndex(prev => ({ ...prev, [product.id]: idx }))}
+                            className={`relative w-12 h-12 rounded-xl overflow-hidden shrink-0 border-2 transition cursor-pointer ${
+                              idx === activeIdx
+                                ? 'border-[#FACC15] scale-105 shadow-md shadow-[#FACC15]/20'
+                                : 'border-[#3D3215] opacity-60 hover:opacity-100'
+                            }`}
+                          >
+                            <img src={img} alt="" className="w-full h-full object-cover" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Product Title, Description & Pricing */}
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-black text-white leading-snug">
+                      {product.title}
+                    </h3>
+                    <p className="text-[11px] text-[#A3A3A3] line-clamp-2 leading-relaxed">
+                      {product.description}
+                    </p>
+
+                    <div className="grid grid-cols-3 gap-2 pt-1 bg-[#101010] p-2.5 rounded-xl border border-[#3D3215]">
+                      <div>
+                        <span className="text-[9px] text-[#A3A3A3] font-bold block uppercase">পাইকারি মূল্য</span>
+                        <span className="text-sm font-black text-[#FACC15]">৳{product.wholesalePrice}</span>
+                      </div>
+                      <div className="border-x border-[#3D3215] px-2">
+                        <span className="text-[9px] text-[#A3A3A3] font-bold block uppercase">সাজেস্টেড দাম</span>
+                        <span className="text-sm font-black text-white">৳{product.minResalePrice}</span>
+                      </div>
+                      <div className="pl-1">
+                        <span className="text-[9px] text-[#A3A3A3] font-bold block uppercase">সম্ভাব্য লাভ</span>
+                        <span className="text-sm font-black text-emerald-400">+৳{estProfit}</span>
                       </div>
                     </div>
                   </div>
 
+                  {/* Reseller Toolkit: Download Photos & Copy Description */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      disabled={downloadingId === product.id}
+                      onClick={() => handleDownloadProductPhotos(product)}
+                      className="py-2.5 px-3 rounded-xl bg-[#1C1C1C] hover:bg-[#262626] border border-[#3D3215] hover:border-[#FACC15]/50 text-[#FACC15] text-[11px] font-black flex items-center justify-center gap-1.5 transition cursor-pointer active:scale-95 disabled:opacity-50"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>
+                        {downloadingId === product.id
+                          ? 'ডাউনলোড হচ্ছে...'
+                          : prodImages.length > 1
+                            ? `সব ছবি ডাউনলোড (${prodImages.length})`
+                            : 'ছবি ডাউনলোড'}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleCopyProductDetails(product)}
+                      className="py-2.5 px-3 rounded-xl bg-[#1C1C1C] hover:bg-[#262626] border border-[#3D3215] hover:border-[#FACC15]/50 text-white text-[11px] font-black flex items-center justify-center gap-1.5 transition cursor-pointer active:scale-95"
+                    >
+                      <Copy className="w-3.5 h-3.5 text-[#FACC15]" />
+                      <span>বিবরণ কপি করুন</span>
+                    </button>
+                  </div>
+
                   {/* Resell Order Button */}
                   <button
+                    type="button"
                     onClick={() => handleOpenOrderModal(product)}
                     className="w-full py-3 rounded-xl bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-md cursor-pointer hover:opacity-95 active:scale-[0.98] transition-all"
                   >
@@ -605,7 +853,7 @@ export function Reselling() {
                         {isProcessing && (
                           <span className="px-2 py-0.5 rounded-md bg-blue-500/20 border border-blue-500/30 text-blue-400 text-[9px] font-black flex items-center gap-1">
                             <Truck className="w-2.5 h-2.5 animate-pulse" />
-                            ডেলিভারি চলান
+                            ডেলিভারি চলমান
                           </span>
                         )}
                         {isPending && (
@@ -662,289 +910,487 @@ export function Reselling() {
 
       {/* RESELL ORDER SUBMISSION MODAL */}
       <AnimatePresence>
-        {selectedProduct && (
-          <>
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => !submitting && setSelectedProduct(null)}
-              className="fixed inset-0 bg-black/85 z-[100] backdrop-blur-md"
-            />
-            
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="fixed inset-x-4 top-1/2 -translate-y-1/2 mx-auto w-[calc(100%-2rem)] max-w-md bg-[#151515] rounded-[30px] overflow-hidden shadow-2xl z-[110] border border-[#3D3215] max-h-[85vh] flex flex-col"
-            >
-              {/* Modal Header */}
-              <div className="p-4 border-b border-[#3D3215] flex items-center justify-between bg-[#101010] shrink-0">
-                <div className="flex items-center gap-2">
-                  <ShoppingBag className="w-4 h-4 text-[#FACC15]" />
-                  <h3 className="text-xs font-black text-white uppercase tracking-wider">
-                    রিসেলিং অর্ডার ফর্ম
-                  </h3>
-                </div>
-                <button
-                  disabled={submitting}
-                  onClick={() => setSelectedProduct(null)}
-                  className="w-7 h-7 rounded-full bg-[#1C1C1C] border border-[#3D3215] text-[#A3A3A3] hover:text-white flex items-center justify-center cursor-pointer"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
+        {selectedProduct && (() => {
+          const modalImages = getProductImages(selectedProduct);
+          const safeModalIdx = Math.min(modalSlideIndex, modalImages.length - 1);
+          const activeModalImg = modalImages[safeModalIdx] || modalImages[0];
 
-              {/* Form Body */}
-              <form onSubmit={handleSubmitOrder} className="flex flex-col flex-1 min-h-0 overflow-hidden">
-                <div className="p-5 overflow-y-auto space-y-4 flex-1">
-                
-                {/* Product Summary Box */}
-                <div className="bg-[#101010] p-3 rounded-2xl border border-[#3D3215] flex items-center justify-between">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <img 
-                      src={selectedProduct.imageUrl} 
-                      alt="" 
-                      className="w-12 h-12 rounded-xl object-cover border border-[#3D3215] shrink-0" 
+          return (
+            <>
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => !submitting && setSelectedProduct(null)}
+                className="fixed inset-0 bg-black/85 z-[100] backdrop-blur-md"
+              />
+              
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="fixed inset-x-4 top-1/2 -translate-y-1/2 mx-auto w-[calc(100%-2rem)] max-w-md bg-[#151515] rounded-[30px] overflow-hidden shadow-2xl z-[110] border border-[#3D3215] max-h-[85vh] flex flex-col"
+              >
+                {/* Modal Header */}
+                <div className="p-4 border-b border-[#3D3215] flex items-center justify-between bg-[#101010] shrink-0">
+                  <div className="flex items-center gap-2">
+                    <ShoppingBag className="w-4 h-4 text-[#FACC15]" />
+                    <h3 className="text-xs font-black text-white uppercase tracking-wider">
+                      রিসেলিং অর্ডার ফর্ম
+                    </h3>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={submitting}
+                    onClick={() => setSelectedProduct(null)}
+                    className="w-7 h-7 rounded-full bg-[#1C1C1C] border border-[#3D3215] text-[#A3A3A3] hover:text-white flex items-center justify-center cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                {/* Form Body */}
+                <form onSubmit={handleSubmitOrder} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                  <div className="p-5 overflow-y-auto space-y-4 flex-1">
+                  
+                  {/* Product Summary & Multi-Photo Switcher Box */}
+                  <div className="bg-[#101010] p-3 rounded-2xl border border-[#3D3215] space-y-2.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div
+                          onClick={() => handleOpenLightbox(selectedProduct, safeModalIdx)}
+                          className="relative w-14 h-14 rounded-xl overflow-hidden border border-[#3D3215] shrink-0 cursor-zoom-in group"
+                        >
+                          <img 
+                            src={activeModalImg} 
+                            alt="" 
+                            className="w-full h-full object-cover" 
+                          />
+                          <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition">
+                            <Maximize2 className="w-3.5 h-3.5 text-white" />
+                          </div>
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="text-xs font-black text-white truncate max-w-[190px]">
+                            {selectedProduct.title}
+                          </h4>
+                          <p className="text-[10px] text-[#FACC15] font-black mt-0.5">
+                            পাইকারি দাম: ৳{selectedProduct.wholesalePrice}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadProductPhotos(selectedProduct)}
+                          className="p-2 rounded-xl bg-[#1C1C1C] border border-[#3D3215] text-[#FACC15] hover:border-[#FACC15] cursor-pointer"
+                          title="সব ছবি ডাউনলোড করুন"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyProductDetails(selectedProduct)}
+                          className="p-2 rounded-xl bg-[#1C1C1C] border border-[#3D3215] text-white hover:border-[#FACC15] cursor-pointer"
+                          title="বিবরণ কপি করুন"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {modalImages.length > 1 && (
+                      <div className="flex items-center gap-1.5 overflow-x-auto pt-1 no-scrollbar">
+                        {modalImages.map((img, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => setModalSlideIndex(i)}
+                            className={`w-10 h-10 rounded-lg overflow-hidden shrink-0 border-2 transition cursor-pointer ${
+                              i === safeModalIdx ? 'border-[#FACC15]' : 'border-[#3D3215] opacity-60'
+                            }`}
+                          >
+                            <img src={img} alt="" className="w-full h-full object-cover" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Resale Price Input & Live Profit Calculator */}
+                  <div className="bg-[#101010] p-4 rounded-2xl border border-[#3D3215] space-y-2">
+                    <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-wider block pl-0.5">
+                      আপনার কাস্টমার বিক্রয়মূল্য (৳)
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min={selectedProduct.wholesalePrice}
+                      placeholder={`যেমন: ${selectedProduct.minResalePrice}`}
+                      value={customResalePrice}
+                      onChange={(e) => setCustomResalePrice(e.target.value === '' ? '' : Number(e.target.value))}
+                      className="w-full bg-[#151515] border border-[#3D3215] px-4 py-3 rounded-xl text-sm font-black text-[#FACC15] focus:border-[#FACC15] outline-none"
                     />
-                    <div className="min-w-0">
-                      <h4 className="text-xs font-black text-white truncate max-w-[200px]">
-                        {selectedProduct.title}
-                      </h4>
-                      <p className="text-[10px] text-[#A3A3A3] font-bold">
-                        পাইকারি দাম: ৳{selectedProduct.wholesalePrice}
+
+                    {/* Calculated Profit Display */}
+                    <div className="flex items-center justify-between pt-1 text-xs">
+                      <span className="text-[#A3A3A3] font-bold">আপনার অর্জিত লাভ (Profit):</span>
+                      <span className="font-black text-emerald-400 text-sm">
+                        +৳{Math.max(0, (Number(customResalePrice) || 0) - selectedProduct.wholesalePrice)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Delivery Charge Calculation Box */}
+                  <div className="bg-[#101010] p-3 rounded-2xl border border-[#3D3215] text-[10px] space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-white font-bold">ডেলিভারি চার্জ:</span>
+                      <span className="text-[#FACC15] font-black">৳{deliveryFee}</span>
+                    </div>
+                    {isEligibleFor120Delivery ? (
+                      <p className="text-emerald-400 text-[9px] font-bold">
+                        ✓ প্রথম ২ টি অর্ডারের জন্য স্পেশাল ফিক্সড ৳১২০ ডেলিভারি চার্জ প্রযোজ্য।
                       </p>
+                    ) : (
+                      <p className="text-[#A3A3A3] text-[9px]">
+                        স্ট্যান্ডার্ড ডেলিভারি চার্জ হিসাব করা হয়েছে।
+                      </p>
+                    )}
+                    <div className="flex items-center justify-between pt-1 border-t border-[#3D3215] text-xs">
+                      <span className="text-[#A3A3A3] font-bold">মোট পাইকারি খরচে আপনার পরিশোধ:</span>
+                      <span className="text-white font-black">৳{selectedProduct.wholesalePrice + deliveryFee}</span>
                     </div>
                   </div>
-                </div>
 
-                {/* Resale Price Input & Live Profit Calculator */}
-                <div className="bg-[#101010] p-4 rounded-2xl border border-[#3D3215] space-y-2">
-                  <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-wider block pl-0.5">
-                    আপনার কাস্টমার বিক্রয়মূল্য (৳)
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    min={selectedProduct.wholesalePrice}
-                    placeholder={`যেমন: ${selectedProduct.minResalePrice}`}
-                    value={customResalePrice}
-                    onChange={(e) => setCustomResalePrice(e.target.value === '' ? '' : Number(e.target.value))}
-                    className="w-full bg-[#151515] border border-[#3D3215] px-4 py-3 rounded-xl text-sm font-black text-[#FACC15] focus:border-[#FACC15] outline-none"
-                  />
+                  {/* Advance Delivery Fee Payment Box (For First 2 Orders) */}
+                  {isEligibleFor120Delivery && (
+                    <div className="bg-gradient-to-br from-[#1C1C1C] via-[#151515] to-[#201A08] border border-[#FACC15]/40 p-4 rounded-2xl space-y-3">
+                      <div className="flex items-center gap-2">
+                        <CreditCard className="w-4 h-4 text-[#FACC15]" />
+                        <h4 className="text-xs font-black text-[#FACC15] uppercase tracking-wider">
+                          অগ্রীম ৳১২০ টাকা ডেলিভারি চার্জ পেমেন্ট
+                        </h4>
+                      </div>
+                      <p className="text-[10px] text-[#A3A3A3] font-bold leading-relaxed">
+                        আপনার ১ম/২য় রিসেলিং অর্ডারের জন্য অগ্রীম ৳১২০ টাকা নিচে প্রদত্ত নম্বরে সেন্ড মানি/ক্যাশ ইন করে TrxID দিয়ে সাবমিট করুন:
+                      </p>
 
-                  {/* Calculated Profit Display */}
-                  <div className="flex items-center justify-between pt-1 text-xs">
-                    <span className="text-[#A3A3A3] font-bold">আপনার অর্জিত লাভ (Profit):</span>
-                    <span className="font-black text-emerald-400 text-sm">
-                      +৳{Math.max(0, (Number(customResalePrice) || 0) - selectedProduct.wholesalePrice)}
-                    </span>
-                  </div>
-                </div>
+                      {/* Numbers Grid */}
+                      <div className="grid grid-cols-2 gap-2 text-[11px] font-black">
+                        <div className="bg-[#101010] p-2.5 rounded-xl border border-[#3D3215]">
+                          <span className="text-[#FACC15] block text-[9px] uppercase font-bold">Bkash Personal/Send Money</span>
+                          <div className="flex items-center justify-between mt-1 text-white">
+                            <span className="font-mono">{depositNumbers.bkashNumber}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(depositNumbers.bkashNumber);
+                                toast.success("Bkash নম্বর কপি করা হয়েছে!");
+                              }}
+                              className="p-1 hover:text-[#FACC15] text-[#A3A3A3] cursor-pointer"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
 
-                {/* Delivery Charge Calculation Box */}
-                <div className="bg-[#101010] p-3 rounded-2xl border border-[#3D3215] text-[10px] space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-white font-bold">ডেলিভারি চার্জ:</span>
-                    <span className="text-[#FACC15] font-black">৳{deliveryFee}</span>
-                  </div>
-                  {isEligibleFor120Delivery ? (
-                    <p className="text-emerald-400 text-[9px] font-bold">
-                      ✓ প্রথম ২ টি অর্ডারের জন্য স্পেশাল ফিক্সড ৳১২০ ডেলিভারি চার্জ প্রযোজ্য।
-                    </p>
-                  ) : (
-                    <p className="text-[#A3A3A3] text-[9px]">
-                      স্ট্যান্ডার্ড ডেলিভারি চার্জ হিসাব করা হয়েছে।
-                    </p>
+                        <div className="bg-[#101010] p-2.5 rounded-xl border border-[#3D3215]">
+                          <span className="text-[#FACC15] block text-[9px] uppercase font-bold">Nagad Personal/Send Money</span>
+                          <div className="flex items-center justify-between mt-1 text-white">
+                            <span className="font-mono">{depositNumbers.nagadNumber}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(depositNumbers.nagadNumber);
+                                toast.success("Nagad নম্বর কপি করা হয়েছে!");
+                              }}
+                              className="p-1 hover:text-[#FACC15] text-[#A3A3A3] cursor-pointer"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Payment Method Selector */}
+                      <div>
+                        <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-wider block mb-1">
+                          পেমেন্ট মেথড নির্বাচন করুন
+                        </label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setPaymentMethod('bkash')}
+                            className={`py-2 px-3 rounded-xl text-xs font-black border transition cursor-pointer ${
+                              paymentMethod === 'bkash'
+                                ? 'bg-pink-950/40 border-pink-500 text-pink-400'
+                                : 'bg-[#101010] border-[#3D3215] text-[#A3A3A3]'
+                            }`}
+                          >
+                            Bkash (বিকাশ)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPaymentMethod('nagad')}
+                            className={`py-2 px-3 rounded-xl text-xs font-black border transition cursor-pointer ${
+                              paymentMethod === 'nagad'
+                                ? 'bg-orange-950/40 border-orange-500 text-orange-400'
+                                : 'bg-[#101010] border-[#3D3215] text-[#A3A3A3]'
+                            }`}
+                          >
+                            Nagad (নগদ)
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* TrxID Input */}
+                      <div>
+                        <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-wider block mb-1">
+                          পেমেন্ট Transaction ID (TrxID)
+                        </label>
+                        <input
+                          type="text"
+                          required={isEligibleFor120Delivery}
+                          placeholder="যেমন: BAX9281034"
+                          value={trxId}
+                          onChange={(e) => setTrxId(e.target.value)}
+                          className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-xl text-xs font-mono font-bold text-[#FACC15] placeholder-[#737373] focus:border-[#FACC15] outline-none uppercase"
+                        />
+                      </div>
+                    </div>
                   )}
-                  <div className="flex items-center justify-between pt-1 border-t border-[#3D3215] text-xs">
-                    <span className="text-[#A3A3A3] font-bold">মোট পাইকারি খরচে আপনার পরিশোধ:</span>
-                    <span className="text-white font-black">৳{selectedProduct.wholesalePrice + deliveryFee}</span>
-                  </div>
-                </div>
 
-                {/* Advance Delivery Fee Payment Box (For First 2 Orders) */}
-                {isEligibleFor120Delivery && (
-                  <div className="bg-gradient-to-br from-[#1C1C1C] via-[#151515] to-[#201A08] border border-[#FACC15]/40 p-4 rounded-2xl space-y-3">
-                    <div className="flex items-center gap-2">
-                      <CreditCard className="w-4 h-4 text-[#FACC15]" />
-                      <h4 className="text-xs font-black text-[#FACC15] uppercase tracking-wider">
-                        অগ্রীম ৳১২০ টাকা ডেলিভারি চার্জ পেমেন্ট
-                      </h4>
-                    </div>
-                    <p className="text-[10px] text-[#A3A3A3] font-bold leading-relaxed">
-                      আপনার ১ম/২য় রিসেলিং অর্ডারের জন্য অগ্রীম ৳১২০ টাকা নিচে প্রদত্ত নম্বরে সেন্ড মানি/ক্যাশ ইন করে TrxID দিয়ে সাবমিট করুন:
-                    </p>
+                  {/* Customer Delivery Information */}
+                  <div className="space-y-3 pt-1">
+                    <h4 className="text-xs font-black text-[#FACC15] uppercase tracking-wider pl-1">
+                      কাস্টমারের ডেলিভারি তথ্য
+                    </h4>
 
-                    {/* Numbers Grid */}
-                    <div className="grid grid-cols-2 gap-2 text-[11px] font-black">
-                      <div className="bg-[#101010] p-2.5 rounded-xl border border-[#3D3215]">
-                        <span className="text-[#FACC15] block text-[9px] uppercase font-bold">Bkash Personal/Send Money</span>
-                        <div className="flex items-center justify-between mt-1 text-white">
-                          <span className="font-mono">{depositNumbers.bkashNumber}</span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              navigator.clipboard.writeText(depositNumbers.bkashNumber);
-                              toast.success("Bkash নম্বর কপি করা হয়েছে!");
-                            }}
-                            className="p-1 hover:text-[#FACC15] text-[#A3A3A3] cursor-pointer"
-                          >
-                            <Copy className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="bg-[#101010] p-2.5 rounded-xl border border-[#3D3215]">
-                        <span className="text-[#FACC15] block text-[9px] uppercase font-bold">Nagad Personal/Send Money</span>
-                        <div className="flex items-center justify-between mt-1 text-white">
-                          <span className="font-mono">{depositNumbers.nagadNumber}</span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              navigator.clipboard.writeText(depositNumbers.nagadNumber);
-                              toast.success("Nagad নম্বর কপি করা হয়েছে!");
-                            }}
-                            className="p-1 hover:text-[#FACC15] text-[#A3A3A3] cursor-pointer"
-                          >
-                            <Copy className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Payment Method Selector */}
                     <div>
-                      <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-wider block mb-1">
-                        পেমেন্ট মেথড নির্বাচন করুন
-                      </label>
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setPaymentMethod('bkash')}
-                          className={`py-2 px-3 rounded-xl text-xs font-black border transition cursor-pointer ${
-                            paymentMethod === 'bkash'
-                              ? 'bg-pink-950/40 border-pink-500 text-pink-400'
-                              : 'bg-[#101010] border-[#3D3215] text-[#A3A3A3]'
-                          }`}
-                        >
-                          Bkash (বিকাশ)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setPaymentMethod('nagad')}
-                          className={`py-2 px-3 rounded-xl text-xs font-black border transition cursor-pointer ${
-                            paymentMethod === 'nagad'
-                              ? 'bg-orange-950/40 border-orange-500 text-orange-400'
-                              : 'bg-[#101010] border-[#3D3215] text-[#A3A3A3]'
-                          }`}
-                        >
-                          Nagad (নগদ)
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* TrxID Input */}
-                    <div>
-                      <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-wider block mb-1">
-                        পেমেন্ট Transaction ID (TrxID)
+                      <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-wider block mb-1 pl-1">
+                        ১. কাস্টমারের নাম (Customer Name)
                       </label>
                       <input
                         type="text"
-                        required={isEligibleFor120Delivery}
-                        placeholder="যেমন: BAX9281034"
-                        value={trxId}
-                        onChange={(e) => setTrxId(e.target.value)}
-                        className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-xl text-xs font-mono font-bold text-[#FACC15] placeholder-[#737373] focus:border-[#FACC15] outline-none uppercase"
+                        required
+                        placeholder="যেমন: মোঃ সাকিব হোসেন"
+                        value={customerName}
+                        onChange={(e) => setCustomerName(e.target.value)}
+                        className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-xl text-xs font-bold text-white placeholder-[#737373] focus:border-[#FACC15] outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-wider block mb-1 pl-1">
+                        ২. কাস্টমারের মোবাইল নম্বর (Phone)
+                      </label>
+                      <input
+                        type="tel"
+                        required
+                        placeholder="01712345678"
+                        value={customerPhone}
+                        onChange={(e) => setCustomerPhone(e.target.value)}
+                        className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-xl text-xs font-bold text-white placeholder-[#737373] focus:border-[#FACC15] outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-wider block mb-1 pl-1">
+                        ৩. কাস্টমারের সম্পূর্ণ ডেলিভারি ঠিকানা (Address)
+                      </label>
+                      <textarea
+                        required
+                        rows={2}
+                        placeholder="জেলা, থানা, বাসা নং ও এলাকা..."
+                        value={customerAddress}
+                        onChange={(e) => setCustomerAddress(e.target.value)}
+                        className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-xl text-xs font-bold text-white placeholder-[#737373] focus:border-[#FACC15] outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-wider block mb-1 pl-1">
+                        ৪. বিশেষ নোট (Optional Note)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="সাইজ, কালার বা বিশেষ কোনো তথ্য..."
+                        value={customerNote}
+                        onChange={(e) => setCustomerNote(e.target.value)}
+                        className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-xl text-xs font-bold text-white placeholder-[#737373] focus:border-[#FACC15] outline-none"
                       />
                     </div>
                   </div>
-                )}
+                  </div>
 
-                {/* Customer Delivery Information */}
-                <div className="space-y-3 pt-1">
-                  <h4 className="text-xs font-black text-[#FACC15] uppercase tracking-wider pl-1">
-                    কাস্টমারের ডেলিভারি তথ্য
+                  {/* Sticky Order Submit Button Footer */}
+                  <div className="p-4 bg-[#101010] border-t border-[#3D3215] shrink-0">
+                    <button
+                      type="submit"
+                      disabled={submitting}
+                      className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg cursor-pointer hover:opacity-95 active:scale-[0.98] transition-all disabled:opacity-50"
+                    >
+                      {submitting ? (
+                        <span>প্রসেসিং হচ্ছে...</span>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span>অর্ডার প্লেস করুন</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </motion.div>
+            </>
+          );
+        })()}
+      </AnimatePresence>
+
+      {/* FULLSCREEN ZOOM LIGHTBOX GALLERY MODAL */}
+      <AnimatePresence>
+        {lightboxProduct && (() => {
+          const lbImages = getProductImages(lightboxProduct);
+          const safeLbIdx = Math.min(lightboxIndex, lbImages.length - 1);
+          const currentLbImg = lbImages[safeLbIdx] || lbImages[0];
+
+          return (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/95 z-[140] backdrop-blur-lg flex flex-col justify-between p-4 select-none"
+            >
+              {/* Top Toolbar */}
+              <div className="flex items-center justify-between gap-2 bg-[#151515]/90 border border-[#3D3215] rounded-2xl px-4 py-3">
+                <div className="min-w-0">
+                  <h4 className="text-xs font-black text-white truncate max-w-[160px] sm:max-w-xs">
+                    {lightboxProduct.title}
                   </h4>
-
-                  <div>
-                    <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-wider block mb-1 pl-1">
-                      ১. কাস্টমারের নাম (Customer Name)
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="যেমন: মোঃ সাকিব হোসেন"
-                      value={customerName}
-                      onChange={(e) => setCustomerName(e.target.value)}
-                      className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-xl text-xs font-bold text-white placeholder-[#737373] focus:border-[#FACC15] outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-wider block mb-1 pl-1">
-                      ২. কাস্টমারের মোবাইল নম্বর (Phone)
-                    </label>
-                    <input
-                      type="tel"
-                      required
-                      placeholder="01712345678"
-                      value={customerPhone}
-                      onChange={(e) => setCustomerPhone(e.target.value)}
-                      className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-xl text-xs font-bold text-white placeholder-[#737373] focus:border-[#FACC15] outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-wider block mb-1 pl-1">
-                      ৩. কাস্টমারের সম্পূর্ণ ডেলিভারি ঠিকানা (Address)
-                    </label>
-                    <textarea
-                      required
-                      rows={2}
-                      placeholder="জেলা, থানা, বাসা নং ও এলাকা..."
-                      value={customerAddress}
-                      onChange={(e) => setCustomerAddress(e.target.value)}
-                      className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-xl text-xs font-bold text-white placeholder-[#737373] focus:border-[#FACC15] outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] font-black text-[#A3A3A3] uppercase tracking-wider block mb-1 pl-1">
-                      ৪. বিশেষ নোট (Optional Note)
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="সাইজ, কালার বা বিশেষ কোনো তথ্য..."
-                      value={customerNote}
-                      onChange={(e) => setCustomerNote(e.target.value)}
-                      className="w-full bg-[#101010] border border-[#3D3215] px-4 py-3 rounded-xl text-xs font-bold text-white placeholder-[#737373] focus:border-[#FACC15] outline-none"
-                    />
-                  </div>
-                </div>
+                  <span className="text-[10px] text-[#FACC15] font-black">
+                    ছবি {safeLbIdx + 1} / {lbImages.length}
+                  </span>
                 </div>
 
-                {/* Sticky Order Submit Button Footer */}
-                <div className="p-4 bg-[#101010] border-t border-[#3D3215] shrink-0">
+                <div className="flex items-center gap-2">
                   <button
-                    type="submit"
-                    disabled={submitting}
-                    className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#8A6508] via-[#D4A017] to-[#FACC15] text-[#090909] font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg cursor-pointer hover:opacity-95 active:scale-[0.98] transition-all disabled:opacity-50"
+                    type="button"
+                    onClick={() => setZoomScale(prev => (prev >= 2.2 ? 1 : Number((prev + 0.6).toFixed(1))))}
+                    className="px-2.5 py-1.5 rounded-xl bg-[#1C1C1C] border border-[#3D3215] text-white hover:border-[#FACC15] text-[10px] font-black flex items-center gap-1 cursor-pointer"
                   >
-                    {submitting ? (
-                      <span>প্রসেসিং হচ্ছে...</span>
-                    ) : (
-                      <>
-                        <CheckCircle2 className="w-4 h-4" />
-                        <span>অর্ডার প্লেস করুন</span>
-                      </>
-                    )}
+                    {zoomScale > 1 ? <ZoomOut className="w-3.5 h-3.5 text-[#FACC15]" /> : <ZoomIn className="w-3.5 h-3.5 text-[#FACC15]" />}
+                    <span>{zoomScale}x</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadProductPhotos(lightboxProduct, safeLbIdx)}
+                    className="px-2.5 py-1.5 rounded-xl bg-[#1C1C1C] border border-[#3D3215] text-[#FACC15] hover:border-[#FACC15] text-[10px] font-black flex items-center gap-1 cursor-pointer"
+                    title="এই ছবিটি ডাউনলোড করুন"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">ডাউনলোড</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLightboxProduct(null);
+                      setZoomScale(1);
+                    }}
+                    className="w-8 h-8 rounded-xl bg-rose-600/20 border border-rose-500/40 text-rose-400 hover:bg-rose-600 hover:text-white flex items-center justify-center cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
-              </form>
+              </div>
+
+              {/* Center Interactive Image Area */}
+              <div className="relative flex-1 flex items-center justify-center overflow-auto my-3">
+                <img
+                  src={currentLbImg}
+                  alt={lightboxProduct.title}
+                  onClick={() => setZoomScale(prev => (prev > 1 ? 1 : 2))}
+                  style={{ transform: `scale(${zoomScale})`, transformOrigin: 'center center' }}
+                  className="max-h-[68vh] max-w-full object-contain rounded-2xl transition-transform duration-200 cursor-zoom-in"
+                />
+
+                {lbImages.length > 1 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setZoomScale(1);
+                        setLightboxIndex((safeLbIdx - 1 + lbImages.length) % lbImages.length);
+                      }}
+                      className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/80 border border-[#FACC15]/40 text-[#FACC15] hover:bg-[#FACC15] hover:text-black flex items-center justify-center shadow-xl cursor-pointer"
+                    >
+                      <ChevronLeft className="w-5 h-5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setZoomScale(1);
+                        setLightboxIndex((safeLbIdx + 1) % lbImages.length);
+                      }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/80 border border-[#FACC15]/40 text-[#FACC15] hover:bg-[#FACC15] hover:text-black flex items-center justify-center shadow-xl cursor-pointer"
+                    >
+                      <ChevronRight className="w-5 h-5" />
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {/* Bottom Thumbnail Strip & Action Footer */}
+              <div className="bg-[#151515]/90 border border-[#3D3215] rounded-2xl p-3 space-y-2.5">
+                {lbImages.length > 1 && (
+                  <div className="flex items-center justify-center gap-2 overflow-x-auto pb-1">
+                    {lbImages.map((img, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => {
+                          setZoomScale(1);
+                          setLightboxIndex(i);
+                        }}
+                        className={`w-12 h-12 rounded-xl overflow-hidden shrink-0 border-2 transition cursor-pointer ${
+                          i === safeLbIdx ? 'border-[#FACC15] scale-105' : 'border-[#3D3215] opacity-50 hover:opacity-100'
+                        }`}
+                      >
+                        <img src={img} alt="" className="w-full h-full object-cover" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadProductPhotos(lightboxProduct)}
+                    className="py-2.5 rounded-xl bg-[#1C1C1C] border border-[#3D3215] text-[#FACC15] text-xs font-black flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>সব ছবি ডাউনলোড ({lbImages.length})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const prod = lightboxProduct;
+                      setLightboxProduct(null);
+                      setZoomScale(1);
+                      handleOpenOrderModal(prod);
+                    }}
+                    className="py-2.5 rounded-xl bg-gradient-to-r from-[#D4A017] to-[#FACC15] text-black text-xs font-black flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <ShoppingBag className="w-4 h-4" />
+                    <span>অর্ডার করুন</span>
+                  </button>
+                </div>
+              </div>
             </motion.div>
-          </>
-        )}
+          );
+        })()}
       </AnimatePresence>
     </div>
   );

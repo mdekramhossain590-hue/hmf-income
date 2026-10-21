@@ -68,7 +68,51 @@ export function AdminPanel() {
   const [resellProductMinResalePrice, setResellProductMinResalePrice] = useState<number | ''>(500);
   const [resellProductStock, setResellProductStock] = useState<number | ''>(50);
   const [resellProductImageUrl, setResellProductImageUrl] = useState('');
+  const [resellProductImages, setResellProductImages] = useState<string[]>([]);
+  const [isUploadingResellImages, setIsUploadingResellImages] = useState(false);
+  const [isSavingResellProduct, setIsSavingResellProduct] = useState(false);
   const [isRefreshingOrders, setIsRefreshingOrders] = useState(false);
+
+  const handleResellImageFilesChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
+
+    const remainingSlots = 10 - resellProductImages.length;
+    if (remainingSlots <= 0) {
+      toast.error("প্রতিটি প্রোডাক্টে সর্বোচ্চ ১০টি ছবি যুক্ত করা যাবে!");
+      e.target.value = '';
+      return;
+    }
+
+    const selectedFiles = Array.from(fileList).slice(0, remainingSlots) as File[];
+    if (fileList.length > remainingSlots) {
+      toast.error(`সর্বোচ্চ ১০টি ছবি অনুমোদিত। প্রথম ${remainingSlots}টি ছবি নেওয়া হচ্ছে।`);
+    }
+
+    setIsUploadingResellImages(true);
+    try {
+      const uploadedUrls: string[] = [];
+      for (const file of selectedFiles) {
+        if (!file.type.startsWith('image/')) continue;
+        const url = await uploadImageOrFallback(file, 720);
+        if (url) uploadedUrls.push(url);
+      }
+
+      if (uploadedUrls.length > 0) {
+        setResellProductImages(prev => {
+          const updated = [...prev, ...uploadedUrls].slice(0, 10);
+          setResellProductImageUrl(updated[0] || '');
+          return updated;
+        });
+        toast.success(`${uploadedUrls.length}টি ছবি সফলভাবে যুক্ত হয়েছে!`);
+      }
+    } catch (err: any) {
+      toast.error("ছবি আপলোড করতে সমস্যা হয়েছে: " + (err?.message || "Error"));
+    } finally {
+      setIsUploadingResellImages(false);
+      e.target.value = '';
+    }
+  };
   
   const [jobs, setJobs] = useState<any[]>([]);
   const [userList, setUserList] = useState<any[]>([]);
@@ -469,8 +513,28 @@ export function AdminPanel() {
     }
 
     if (['products', 'dashboard'].includes(activeTab)) {
+      fetch('/api/reselling-products')
+        .then(r => r.json())
+        .then(data => {
+          if (data?.success && Array.isArray(data.products) && data.products.length > 0) {
+            setAdminResellProducts(prev => {
+              const map = new Map<string, any>();
+              data.products.forEach((p: any) => map.set(p.id, p));
+              prev.forEach(p => map.set(p.id, p));
+              return Array.from(map.values());
+            });
+          }
+        })
+        .catch(() => {});
+
       unsubs.push(onSnapshot(query(collection(db, "reselling_products"), limit(100)), (snap) => {
-        setAdminResellProducts(snap.docs.map(d => ({id: d.id, ...d.data()} as any)));
+        const fsList = snap.docs.map(d => ({id: d.id, ...d.data()} as any));
+        setAdminResellProducts(prev => {
+          const map = new Map<string, any>();
+          prev.forEach(p => map.set(p.id, p));
+          fsList.forEach(p => map.set(p.id, p));
+          return Array.from(map.values());
+        });
       }, logErr));
       unsubs.push(onSnapshot(query(collection(db, "reselling_orders"), limit(100)), (snap) => {
         const list = snap.docs.map(d => ({id: d.id, ...d.data()} as any));
@@ -3799,6 +3863,7 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                     setResellProductMinResalePrice(500);
                     setResellProductStock(50);
                     setResellProductImageUrl('');
+                    setResellProductImages([]);
                     setIsResellProductModalOpen(true);
                   }}
                   className="bg-gradient-to-r from-[#D4A017] to-[#FACC15] text-[#090909] font-black py-2.5 px-4 rounded-xl text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg active:scale-95 transition cursor-pointer"
@@ -3815,70 +3880,92 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                     কোনো প্রোডাক্ট নেই। উপরে "নতুন প্রোডাক্ট এড করুন" বাটনে ক্লিক করে প্রথম প্রোডাক্ট তৈরি করুন।
                   </div>
                 ) : (
-                  adminResellProducts.map((prod) => (
-                    <div key={prod.id} className="bg-[#151515] rounded-2xl p-4 border border-[#3D3215] flex gap-3 relative group hover:border-[#D4A017]/60 transition">
-                      <img
-                        src={prod.imageUrl || 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=300'}
-                        alt=""
-                        className="w-20 h-20 rounded-xl object-cover border border-[#3D3215] shrink-0"
-                      />
-                      <div className="flex-1 min-w-0 space-y-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-[9px] font-black uppercase text-[#FACC15] bg-[#FACC15]/10 px-2 py-0.5 rounded-md border border-[#FACC15]/30">
-                            {prod.category || 'সাধারণ'}
-                          </span>
-                          <span className={`text-[9px] font-black px-2 py-0.5 rounded-md border ${
-                            (prod.stock || 0) > 0 ? 'bg-emerald-950/40 border-emerald-800 text-emerald-400' : 'bg-rose-950/40 border-rose-800 text-rose-400'
-                          }`}>
-                            স্টক: {prod.stock || 0}
-                          </span>
-                        </div>
-                        <h4 className="text-xs font-black text-white truncate">{prod.title}</h4>
-                        <p className="text-[10px] text-[#A3A3A3] line-clamp-1">{prod.description}</p>
-                        <div className="flex items-center gap-3 pt-1 text-[11px] font-black">
-                          <span className="text-white">রেগুলার: ৳{prod.minResalePrice || 0}</span>
-                          <span className="text-[#FACC15]">পাইকারি/রিসেলার: ৳{prod.wholesalePrice || 0}</span>
-                        </div>
-                      </div>
+                  adminResellProducts.map((prod) => {
+                    const prodImages: string[] = Array.isArray(prod.images) && prod.images.length > 0
+                      ? prod.images
+                      : (prod.imageUrl ? [prod.imageUrl] : []);
+                    const coverImg = prodImages[0] || 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=300';
 
-                      {/* Action buttons */}
-                      <div className="flex flex-col gap-1 justify-center shrink-0 pl-2 border-l border-[#3D3215]">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingResellProductId(prod.id);
-                            setResellProductTitle(prod.title || '');
-                            setResellProductCategory(prod.category || 'গ্যাজেট');
-                            setResellProductDesc(prod.description || '');
-                            setResellProductWholesalePrice(prod.wholesalePrice || 350);
-                            setResellProductMinResalePrice(prod.minResalePrice || 500);
-                            setResellProductStock(prod.stock || 50);
-                            setResellProductImageUrl(prod.imageUrl || '');
-                            setIsResellProductModalOpen(true);
-                          }}
-                          className="p-2 text-[#FACC15] hover:bg-[#3D3215]/40 rounded-xl transition cursor-pointer"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            if (confirm("আপনি কি নিশ্চিত এই প্রোডাক্টটি মুছে ফেলতে চান?")) {
+                    return (
+                      <div key={prod.id} className="bg-[#151515] rounded-2xl p-4 border border-[#3D3215] flex gap-3 relative group hover:border-[#D4A017]/60 transition">
+                        <div className="relative w-20 h-20 shrink-0">
+                          <img
+                            src={coverImg}
+                            alt=""
+                            className="w-20 h-20 rounded-xl object-cover border border-[#3D3215]"
+                          />
+                          {prodImages.length > 1 && (
+                            <span className="absolute bottom-1 right-1 bg-black/80 text-[#FACC15] border border-[#FACC15]/40 text-[9px] font-black px-1.5 py-0.5 rounded-md flex items-center gap-0.5">
+                              <Camera className="w-2.5 h-2.5" />
+                              {prodImages.length}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[9px] font-black uppercase text-[#FACC15] bg-[#FACC15]/10 px-2 py-0.5 rounded-md border border-[#FACC15]/30">
+                              {prod.category || 'সাধারণ'}
+                            </span>
+                            <span className={`text-[9px] font-black px-2 py-0.5 rounded-md border ${
+                              (prod.stock || 0) > 0 ? 'bg-emerald-950/40 border-emerald-800 text-emerald-400' : 'bg-rose-950/40 border-rose-800 text-rose-400'
+                            }`}>
+                              স্টক: {prod.stock || 0}
+                            </span>
+                          </div>
+                          <h4 className="text-xs font-black text-white truncate">{prod.title}</h4>
+                          <p className="text-[10px] text-[#A3A3A3] line-clamp-1">{prod.description}</p>
+                          <div className="flex items-center gap-3 pt-1 text-[11px] font-black">
+                            <span className="text-white">রেগুলার: ৳{prod.minResalePrice || 0}</span>
+                            <span className="text-[#FACC15]">পাইকারি/রিসেলার: ৳{prod.wholesalePrice || 0}</span>
+                          </div>
+                        </div>
+
+                        {/* Action buttons */}
+                        <div className="flex flex-col gap-1 justify-center shrink-0 pl-2 border-l border-[#3D3215]">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const existingImgs: string[] = Array.isArray(prod.images) && prod.images.length > 0
+                                ? prod.images
+                                : (prod.imageUrl ? [prod.imageUrl] : []);
+                              setEditingResellProductId(prod.id);
+                              setResellProductTitle(prod.title || '');
+                              setResellProductCategory(prod.category || 'গ্যাজেট');
+                              setResellProductDesc(prod.description || '');
+                              setResellProductWholesalePrice(prod.wholesalePrice || 350);
+                              setResellProductMinResalePrice(prod.minResalePrice || 500);
+                              setResellProductStock(prod.stock || 50);
+                              setResellProductImages(existingImgs);
+                              setResellProductImageUrl(existingImgs[0] || '');
+                              setIsResellProductModalOpen(true);
+                            }}
+                            className="p-2 text-[#FACC15] hover:bg-[#3D3215]/40 rounded-xl transition cursor-pointer"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
                               try {
-                                await deleteDoc(doc(db, "reselling_products", prod.id));
+                                await fetch(`/api/reselling-products/${prod.id}`, { method: 'DELETE' }).catch(() => {});
+                                await Promise.race([
+                                  deleteDoc(doc(db, "reselling_products", prod.id)),
+                                  new Promise(resolve => setTimeout(resolve, 2500))
+                                ]).catch(() => {});
+                                setAdminResellProducts(prev => prev.filter(p => p.id !== prod.id));
                                 toast.success("প্রোডাক্ট মুছে ফেলা হয়েছে!");
                               } catch (e: any) {
                                 toast.error("মুছতে সমস্যা হয়েছে");
                               }
-                            }
-                          }}
-                          className="p-2 text-rose-400 hover:bg-rose-950/40 rounded-xl transition cursor-pointer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                            }}
+                            className="p-2 text-rose-400 hover:bg-rose-950/40 rounded-xl transition cursor-pointer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
 
@@ -3890,14 +3977,14 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
-                      onClick={() => setIsResellProductModalOpen(false)}
-                      className="fixed inset-0 bg-black/80 z-50 backdrop-blur-sm"
+                      onClick={() => !isSavingResellProduct && setIsResellProductModalOpen(false)}
+                      className="fixed inset-0 bg-black/80 z-[100] backdrop-blur-sm"
                     />
                     <motion.div
                       initial={{ opacity: 0, scale: 0.95 }}
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.95 }}
-                      className="fixed inset-x-4 top-12 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-lg bg-[#151515] border border-[#3D3215] rounded-3xl p-6 z-50 max-h-[85vh] overflow-y-auto shadow-2xl space-y-4"
+                      className="fixed inset-x-4 top-8 bottom-24 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-lg bg-[#151515] border border-[#3D3215] rounded-3xl p-6 z-[110] overflow-y-auto shadow-2xl space-y-4"
                     >
                       <div className="flex items-center justify-between border-b border-[#3D3215] pb-3">
                         <h3 className="font-black text-white text-sm uppercase tracking-tight flex items-center gap-2">
@@ -3905,6 +3992,7 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                           {editingResellProductId ? 'প্রোডাক্ট এডিট করুন' : 'নতুন রিসেলিং প্রোডাক্ট যুক্ত করুন'}
                         </h3>
                         <button
+                          type="button"
                           onClick={() => setIsResellProductModalOpen(false)}
                           className="w-7 h-7 rounded-full bg-[#101010] border border-[#3D3215] text-[#A3A3A3] hover:text-white flex items-center justify-center cursor-pointer"
                         >
@@ -3919,7 +4007,19 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                             toast.error("প্রোডাক্টের নাম লিখুন");
                             return;
                           }
+                          if (resellProductImages.length === 0 && !resellProductImageUrl.trim()) {
+                            toast.error("অন্তত ১টি প্রোডাক্টের ছবি আপলোড করুন!");
+                            return;
+                          }
+
+                          setIsSavingResellProduct(true);
                           try {
+                            const finalImages = resellProductImages.length > 0
+                              ? resellProductImages.slice(0, 10)
+                              : [resellProductImageUrl.trim()];
+                            const primaryImage = finalImages[0] || 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=600';
+                            const prodId = editingResellProductId || ('prod_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6));
+
                             const pData = {
                               title: resellProductTitle.trim(),
                               category: resellProductCategory.trim() || 'সাধারণ',
@@ -3927,28 +4027,157 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                               wholesalePrice: Number(resellProductWholesalePrice) || 0,
                               minResalePrice: Number(resellProductMinResalePrice) || 0,
                               stock: Number(resellProductStock) || 0,
-                              imageUrl: resellProductImageUrl.trim() || 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=600',
-                              updatedAt: serverTimestamp()
+                              imageUrl: primaryImage,
+                              images: finalImages,
                             };
 
-                            if (editingResellProductId) {
-                              await updateDoc(doc(db, "reselling_products", editingResellProductId), pData);
-                              toast.success("প্রোডাক্ট সফলভাবে আপডেট হয়েছে!");
-                            } else {
-                              await addDoc(collection(db, "reselling_products"), {
-                                ...pData,
-                                createdAt: serverTimestamp()
+                            // 1. Save to persistent backend API immediately
+                            try {
+                              await fetch('/api/reselling-products', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ id: prodId, ...pData })
                               });
-                              toast.success("নতুন প্রোডাক্ট সফলভাবে যুক্ত হয়েছে!");
+                            } catch (_) {}
+
+                            // 2. Save to Firestore with timeout so offline connection never hangs
+                            try {
+                              await Promise.race([
+                                setDoc(doc(db, "reselling_products", prodId), {
+                                  ...pData,
+                                  updatedAt: serverTimestamp(),
+                                  ...(editingResellProductId ? {} : { createdAt: serverTimestamp() })
+                                }, { merge: true }),
+                                new Promise(resolve => setTimeout(resolve, 3500))
+                              ]);
+                            } catch (fsErr) {
+                              console.warn("Firestore product write warning (handled):", fsErr);
                             }
 
+                            // 3. Optimistically update admin state
+                            setAdminResellProducts(prev => {
+                              const item = { id: prodId, ...pData };
+                              const exists = prev.some(p => p.id === prodId);
+                              if (exists) {
+                                return prev.map(p => p.id === prodId ? { ...p, ...item } : p);
+                              }
+                              return [item, ...prev];
+                            });
+
+                            toast.success(editingResellProductId ? "প্রোডাক্ট সফলভাবে আপডেট হয়েছে!" : "নতুন প্রোডাক্ট সফলভাবে যুক্ত হয়েছে!");
                             setIsResellProductModalOpen(false);
                           } catch (err: any) {
                             toast.error("সেভ করতে সমস্যা হয়েছে: " + err.message);
+                          } finally {
+                            setIsSavingResellProduct(false);
                           }
                         }}
-                        className="space-y-3 text-xs font-bold"
+                        className="space-y-3.5 text-xs font-bold"
                       >
+                        {/* Direct Multi-Image Upload Section (Up to 10 photos) */}
+                        <div className="bg-[#101010] border border-[#3D3215] rounded-2xl p-3.5 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[11px] font-black text-[#FACC15] uppercase flex items-center gap-1.5">
+                              <Camera className="w-3.5 h-3.5" />
+                              প্রোডাক্টের ছবি সরাসরি আপলোড করুন ({resellProductImages.length}/10)
+                            </label>
+                            {resellProductImages.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setResellProductImages([]);
+                                  setResellProductImageUrl('');
+                                }}
+                                className="text-[10px] text-rose-400 hover:underline cursor-pointer"
+                              >
+                                সব মুছুন
+                              </button>
+                            )}
+                          </div>
+
+                          {resellProductImages.length < 10 && (
+                            <label className={`flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-4 transition cursor-pointer ${
+                              isUploadingResellImages
+                                ? 'border-[#FACC15] bg-[#FACC15]/5 opacity-70 pointer-events-none'
+                                : 'border-[#3D3215] hover:border-[#FACC15] bg-[#151515]/60 hover:bg-[#1C1C1C]'
+                            }`}>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                multiple
+                                onChange={handleResellImageFilesChange}
+                                disabled={isUploadingResellImages}
+                                className="hidden"
+                              />
+                              <div className="w-10 h-10 rounded-full bg-[#FACC15]/15 border border-[#FACC15]/40 flex items-center justify-center text-[#FACC15] mb-2">
+                                <Camera className={`w-5 h-5 ${isUploadingResellImages ? 'animate-bounce' : ''}`} />
+                              </div>
+                              <span className="text-xs font-black text-white text-center">
+                                {isUploadingResellImages ? 'ছবি অপ্টিমাইজ ও আপলোড হচ্ছে...' : 'গ্যালারি থেকে এক বা একাধিক ছবি সিলেক্ট করুন'}
+                              </span>
+                              <span className="text-[10px] text-[#A3A3A3] mt-0.5 text-center">
+                                একসাথে সর্বোচ্চ ১০টি ছবি সরাসরি আপলোড করা যাবে (লিংক দেওয়ার প্রয়োজন নেই)
+                              </span>
+                            </label>
+                          )}
+
+                          {/* Uploaded Images Preview Grid */}
+                          {resellProductImages.length > 0 && (
+                            <div className="space-y-1.5">
+                              <p className="text-[10px] text-[#A3A3A3]">
+                                ১ম ছবিটি কভার ছবি হিসেবে দেখাবে। যেকোনো ছবিতে ট্যাপ করে সেটিকে মূল ছবি বানাতে পারবেন:
+                              </p>
+                              <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
+                                {resellProductImages.map((imgUrl, idx) => (
+                                  <div
+                                    key={idx}
+                                    className={`relative group rounded-xl overflow-hidden border-2 aspect-square bg-[#151515] ${
+                                      idx === 0 ? 'border-[#FACC15] shadow-md shadow-[#FACC15]/20' : 'border-[#3D3215]'
+                                    }`}
+                                  >
+                                    <img
+                                      src={imgUrl}
+                                      alt={`Photo ${idx + 1}`}
+                                      onClick={() => {
+                                        if (idx === 0) return;
+                                        setResellProductImages(prev => {
+                                          const copy = [...prev];
+                                          const [picked] = copy.splice(idx, 1);
+                                          const reordered = [picked, ...copy];
+                                          setResellProductImageUrl(reordered[0] || '');
+                                          return reordered;
+                                        });
+                                        toast.success("ছবিটি মূল (কভার) ছবি হিসেবে সেট করা হয়েছে!");
+                                      }}
+                                      className="w-full h-full object-cover cursor-pointer"
+                                      title={idx === 0 ? "মূল ছবি" : "মূল ছবি করতে ক্লিক করুন"}
+                                    />
+                                    <span className={`absolute bottom-1 left-1 px-1.5 py-0.5 rounded text-[8px] font-black uppercase pointer-events-none ${
+                                      idx === 0 ? 'bg-[#FACC15] text-black' : 'bg-black/75 text-white'
+                                    }`}>
+                                      {idx === 0 ? 'মূল ছবি' : `#${idx + 1}`}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setResellProductImages(prev => {
+                                          const next = prev.filter((_, i) => i !== idx);
+                                          setResellProductImageUrl(next[0] || '');
+                                          return next;
+                                        });
+                                      }}
+                                      className="absolute top-1 right-1 w-5 h-5 rounded-full bg-rose-600/90 hover:bg-rose-500 text-white flex items-center justify-center shadow cursor-pointer"
+                                      title="ছবি মুছুন"
+                                    >
+                                      <X className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
                         <div>
                           <label className="text-[10px] text-[#A3A3A3] uppercase block mb-1">প্রোডাক্ট নাম/টাইটেল</label>
                           <input
@@ -4017,29 +4246,23 @@ const handleToggleBlock = (userId: string, currentStatus: boolean) => {
                           <label className="text-[10px] text-[#A3A3A3] uppercase block mb-1">প্রোডাক্ট বিবরণ (Description)</label>
                           <textarea
                             rows={3}
-                            placeholder="প্রোডাক্টের বৈশিষ্ট্য ও তথ্য..."
+                            placeholder="প্রোডাক্টের বৈশিষ্ট্য, সাইজ, কালার ও বিস্তারিত তথ্য..."
                             value={resellProductDesc}
                             onChange={e => setResellProductDesc(e.target.value)}
                             className="w-full bg-[#101010] border border-[#3D3215] px-3.5 py-2.5 rounded-xl text-white outline-none focus:border-[#FACC15]"
                           />
                         </div>
 
-                        <div>
-                          <label className="text-[10px] text-[#A3A3A3] uppercase block mb-1">ছবি লিংক (Image URL)</label>
-                          <input
-                            type="url"
-                            placeholder="https://images.unsplash.com/..."
-                            value={resellProductImageUrl}
-                            onChange={e => setResellProductImageUrl(e.target.value)}
-                            className="w-full bg-[#101010] border border-[#3D3215] px-3.5 py-2.5 rounded-xl text-white outline-none focus:border-[#FACC15]"
-                          />
-                        </div>
-
                         <button
                           type="submit"
-                          className="w-full py-3 bg-gradient-to-r from-[#D4A017] to-[#FACC15] text-[#090909] font-black uppercase tracking-wider rounded-xl shadow-lg mt-2 cursor-pointer hover:opacity-95"
+                          disabled={isUploadingResellImages || isSavingResellProduct}
+                          className="w-full py-3.5 bg-gradient-to-r from-[#D4A017] to-[#FACC15] text-[#090909] font-black uppercase tracking-wider rounded-xl shadow-lg mt-2 cursor-pointer hover:opacity-95 disabled:opacity-50"
                         >
-                          {editingResellProductId ? 'প্রোডাক্ট আপডেট করুন' : 'প্রোডাক্ট সেভ করুন'}
+                          {isSavingResellProduct
+                            ? 'সেভ হচ্ছে...'
+                            : editingResellProductId
+                              ? 'প্রোডাক্ট আপডেট করুন'
+                              : 'প্রোডাক্ট সেভ করুন'}
                         </button>
                       </form>
                     </motion.div>
