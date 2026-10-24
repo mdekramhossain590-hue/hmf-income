@@ -51,71 +51,14 @@ export interface ResellOrder {
   createdAt: any;
 }
 
-const DEFAULT_PRODUCTS: ResellProduct[] = [
-  {
-    id: 'prod_1',
-    title: 'স্মার্ট ওয়াচ ও ফিটনেস ট্র্যাকার (Smart Watch T800)',
-    description: 'এইচডি টাচ স্ক্রিন, হার্ট রেট ও স্লিপ মনিটর, কলিং সুবিধা ও রিয়েলটাইম নোটিফিকেশন সহ ওয়াটারপ্রুফ স্মার্ট ওয়াচ।',
-    wholesalePrice: 350,
-    minResalePrice: 500,
-    imageUrl: 'https://images.unsplash.com/photo-1546868871-7041f2a55e12?q=80&w=600&auto=format&fit=crop',
-    images: [
-      'https://images.unsplash.com/photo-1546868871-7041f2a55e12?q=80&w=600&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1579586337278-3befd40fd17a?q=80&w=600&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?q=80&w=600&auto=format&fit=crop'
-    ],
-    category: 'গ্যাজেট',
-    stock: 50
-  },
-  {
-    id: 'prod_2',
-    title: 'ওয়্যারলেস এয়ারপডস ও ব্লুটুথ হেডফোন (AirPods Pro)',
-    description: 'নয়েজ ক্যানসেলেশন, টাচ কন্ট্রোল, ক্রিস্টাল ক্লিয়ার বেস সাউন্ড ও অতিরিক্ত ৩ দিন ব্যাটারি ব্যাকআপ কেস।',
-    wholesalePrice: 350,
-    minResalePrice: 500,
-    imageUrl: 'https://images.unsplash.com/photo-1600294037681-c80b4cb5b434?q=80&w=600&auto=format&fit=crop',
-    images: [
-      'https://images.unsplash.com/photo-1600294037681-c80b4cb5b434?q=80&w=600&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1588423771073-b8903fbb85b5?q=80&w=600&auto=format&fit=crop'
-    ],
-    category: 'হেডফোন',
-    stock: 80
-  },
-  {
-    id: 'prod_3',
-    title: 'মিনি ট্রিমার ও শেভার ওয়াটারপ্রুফ (Rechargeable Shaver)',
-    description: 'ফাস্ট টাইপ-সি চার্জিং, স্টেইনলেস স্টিল ব্লেড, পোর্টেবল পকেট ট্রিমার জেনুইন পারফরম্যান্স সহ।',
-    wholesalePrice: 290,
-    minResalePrice: 450,
-    imageUrl: 'https://images.unsplash.com/photo-1621607512214-68297480165e?q=80&w=600&auto=format&fit=crop',
-    images: [
-      'https://images.unsplash.com/photo-1621607512214-68297480165e?q=80&w=600&auto=format&fit=crop'
-    ],
-    category: 'পার্সোনাল কেয়ার',
-    stock: 45
-  },
-  {
-    id: 'prod_4',
-    title: 'প্রিমিয়াম ওয়াটারপ্রুফ ব্যাকপ্যাক (Laptop Travel Bag)',
-    description: 'ইউএসবি পোর্ট, অ্যান্টি-থেফট জিপার, ওয়াটারপ্রুফ অক্সফোর্ড ফেব্রিক ও ১৫.৬ ইঞ্চি ল্যাপটপ রাখার সুবিধা।',
-    wholesalePrice: 620,
-    minResalePrice: 850,
-    imageUrl: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?q=80&w=600&auto=format&fit=crop',
-    images: [
-      'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?q=80&w=600&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1581605405669-fcdf81165afa?q=80&w=600&auto=format&fit=crop'
-    ],
-    category: 'লাইফস্টাইল',
-    stock: 30
-  }
-];
+const DEMO_PRODUCT_IDS = new Set(['prod_1', 'prod_2', 'prod_3', 'prod_4']);
 
 export function Reselling() {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'catalog' | 'my_orders'>('catalog');
   
-  const [products, setProducts] = useState<ResellProduct[]>(DEFAULT_PRODUCTS);
+  const [products, setProducts] = useState<ResellProduct[]>([]);
   const [orders, setOrders] = useState<ResellOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -265,14 +208,13 @@ export function Reselling() {
 
     const mergeAndSetProducts = () => {
       const map = new Map<string, ResellProduct>();
-      apiLoadedProducts.forEach(p => map.set(p.id, p));
-      firestoreLoadedProducts.forEach(p => map.set(p.id, p));
-      const combined = Array.from(map.values());
-      if (combined.length > 0) {
-        setProducts(combined);
-      } else {
-        setProducts(DEFAULT_PRODUCTS);
-      }
+      apiLoadedProducts.forEach(p => {
+        if (!DEMO_PRODUCT_IDS.has(p.id)) map.set(p.id, p);
+      });
+      firestoreLoadedProducts.forEach(p => {
+        if (!DEMO_PRODUCT_IDS.has(p.id)) map.set(p.id, p);
+      });
+      setProducts(Array.from(map.values()));
     };
 
     // Load deposit numbers for advance fee
@@ -295,7 +237,7 @@ export function Reselling() {
     fetch('/api/reselling-products')
       .then(res => res.json())
       .then(data => {
-        if (data?.success && Array.isArray(data.products) && data.products.length > 0) {
+        if (data?.success && Array.isArray(data.products)) {
           apiLoadedProducts = data.products;
           mergeAndSetProducts();
         }
@@ -306,15 +248,11 @@ export function Reselling() {
     try {
       const q = query(collection(db, "reselling_products"));
       const unsubProd = onSnapshot(q, (snap) => {
-        if (!snap.empty) {
-          firestoreLoadedProducts = snap.docs.map(docSnap => ({
-            id: docSnap.id,
-            ...docSnap.data()
-          } as ResellProduct));
-          mergeAndSetProducts();
-        } else if (apiLoadedProducts.length === 0) {
-          setProducts(DEFAULT_PRODUCTS);
-        }
+        firestoreLoadedProducts = snap.docs.map(docSnap => ({
+          id: docSnap.id,
+          ...docSnap.data()
+        } as ResellProduct));
+        mergeAndSetProducts();
       }, (err) => {
         console.warn("Resell products snapshot error handled:", err?.message);
         mergeAndSetProducts();
@@ -679,8 +617,17 @@ export function Reselling() {
 
           {/* Product Cards Grid */}
           <div className="space-y-5">
-            {filteredProducts.map((product) => {
-              const maxSellingPrice = getMaxResalePrice(product);
+            {filteredProducts.length === 0 ? (
+              <div className="bg-[#151515] rounded-[24px] p-8 border border-[#3D3215] text-center space-y-2.5">
+                <Package className="w-10 h-10 text-[#737373] mx-auto" />
+                <h3 className="text-sm font-black text-white uppercase">বর্তমানে কোনো প্রোডাক্ট নেই</h3>
+                <p className="text-xs text-[#A3A3A3]">
+                  এডমিন নতুন রিসেলিং প্রোডাক্ট যুক্ত করলে এখানে দেখতে পাবেন।
+                </p>
+              </div>
+            ) : (
+              filteredProducts.map((product) => {
+                const maxSellingPrice = getMaxResalePrice(product);
               const rawCustomPrice = productCustomPrices[product.id];
               const inputSellingPrice = rawCustomPrice !== undefined ? rawCustomPrice : maxSellingPrice;
               const effectiveResalePrice = getEffectiveResalePrice(product);
@@ -885,7 +832,8 @@ export function Reselling() {
                   </button>
                 </div>
               );
-            })}
+            })
+            )}
           </div>
         </div>
       )}

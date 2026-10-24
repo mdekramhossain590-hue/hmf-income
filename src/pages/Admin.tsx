@@ -513,14 +513,19 @@ export function AdminPanel() {
     }
 
     if (['products', 'dashboard'].includes(activeTab)) {
+      const demoIds = new Set(['prod_1', 'prod_2', 'prod_3', 'prod_4']);
       fetch('/api/reselling-products')
         .then(r => r.json())
         .then(data => {
-          if (data?.success && Array.isArray(data.products) && data.products.length > 0) {
+          if (data?.success && Array.isArray(data.products)) {
             setAdminResellProducts(prev => {
               const map = new Map<string, any>();
-              data.products.forEach((p: any) => map.set(p.id, p));
-              prev.forEach(p => map.set(p.id, p));
+              data.products.forEach((p: any) => {
+                if (!demoIds.has(p.id)) map.set(p.id, p);
+              });
+              prev.forEach(p => {
+                if (!demoIds.has(p.id)) map.set(p.id, p);
+              });
               return Array.from(map.values());
             });
           }
@@ -531,8 +536,12 @@ export function AdminPanel() {
         const fsList = snap.docs.map(d => ({id: d.id, ...d.data()} as any));
         setAdminResellProducts(prev => {
           const map = new Map<string, any>();
-          prev.forEach(p => map.set(p.id, p));
-          fsList.forEach(p => map.set(p.id, p));
+          prev.forEach(p => {
+            if (!demoIds.has(p.id)) map.set(p.id, p);
+          });
+          fsList.forEach(p => {
+            if (!demoIds.has(p.id)) map.set(p.id, p);
+          });
           return Array.from(map.values());
         });
       }, logErr));
